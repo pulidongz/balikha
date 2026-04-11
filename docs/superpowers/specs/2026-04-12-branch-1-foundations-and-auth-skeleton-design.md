@@ -1,11 +1,15 @@
 ---
-title: "Branch 1 — Foundations and Auth Skeleton"
+title: "Branch 1 — Foundations and Auth Skeleton (Split-Service, SUPERSEDED)"
 date: 2026-04-12
 branch: feature/foundations-and-auth-skeleton
 parent_plan: /app-plan.md
-status: design-approved
+status: superseded
+superseded_by: /Users/pul/Projects/Others/Claude Project Plans/gpul-pottery/balikha/docs/superpowers/specs/2026-04-12-branch-1-foundations-and-auth-skeleton-monolithic-design.md
+superseded_reason: "Principal-engineer review surfaced multiple correctness issues rooted in the split-service architecture (cookie forwarding, testcontainers ordering, module-load env validation, dev-compose migration gap, and more). After brainstorming alternatives, the user chose to collapse to a monolithic Next.js architecture. See the new spec for the full redesign. This file is preserved as historical context for the reasoning that led to the pivot."
 related_review: /Users/pul/.claude/plans/app-plan-plan-review-round-1.md
 ---
+
+> **SUPERSEDED.** This spec described a split-service architecture (Hono backend + Next.js frontend talking through `rewrites()`). A principal-engineer review identified multiple correctness issues rooted in the split-service design, and the architecture was collapsed to a monolithic Next.js application. The active spec is at `2026-04-12-branch-1-foundations-and-auth-skeleton-monolithic-design.md`. This file is kept as historical context.
 
 # Balikha — Branch 1: Foundations and Auth Skeleton
 
