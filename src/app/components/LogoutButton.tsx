@@ -17,6 +17,8 @@ export function LogoutButton() {
     try {
       await clientFetch('/api/auth/sign-out', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       router.push('/');
       router.refresh();
