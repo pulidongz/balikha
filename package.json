@@ -19,17 +19,18 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "next": "16.2.2",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
     "better-auth": "^1.2.8",
     "drizzle-orm": "^0.45.2",
+    "next": "16.2.2",
     "pg": "^8.20.0",
     "pino": "^9.6.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "server-only": "^0.0.1",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@better-auth/cli": "1.4.21",
     "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

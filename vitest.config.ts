@@ -10,8 +10,8 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/e2e/**'],
   },
   resolve: {
-    alias: {
-      '@': new URL('./src', import.meta.url).pathname,
-    },
+    // Resolves tsconfig `paths` aliases (e.g. @/*) and handles the
+    // TypeScript ESM `.js`-extension convention (`@/foo/bar.js` -> `bar.ts`).
+    tsconfigPaths: true,
   },
 });

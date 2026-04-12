@@ -1,8 +1,8 @@
 import 'server-only';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { env } from '../config/env.js';
-import { logger } from '../lib/logger.js';
+import { env } from '../config/env';
+import { logger } from '../lib/logger';
 
 export const pool: pg.Pool = new pg.Pool({
   connectionString: env.DATABASE_URL,

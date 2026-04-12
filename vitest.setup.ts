@@ -10,11 +10,11 @@ import { cleanup } from '@testing-library/react';
 vi.mock('server-only', () => ({}));
 
 // Minimal env for modules that import `env` transitively during tests.
-// DATABASE_URL must be present so the module-level `parseEnv()` call in
-// env.ts does not throw on import. The auth integration test that actually
-// connects to the DB sets its own real URL in beforeAll.
+// DATABASE_URL points at the real test database because modules like
+// db/index.ts create a pg.Pool at import time (before beforeAll runs).
+// The auth integration tests use this pool to run against balikha_test.
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+process.env.DATABASE_URL = 'postgresql://balikha:secret@localhost:5432/balikha_test';
 process.env.AUTH_SECRET = 'test-secret-at-least-32-characters-long-ok';
 process.env.APP_URL = 'http://localhost:3000';
 

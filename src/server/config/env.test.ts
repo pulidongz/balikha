@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseEnv, EnvValidationError } from './env.js';
+import { parseEnv, EnvValidationError } from './env';
 
 const validEnv = {
   NODE_ENV: 'development',
@@ -18,8 +18,13 @@ describe('parseEnv', () => {
   });
 
   it('throws EnvValidationError when AUTH_SECRET is missing', () => {
-    const { AUTH_SECRET: _, ...env } = validEnv;
-    expect(() => parseEnv(env)).toThrow(EnvValidationError);
+    expect(() =>
+      parseEnv({
+        NODE_ENV: validEnv.NODE_ENV,
+        DATABASE_URL: validEnv.DATABASE_URL,
+        APP_URL: validEnv.APP_URL,
+      }),
+    ).toThrow(EnvValidationError);
   });
 
   it('throws EnvValidationError when AUTH_SECRET is shorter than 32 characters', () => {

@@ -11,9 +11,7 @@ export default function Error({
   return (
     <main className={styles.container}>
       <h1 className={styles.title}>Something went wrong</h1>
-      <p className={styles.description}>
-        An unexpected error occurred. Please try again.
-      </p>
+      <p className={styles.description}>An unexpected error occurred. Please try again.</p>
       <button type="button" onClick={unstable_retry} className={styles.button}>
         Try again
       </button>
