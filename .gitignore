@@ -30,4 +30,4 @@ test-results/
 .playwright/
 
 # Drizzle
-drizzle/meta/
+# drizzle/meta/ must NOT be ignored — it contains _journal.json needed by the migrator
