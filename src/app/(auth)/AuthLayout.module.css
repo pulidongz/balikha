@@ -1,0 +1,80 @@
+.wrapper {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  .wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--brand-primary);
+  padding: var(--space-8);
+}
+
+@media (max-width: 768px) {
+  .brand {
+    padding: var(--space-6) var(--space-4);
+    min-height: auto;
+  }
+}
+
+.brandContent {
+  max-width: 28rem;
+  text-align: center;
+}
+
+.brandTitle {
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--neutral-100);
+  margin-bottom: var(--space-4);
+}
+
+.brandTagline {
+  font-size: var(--text-lg);
+  color: var(--neutral-100);
+  opacity: 0.92;
+  margin-bottom: var(--space-6);
+  line-height: var(--leading-normal);
+}
+
+.accentBar {
+  width: 4rem;
+  height: 4px;
+  background-color: var(--brand-accent);
+  margin: 0 auto var(--space-6);
+  border-radius: var(--radius-full);
+}
+
+.brandFootnote {
+  font-size: var(--text-sm);
+  color: var(--neutral-100);
+  opacity: 0.7;
+}
+
+.form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--brand-bg);
+  padding: var(--space-8);
+}
+
+.formContent {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.formHeading {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--neutral-900);
+  margin-bottom: var(--space-6);
+}

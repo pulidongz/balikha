@@ -1,0 +1,29 @@
+.button {
+  background: none;
+  border: none;
+  color: var(--brand-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+}
+
+.button:hover {
+  color: var(--brand-primary-hover);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin-left: var(--space-2);
+}
