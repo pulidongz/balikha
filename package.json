@@ -1,14 +1,59 @@
 {
-  "name": "balikha-e2e",
+  "name": "balikha",
   "version": "0.1.0",
   "private": true,
-  "description": "End-to-end tests for Balikha (Playwright)",
+  "type": "module",
   "scripts": {
+    "dev": "npm run db:migrate && next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed"
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "better-auth": "^1.2.8",
+    "drizzle-orm": "^0.45.2",
+    "next": "16.2.2",
+    "pg": "^8.20.0",
+    "pino": "^9.6.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1"
+    "@better-auth/cli": "1.4.21",
+    "@playwright/test": "^1.59.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.4",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.2",
+    "husky": "^9.1.0",
+    "jsdom": "^29.0.2",
+    "lint-staged": "^16.0.0",
+    "pino-pretty": "^13.0.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write"
   }
 }
