@@ -4,17 +4,18 @@ date: 2026-04-12
 branch: feature/foundations-and-auth-skeleton
 parent_plan: /app-plan.md
 supersedes: /Users/pul/Projects/Others/Claude Project Plans/gpul-pottery/balikha/docs/superpowers/specs/2026-04-12-branch-1-foundations-and-auth-skeleton-design.md
-status: design-approved
+status: revised-after-review-round-1
 related_reviews:
   - /Users/pul/.claude/plans/app-plan-plan-review-round-1.md
   - /Users/pul/.claude/plans/2026-04-12-branch-1-foundations-and-auth-skeleton-design-plan-review-round-1.md
+  - /Users/pul/.claude/plans/2026-04-12-branch-1-foundations-and-auth-skeleton-monolithic-design-plan-review-round-1.md
 ---
 
 # Balikha — Branch 1: Foundations and Auth Skeleton (Monolithic)
 
 ## 1. Overview
 
-This is the first feature branch of the Balikha marketplace. It establishes the foundational layer every subsequent branch depends on — environment validation, structured logging, error handling, graceful shutdown, CSS Modules styling with design tokens, error pages, and Better Auth with email and password authentication.
+This is the first feature branch of the Balikha marketplace. It establishes the foundational layer every subsequent branch depends on — environment validation, structured logging, CSS Modules styling with design tokens, error pages, and Better Auth with email and password authentication.
 
 It does **not** ship any marketplace features. There are no shops, items, orders, seller dashboards, or admin UIs beyond what auth itself requires. The branch ends when a user can sign up, sign in, see their session on the home page, and sign out.
 
@@ -40,7 +41,7 @@ The original spec used Hono for the backend. With monolithic architecture, Hono'
 
 ### 2.3 Repo flattening
 
-The existing `backend/` and `frontend/` directories collapse into a flat Next.js layout at the repo root. The repo **is** the Next.js app. Server-only code lives under `src/server/` with an `import 'server-only'` guard at the top of every module. This rename lands in the first commit of the branch.
+The existing `backend/` and `frontend/` directories collapse into a flat Next.js layout at the repo root. The repo **is** the Next.js app. Server-only code lives under `src/server/` with an `import 'server-only'` guard at the top of every module. `src/lib/auth.ts` also imports `'server-only'` because it is server-only code even though it lives outside `src/server/` (placed at `src/lib/` for Better Auth CLI auto-discovery). This rename lands in the first commit of the branch.
 
 ### 2.4 Environment variable shape
 
@@ -76,7 +77,7 @@ Dark mode uses warm chocolate `#1F1612` as the page surface with brightened bran
 - **Email verification disabled** (`requireEmailVerification: false`). Password reset similarly deferred until an email transport is configured. Manual admin password reset documented as a workaround.
 - **Password minimum length**: 10 characters. No complexity requirements (NIST-style).
 - **Session defaults from Better Auth**: 7-day expiration with 1-day rolling refresh. Rolling refresh **now actually works** because the session write happens in the same process as the page render — the `Set-Cookie` flows directly into the Next.js response. The original spec's Issue 1 (Set-Cookie being dropped by `serverFetch`) is eliminated by the architecture.
-- **Additional fields** on the Better Auth `user` table: `role` (string, default `'buyer'`, `input: false`) and `avatarUrl` (optional string). The `input: false` flag on `role` is the critical security control. A Vitest test calls `auth.api.signUpEmail({ body: { role: 'admin', ... } })` directly and asserts the resulting DB row has `role = 'buyer'`. This test must not be deleted.
+- **Additional fields** on the Better Auth `user` table: `role` (string, default `'buyer'`, `input: false`) and `avatarUrl` (optional string). The `input: false` flag on `role` is the critical security control. Two Vitest tests guard this: (1) an HTTP-path test that calls `auth.handler(new Request(...))` with `role: 'admin'` in the JSON body and asserts the DB row has `role = 'buyer'` — this is THE PRIMARY security test exercising the real attack surface; (2) a direct `auth.api.signUpEmail` test as defense-in-depth. Neither test must be deleted.
 
 ### 2.8 Owner account model (two separate accounts)
 
@@ -101,11 +102,11 @@ Migrations run via a standalone script `scripts/migrate.ts` that uses `drizzle-o
 
 The original spec's "Option A" (drizzle-kit in runtime image) is dropped. This resolves reviewer Issue 5 cleanly — no dev-deps in the production image, no footgun invariant.
 
-### 2.12 Env validation — lazy, not module-load-time
+### 2.12 Env validation — module-level constants, throws at import if invalid
 
-`src/server/config/env.ts` exports `parseEnv()` (pure function) and `getEnv()` (lazy singleton that calls `parseEnv()` on first access and caches the result). No `process.exit(1)` at module load. If `getEnv()` fails, it throws `EnvValidationError`, which propagates to whoever called it — Next.js's runtime will log it and the process crashes, but only at the moment of actual use, not at import.
+`src/server/config/env.ts` exports `parseEnv()` (pure function) and a module-level `export const env` that calls `parseEnv()` at import time. If `env` is imported and the environment is invalid, it throws `EnvValidationError` immediately. No lazy caching, no `getEnv()` wrapper, no `__resetEnvCache`.
 
-This resolves reviewer Issue 3 and eliminates the need for `vitest.setup.ts` to pre-populate env vars for tests that don't actually use env.
+Tests that exercise env validation call `parseEnv` with explicit inputs — they never import `env` directly. The `vitest.setup.ts` file sets `NODE_ENV`, `AUTH_SECRET`, and `APP_URL` so that modules importing `env` transitively don't fail during test startup.
 
 ## 3. Architecture
 
@@ -128,8 +129,8 @@ This resolves reviewer Issue 3 and eliminates the need for `vitest.setup.ts` to 
                        │         │         │
                        │  ┌──────▼──────┐  │
                        │  │ src/server  │  │
-                       │  │ auth, db,   │  │
-                       │  │ config, lib │  │
+                       │  │ + lib/auth  │  │
+                       │  │ db, config  │  │
                        │  └──────┬──────┘  │
                        └─────────┼─────────┘
                                  │
@@ -138,7 +139,7 @@ This resolves reviewer Issue 3 and eliminates the need for `vitest.setup.ts` to 
                            └───────────┘
 ```
 
-One process, one deploy, one container. All business logic lives in `src/server/`. Route handlers in `src/app/api/` are thin adapters that call into `src/server/`. Server components call `src/server/` functions directly — no HTTP indirection.
+One process, one deploy, one container. All business logic lives in `src/server/` and `src/lib/auth.ts`. Route handlers in `src/app/api/` are thin adapters that call into server code. Server components call server functions directly — no HTTP indirection.
 
 ### 3.2 The fetch-context model is simpler now
 
@@ -156,71 +157,39 @@ There are no "SSR fetches that need cookie forwarding" and no "three fetch conte
 app/api/ ─────────┐
    │              │
    ▼              ▼
-app/ components   server
-   │              │
-   └──────────────┤
-                  ▼
-              server/auth
-                  │
-                  ▼
-              server/db ─────────┐
-                  │              │
-                  ▼              ▼
-              server/config ─► server/lib
-                                (logger, errors)
+app/ components   lib/auth ──► server/db
+                                  │
+                              server/config ──► server/lib
+                                                (logger)
 ```
 
-Strict one-way dependency graph within `src/server/`. `app/` code (pages, layouts, components, route handlers) can import from `server/` but `server/` never imports from `app/`. Inside `server/`, the order is config → lib → db → auth, with no layer depending upward.
+Strict one-way dependency graph. `app/` code (pages, layouts, components, route handlers) can import from `server/` and `lib/auth` but neither `server/` nor `lib/auth` imports from `app/`. Inside `server/`, the dependency order is: `auth` depends on `db`. `db` depends on `config` and `lib`. `lib` depends on `config`. `config` depends on nothing.
 
 ### 3.4 Server-only boundary enforcement
 
-Every module in `src/server/` imports `'server-only'` at the top:
+Every module in `src/server/` imports `'server-only'` at the top. `src/lib/auth.ts` also imports `'server-only'` because it is server-only code (it accesses the database and auth secrets):
 
 ```ts
-// src/server/auth/index.ts
+// src/lib/auth.ts
 import 'server-only';
 // ... rest of the module
 ```
 
-Next.js's bundler replaces `'server-only'` with a build-time throw when a client bundle tries to pull it in, so any accidental leak (e.g., a client component importing from `@/server/auth`) fails the build with a clear error. The boundary is physical, not conventional.
+```ts
+// src/server/config/env.ts
+import 'server-only';
+// ... rest of the module
+```
+
+Next.js's bundler replaces `'server-only'` with a build-time throw when a client bundle tries to pull it in, so any accidental leak (e.g., a client component importing from `@/lib/auth` or `@/server/db`) fails the build with a clear error. The boundary is physical, not conventional.
 
 **Exception — standalone scripts.** `scripts/migrate.ts` is a Node.js-only script run via `tsx`, not part of the Next.js module graph. It does **not** import `'server-only'` because that package throws on import in a plain Node context (the webpack substitution only happens in Next.js's bundler). Scripts that need database access construct their own minimal connection rather than importing from `src/server/`. This is the documented exception, not the rule.
 
 ### 3.5 Request ID and structured logging
 
-- `src/middleware.ts` runs on every request, generates or sanitizes an `x-request-id` header using Web Crypto (`crypto.randomUUID()`, available in both Edge and Node runtimes), and attaches it to the response. Middleware runs on the Edge runtime by default — no Node-only APIs used.
+- `src/proxy.ts` runs on every request, generates or sanitizes an `x-request-id` header using Web Crypto (`crypto.randomUUID()`, available as a global in the Node.js runtime), and attaches it to the response. Proxy runs on the Node.js runtime in Next.js 16 (the `runtime` config option is not available in proxy files and throws if set). We still restrict proxy code to Web Standard APIs (`crypto.randomUUID`, `Headers`, `URL`) so the proxy stays lightweight and can move back to Edge if needed without rewrites.
 - Route handlers and server components read the request ID via `await headers()` and pass it to the pino logger when logging.
-- Per-request structured logging (one log line per request with method/path/status/duration) is deferred to `feature/observability-baseline` — it requires either Node-runtime middleware or instrumentation hooks, both of which add complexity. Branch 1 gets request IDs and ad-hoc logging from route handlers. The cross-cutting request logger lands later.
-
-### 3.6 Graceful shutdown
-
-Handled via Next.js's `src/instrumentation.ts` hook, which runs once at server boot and registers SIGTERM/SIGINT handlers:
-
-```ts
-// src/instrumentation.ts
-export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { closePool } = await import('./server/db/index.js');
-    const { logger } = await import('./server/lib/logger.js');
-
-    const shutdown = async (signal: string) => {
-      logger.info({ signal }, 'shutdown initiated');
-      try {
-        await closePool();
-      } catch (err) {
-        logger.error({ err }, 'error draining pg pool during shutdown');
-      }
-      await new Promise<void>((resolve) => logger.flush?.(() => resolve()));
-      process.exit(0);
-    };
-
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-  }
-}
-```
-
-The `NEXT_RUNTIME === 'nodejs'` guard ensures the instrumentation only runs for the Node runtime, not Edge. The pino flush uses the real `logger.flush(callback)` API instead of `setTimeout(100)` — resolves reviewer Issue 14.
+- Per-request structured logging (one log line per request with method/path/status/duration) is deferred to `feature/observability-baseline` — it requires either Node-runtime proxy hooks or instrumentation hooks, both of which add complexity. Branch 1 gets request IDs and ad-hoc logging from route handlers. The cross-cutting request logger lands later.
 
 ## 4. Design tokens and styling system
 
@@ -452,29 +421,26 @@ balikha/
 │   │   ├── page.tsx                          REWRITE — session-aware home
 │   │   └── page.module.css                   NEW
 │   │
-│   ├── lib/                                  NEW — client-safe utilities
-│   │   └── api/
-│   │       └── client.ts                     NEW — client fetch helper + ApiFetchError
+│   ├── lib/                                  NEW — client-safe utilities + auth
+│   │   ├── api/
+│   │   │   └── client.ts                     NEW — client fetch helper + ApiFetchError
+│   │   ├── auth.ts                           NEW — Better Auth instance (server-only)
+│   │   └── auth.test.ts                      NEW — unit test including input:false security guard
 │   │
 │   ├── server/                               NEW — server-only, 'server-only' imported at top of each file
-│   │   ├── auth/
-│   │   │   ├── index.ts                      NEW — Better Auth instance
-│   │   │   └── auth.test.ts                  NEW — unit test including input:false security guard
 │   │   ├── config/
-│   │   │   ├── env.ts                        NEW — Zod schema, parseEnv, getEnv lazy
+│   │   │   ├── env.ts                        NEW — Zod schema, parseEnv, module-level env constant
 │   │   │   └── env.test.ts                   NEW
 │   │   ├── db/
-│   │   │   ├── index.ts                      NEW — getPool, getDb, closePool
+│   │   │   ├── index.ts                      NEW — pool, db, closePool (test infrastructure)
 │   │   │   └── schema.ts                     NEW — Better Auth-generated
 │   │   └── lib/
-│   │       ├── errors.ts                     NEW — ApiErrorBody, HttpError, apiError helper
 │   │       └── logger.ts                     NEW — pino
 │   │
 │   ├── styles/                               NEW
 │   │   └── tokens.css                        NEW — design tokens (full set, section 4)
 │   │
-│   ├── middleware.ts                         NEW — request ID
-│   └── instrumentation.ts                    NEW — graceful shutdown
+│   └── proxy.ts                              NEW — request ID
 │
 ├── drizzle/                                  populated by db:generate
 │   ├── 0000_<name>.sql                       NEW (generated)
@@ -502,7 +468,7 @@ balikha/
 ├── CONVENTIONS.md                            NEW
 ├── docker-compose.yml                        REWRITE — postgres only (minio removed until needed)
 ├── Dockerfile                                deferred to ops/deployment branch
-├── drizzle.config.ts                         moved from backend/
+├── drizzle.config.ts                         moved from backend/, REWRITE with new schema path
 ├── next.config.ts                            REWRITE — removes rewrites, adds remotePatterns
 ├── package.json                              REWRITE — single package with all deps
 ├── playwright.config.ts                      unchanged
@@ -523,7 +489,8 @@ balikha/
 
 **Dev:**
 - `drizzle-kit` — migration generation only (not runtime)
-- `typescript`, `@types/node`, `@types/react`, `@types/react-dom`, `@types/pg`
+- `typescript: ^6.0.x` — the backend's current version. During the flattening commit, verify that Better Auth, Drizzle, eslint-config-next, and @testing-library/react all compile cleanly under TS 6. If any library fails, fall back to `typescript@^5.7.x` and document the incompatibility.
+- `@types/node`, `@types/react`, `@types/react-dom`, `@types/pg`
 - `eslint`, `eslint-config-next`
 - `prettier`
 - `vitest`, `@vitest/coverage-v8`
@@ -543,11 +510,25 @@ balikha/
 
 ### 5.2 TypeScript path alias
 
-`tsconfig.json` defines `@/*` → `./src/*` so imports look like `@/server/auth`, `@/lib/api/client`, `@/app/components/LogoutButton`. Consistent with Next.js conventions.
+`tsconfig.json` defines `@/*` → `./src/*` so imports look like `@/lib/auth`, `@/server/db`, `@/lib/api/client`, `@/app/components/LogoutButton`. Consistent with Next.js conventions.
+
+### 5.3 `drizzle.config.ts`
+
+Lives at the repo root. Required by `drizzle-kit generate` to locate the schema and output directory.
+
+```ts
+import { defineConfig } from 'drizzle-kit';
+export default defineConfig({
+  schema: './src/server/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: { url: process.env.DATABASE_URL! },
+});
+```
 
 ## 6. Server foundation layer
 
-### 6.1 `src/server/config/env.ts` — lazy-loaded Zod env
+### 6.1 `src/server/config/env.ts` — module-level Zod env
 
 ```ts
 import 'server-only';
@@ -581,145 +562,79 @@ export function parseEnv(source: NodeJS.ProcessEnv = process.env): Env {
   return parsed.data;
 }
 
-let cached: Env | null = null;
-
 /**
- * Lazy singleton — parses process.env on first call, caches the result.
- * Throws EnvValidationError on invalid env; the caller decides how to handle.
- * Next.js's runtime will surface the error naturally (stack trace in server logs).
+ * Module-level constant — parses process.env at import time.
+ * Throws EnvValidationError immediately if env is invalid.
  */
-export function getEnv(): Env {
-  if (cached === null) {
-    cached = parseEnv();
-  }
-  return cached;
-}
-
-/** Test-only: reset the cache so tests can re-parse with different process.env. */
-export function __resetEnvCache(): void {
-  cached = null;
-}
+export const env: Env = parseEnv();
 ```
 
-No `process.exit(1)` at module load. No test-setup file needed for env — tests that exercise env validation call `parseEnv` with explicit inputs, tests that don't touch env simply never call `getEnv`.
+No `process.exit(1)` at module load — the throw propagates naturally. Tests that exercise env validation call `parseEnv` with explicit inputs and never import `env` directly.
 
 ### 6.2 `src/server/lib/logger.ts` — pino
 
 ```ts
 import 'server-only';
 import pino from 'pino';
-import { getEnv } from '../config/env.js';
+import { env } from '../config/env.js';
 
-let cached: pino.Logger | null = null;
-
-export function getLogger(): pino.Logger {
-  if (cached === null) {
-    const env = getEnv();
-    cached = pino({
-      level: env.NODE_ENV === 'production' ? 'info' : 'debug',
-      base: { service: 'balikha' },
-      ...(env.NODE_ENV === 'development' && {
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'HH:MM:ss.l',
-            ignore: 'pid,hostname,service',
-          },
-        },
-      }),
-    });
-  }
-  return cached;
-}
-
-export const logger = getLogger();
+export const logger: pino.Logger = pino({
+  level: env.NODE_ENV === 'production' ? 'info' : 'debug',
+  base: { service: 'balikha' },
+  ...(env.NODE_ENV === 'development' && {
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'HH:MM:ss.l',
+        ignore: 'pid,hostname,service',
+      },
+    },
+  }),
+});
 ```
 
-Exports both `getLogger()` and a module-level `logger` singleton. Most callers use `logger` directly; tests can call `getLogger()` after `__resetEnvCache()` to reconstruct.
+Exports a module-level `logger` singleton. Most callers use `logger` directly.
 
-### 6.3 `src/server/lib/errors.ts` — API error shape
+### 6.3 `src/server/lib/errors.ts` — deferred to branch 2
 
-```ts
-import 'server-only';
+API error types and helpers are deferred to branch 2 (`feature/marketplace-schema-rbac`), which lands the first custom route handlers. Branch 1 has zero custom routes — Better Auth handles all `/api/` traffic — so error-response infrastructure has no consumer yet.
 
-export interface ApiErrorBody {
-  error: string;
-  code: string;
-  requestId: string;
-}
-
-export class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly code: string,
-  ) {
-    super(message);
-    this.name = 'HttpError';
-  }
-}
-
-export function apiErrorResponse(
-  status: number,
-  error: string,
-  code: string,
-  requestId: string,
-): Response {
-  const body: ApiErrorBody = { error, code, requestId };
-  return Response.json(body, { status });
-}
-```
-
-`code` is **required**, not optional — resolves reviewer Issue 18. A small set of canonical codes: `DB_UNREACHABLE`, `INTERNAL_ERROR`, `NOT_FOUND`, plus any Better Auth passes through. Documented in CONVENTIONS.md.
-
-### 6.4 `src/server/db/index.ts` — lazy pool, graceful close
+### 6.4 `src/server/db/index.ts` — pool and db
 
 ```ts
 import 'server-only';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { getEnv } from '../config/env.js';
+import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 
-let cachedPool: pg.Pool | null = null;
-let cachedDb: ReturnType<typeof drizzle> | null = null;
+export const pool: pg.Pool = new pg.Pool({
+  connectionString: env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+  allowExitOnIdle: false,
+});
 
-export function getPool(): pg.Pool {
-  if (cachedPool === null) {
-    const env = getEnv();
-    cachedPool = new pg.Pool({
-      connectionString: env.DATABASE_URL,
-      max: 10,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
-      allowExitOnIdle: false,
-    });
-    cachedPool.on('error', (err) => {
-      logger.error({ err }, 'postgres pool background error');
-    });
-  }
-  return cachedPool;
-}
+pool.on('error', (err) => {
+  logger.error({ err }, 'postgres pool background error');
+});
 
-export function getDb() {
-  if (cachedDb === null) {
-    cachedDb = drizzle(getPool());
-  }
-  return cachedDb;
-}
+export const db = drizzle(pool);
 
+/**
+ * Test-only infrastructure: drains the pool so tests can clean up
+ * between runs. Production code never calls this — the process
+ * exits naturally. Graceful shutdown is deferred to ops/traefik-deployment.
+ */
 export async function closePool(): Promise<void> {
-  if (cachedPool !== null) {
-    logger.info('closing postgres pool');
-    await cachedPool.end();
-    cachedPool = null;
-    cachedDb = null;
-  }
+  logger.info('closing postgres pool');
+  await pool.end();
 }
 ```
 
-Lazy pool and db so tests can reset or inject. `closePool` resets the cache so subsequent calls get a fresh pool — useful for test isolation.
+Module-level `pool` and `db` constants. `closePool` is exclusively test infrastructure — production code never calls it. The pool does not eagerly connect at import time (`pg.Pool` is lazy), so `next build` succeeds without a reachable database.
 
 ### 6.5 `scripts/migrate.ts` — standalone migration runner
 
@@ -756,6 +671,8 @@ main().catch((err) => {
 });
 ```
 
+**Note:** Before implementing, verify the exact import path for the Drizzle migrator (`drizzle-orm/node-postgres/migrator` vs `drizzle-orm/migrator`) against the pinned drizzle-orm version in `node_modules`. The import path has shifted across Drizzle versions.
+
 Wired into `package.json`:
 
 ```json
@@ -786,13 +703,13 @@ When `ops/traefik-deployment` lands, it will add `src/app/api/health/live/route.
 
 This is a scope reduction from the original spec — health endpoints were in branch 1's scope, but they have no runtime consumer until deployment branches exist.
 
-### 6.7 `src/middleware.ts` — request ID
+### 6.7 `src/proxy.ts` — request ID
 
 ```ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const incoming = request.headers.get('x-request-id');
   // Sanitization filter: reject anything not hex-or-dash, 16-64 chars.
   // Not a UUID validator — just prevents log injection.
@@ -801,15 +718,18 @@ export function middleware(request: NextRequest) {
       ? incoming
       : crypto.randomUUID();
 
+  // Mutate the request headers so downstream server components and route
+  // handlers can read x-request-id via `(await headers()).get('x-request-id')`.
+  // Important: this uses `request: { headers }` (upstream propagation),
+  // NOT `headers` at the top level (which would set response headers to the client).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-request-id', id);
+
   const response = NextResponse.next({
-    request: {
-      headers: (() => {
-        const h = new Headers(request.headers);
-        h.set('x-request-id', id);
-        return h;
-      })(),
-    },
+    request: { headers: requestHeaders },
   });
+
+  // Also mirror to the response so the browser/client can correlate.
   response.headers.set('x-request-id', id);
   return response;
 }
@@ -819,13 +739,9 @@ export const config = {
 };
 ```
 
-Uses Web Crypto (`crypto.randomUUID()`), which is a global in both Edge and Node runtimes — no Node-specific imports. Tightened regex to `{16,64}` (resolves reviewer Issue 13).
+Uses Web Crypto (`crypto.randomUUID()`), which is a global in the Node.js runtime. Tightened regex to `{16,64}` (resolves reviewer Issue 13).
 
-Server components and route handlers can read the request ID via `const requestId = (await headers()).get('x-request-id')` and include it in error responses via `apiErrorResponse`.
-
-### 6.8 `src/instrumentation.ts` — graceful shutdown
-
-Shown in section 3.6. Uses `logger.flush(callback)` instead of `setTimeout(100)` — resolves reviewer Issue 14.
+Server components and route handlers can read the request ID via `const requestId = (await headers()).get('x-request-id')` and include it in logging.
 
 ## 7. Better Auth integration
 
@@ -833,9 +749,9 @@ Shown in section 3.6. Uses `logger.flush(callback)` instead of `setTimeout(100)`
 
 **Pin a specific CLI version** (resolves reviewer Issue 4). The implementer must:
 
-1. Check the Better Auth documentation at the time of implementation for the current CLI version and generate-command flags.
-2. Pin that version in `package.json` as a devDependency (e.g., `"@better-auth/cli": "1.2.3"`).
-3. Use the auto-discovery path by placing the config at `src/server/auth/index.ts` (a path the CLI should find in recent versions). If auto-discovery fails, fall back to the `--config` flag with the pinned version's documented syntax.
+1. **Before starting commit 4 (auth), verify and pin the Better Auth CLI version in `package.json`.** Update this spec with the pinned version and verified flags.
+2. Pin that version in `package.json` as a devDependency with an exact version (no `^` or `~`), e.g., `"@better-auth/cli": "1.2.3"`.
+3. The auth config lives at `src/lib/auth.ts` — a path the Better Auth CLI auto-discovers (it searches `src/lib/auth.ts`). No `--config` flag needed.
 4. Commit the pinned CLI version, the generated schema, and the Drizzle migration together.
 
 Sequence:
@@ -845,18 +761,13 @@ Sequence:
 npm install better-auth
 npm install -D @better-auth/cli@<pinned-version>
 
-# 2. Author src/server/auth/index.ts (section 7.2 below).
-#    It imports getDb and getEnv but doesn't call them at module load.
-#    The lazy pattern means the CLI evaluating this file doesn't require
-#    DATABASE_URL or AUTH_SECRET in the shell — a useful improvement over
-#    the original spec's eager env validation.
+# 2. Author src/lib/auth.ts (section 7.2 below).
 
 # 3. Set the shell env so Better Auth's CLI can resolve any it needs
 set -a && source .env.development && set +a
 
-# 4. Run the CLI
+# 4. Run the CLI (auto-discovers src/lib/auth.ts)
 npx @better-auth/cli generate --output src/server/db/schema.ts
-# (or with --config src/server/auth/index.ts if auto-discovery fails)
 
 # 5. Review the generated schema.ts
 
@@ -869,101 +780,84 @@ npm run db:generate
 npm run db:migrate
 
 # 9. Commit
-git add src/server/auth/ src/server/db/schema.ts drizzle/ package.json package-lock.json
+git add src/lib/auth.ts src/server/db/schema.ts drizzle/ package.json package-lock.json
 git commit -m "feat(auth): Better Auth config, schema, initial migration"
 ```
 
-### 7.2 `src/server/auth/index.ts` — full config
+### 7.2 `src/lib/auth.ts` — full config
 
 ```ts
 import 'server-only';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { getDb } from '../db/index.js';
-import { getEnv } from '../config/env.js';
+import { db } from '@/server/db/index.js';
+import { env } from '@/server/config/env.js';
 
-let cached: ReturnType<typeof betterAuth> | null = null;
+export const auth = betterAuth({
+  database: drizzleAdapter(db, { provider: 'pg' }),
 
-function createAuth() {
-  const env = getEnv();
-  return betterAuth({
-    database: drizzleAdapter(getDb(), { provider: 'pg' }),
+  secret: env.AUTH_SECRET,
+  baseURL: env.APP_URL,
 
-    secret: env.AUTH_SECRET,
-    baseURL: env.APP_URL,
+  emailAndPassword: {
+    enabled: true,
+    // Email verification requires a transport, deferred to
+    // feature/email-verification. Users sign up and are immediately active.
+    requireEmailVerification: false,
+    minPasswordLength: 10,
+    maxPasswordLength: 128,
+  },
 
-    emailAndPassword: {
+  user: {
+    additionalFields: {
+      role: {
+        type: 'string',
+        defaultValue: 'buyer',
+        // CRITICAL SECURITY: input: false prevents users from self-assigning
+        // admin/seller via the signup payload. Two Vitest tests guard this —
+        // do NOT remove either the flag or the tests.
+        input: false,
+      },
+      avatarUrl: {
+        type: 'string',
+        required: false,
+      },
+    },
+  },
+
+  session: {
+    expiresIn: 60 * 60 * 24 * 7,   // 7 days
+    updateAge: 60 * 60 * 24,       // rolling refresh if session > 1 day old
+    cookieCache: {
       enabled: true,
-      // Email verification requires a transport, deferred to
-      // feature/email-verification. Users sign up and are immediately active.
-      requireEmailVerification: false,
-      minPasswordLength: 10,
-      maxPasswordLength: 128,
+      maxAge: 5 * 60,
     },
+  },
 
-    user: {
-      additionalFields: {
-        role: {
-          type: 'string',
-          defaultValue: 'buyer',
-          // CRITICAL SECURITY: input: false prevents users from self-assigning
-          // admin/seller via the signup payload. A Vitest test guards this —
-          // do NOT remove either the flag or the test.
-          input: false,
-        },
-        avatarUrl: {
-          type: 'string',
-          required: false,
-        },
-      },
+  advanced: {
+    cookiePrefix: 'balikha',
+    useSecureCookies: env.APP_URL.startsWith('https'),
+    defaultCookieAttributes: {
+      sameSite: 'lax',
+      httpOnly: true,
+      path: '/',
     },
-
-    session: {
-      expiresIn: 60 * 60 * 24 * 7,   // 7 days
-      updateAge: 60 * 60 * 24,       // rolling refresh if session > 1 day old
-      cookieCache: {
-        enabled: true,
-        maxAge: 5 * 60,
-      },
-    },
-
-    advanced: {
-      cookiePrefix: 'balikha',
-      useSecureCookies: env.APP_URL.startsWith('https'),
-      defaultCookieAttributes: {
-        sameSite: 'lax',
-        httpOnly: true,
-        path: '/',
-      },
-    },
-  });
-}
-
-export function getAuth(): ReturnType<typeof betterAuth> {
-  if (cached === null) {
-    cached = createAuth();
-  }
-  return cached;
-}
-
-/** Test-only: reset the cached auth instance. */
-export function __resetAuthCache(): void {
-  cached = null;
-}
+  },
+});
 ```
 
-Every caller uses `getAuth()`. Lazy so tests can reset after changing env or db.
+Module-level `auth` constant. Constructed at import time from `env` and `db`. Every caller imports `auth` directly.
 
 ### 7.3 `src/app/api/auth/[...all]/route.ts` — catch-all handler
 
 ```ts
-import { getAuth } from '@/server/auth';
+import { toNextJsHandler } from 'better-auth/next-js';
+import { auth } from '@/lib/auth';
 
-export const GET = (req: Request) => getAuth().handler(req);
-export const POST = (req: Request) => getAuth().handler(req);
+export const { GET, POST } = toNextJsHandler(auth);
 ```
 
-Two lines. That's the entire auth route layer. Better Auth handles sign-up, sign-in, sign-out, session, password reset (when enabled), social providers (when enabled), and everything else internally.
+Two lines. That's the entire auth route layer. `toNextJsHandler` is Better Auth's official Next.js integration helper — it wraps the web-standard handler with framework-specific optimizations. Better Auth handles sign-up, sign-in, sign-out, session, password reset (when enabled), social providers (when enabled), and everything else internally.
 
 ### 7.4 Expected generated schema
 
@@ -1071,7 +965,7 @@ Acceptable for MVP because the first seller is the developer/owner.
 | Email verification | Needs email transport | `feature/email-verification` |
 | Password reset | Needs email transport | `feature/email-verification` |
 | Google OAuth | Google Console setup | `feature/oauth-google` |
-| `requireRole` middleware | No protected endpoints yet | `feature/marketplace-schema-rbac` |
+| `requireRole` proxy guard | No protected endpoints yet | `feature/marketplace-schema-rbac` |
 | Better Auth `admin()` plugin | Needs RBAC middleware | `feature/marketplace-schema-rbac` |
 | Rate limiting | Observability layer | `feature/observability-baseline` |
 | Per-request structured logging | Needs AsyncLocalStorage context | `feature/observability-baseline` |
@@ -1089,12 +983,12 @@ There is no `serverFetch`, no `getSession` wrapper, no cookie forwarding. Server
 ```tsx
 // src/app/page.tsx (fragment)
 import { headers } from 'next/headers';
-import { getAuth } from '@/server/auth';
+import { auth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const session = await getAuth().api.getSession({
+  const session = await auth.api.getSession({
     headers: await headers(),
   });
   // session is typed as ReturnType<...> | null by Better Auth
@@ -1166,7 +1060,9 @@ Contrast check for the branding panel: cream text (#F6F1E9) on deep red (#8C1C13
 
 ### 8.4 Login and signup pages
 
-Both pages are server components that check for an existing session via `getAuth().api.getSession` and redirect to `/` if authenticated. They wrap their respective client forms (`LoginForm`, `SignupForm`) in `AuthLayout`.
+Both pages are server components that check for an existing session via `auth.api.getSession` and redirect to `/` if authenticated. They wrap their respective client forms (`LoginForm`, `SignupForm`) in `AuthLayout`.
+
+Signup page heading: `Create your account`. Login page heading: `Sign in to Balikha`.
 
 Forms post to `/api/auth/sign-in/email` and `/api/auth/sign-up/email` via `clientFetch`. On success, `router.push('/')` + `router.refresh()` triggers server components to re-render with the new session cookie.
 
@@ -1186,17 +1082,16 @@ The home page imports `LogoutButton` and renders it next to the user's email whe
 // src/app/page.tsx
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { getAuth } from '@/server/auth';
+import { auth } from '@/lib/auth';
 import { LogoutButton } from './components/LogoutButton';
 import styles from './page.module.css';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const session = await getAuth().api.getSession({
+  const session = await auth.api.getSession({
     headers: await headers(),
   });
-
   return (
     <div className={styles.container}>
       <main className={styles.main}>
@@ -1232,6 +1127,8 @@ All three use CSS Modules consistent with the rest of the app.
 - `not-found.tsx` — 404 page, uses tokens.
 - `global-error.tsx` — root error boundary. **Per reviewer Issue 8**, this file is marked `'use client'`, renders its own `<html lang="en"><body>...</body></html>` tags, and imports `@/styles/tokens.css` and `./globals.css` directly at the top (not inherited from `layout.tsx`, because `global-error.tsx` replaces the root layout when the root layout itself fails).
 
+**Note:** Next.js 16 prefers `unstable_retry` over `reset` — `unstable_retry` re-fetches in addition to re-rendering, which is more appropriate for transient failures.
+
 ```tsx
 // src/app/global-error.tsx
 'use client';
@@ -1241,10 +1138,10 @@ import './globals.css';
 import styles from './global-error.module.css';
 
 export default function GlobalError({
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   return (
     <html lang="en">
@@ -1254,12 +1151,38 @@ export default function GlobalError({
           <p className={styles.description}>
             The application failed to render. This is usually temporary.
           </p>
-          <button type="button" onClick={reset} className={styles.button}>
+          <button type="button" onClick={unstable_retry} className={styles.button}>
             Try again
           </button>
         </main>
       </body>
     </html>
+  );
+}
+```
+
+```tsx
+// src/app/error.tsx
+'use client';
+
+import styles from './error.module.css';
+
+export default function Error({
+  unstable_retry,
+}: {
+  error: Error & { digest?: string };
+  unstable_retry: () => void;
+}) {
+  return (
+    <main className={styles.container}>
+      <h1 className={styles.title}>Something went wrong</h1>
+      <p className={styles.description}>
+        An unexpected error occurred. Please try again.
+      </p>
+      <button type="button" onClick={unstable_retry} className={styles.button}>
+        Try again
+      </button>
+    </main>
   );
 }
 ```
@@ -1366,12 +1289,15 @@ Exception: error message fallbacks (`err.message ?? 'Unknown error'`).
 
 ## Server-only boundary
 
-Every module in `src/server/` imports `'server-only'` at the top:
+Every module in `src/server/` imports `'server-only'` at the top.
+`src/lib/auth.ts` also imports `'server-only'` because it is
+server-only code (it accesses the database and auth secrets).
 
     import 'server-only';
 
-If a client component accidentally imports from `@/server/`, the build
-fails at the boundary. This is a physical guarantee, not a convention.
+If a client component accidentally imports from `@/server/` or
+`@/lib/auth`, the build fails at the boundary. This is a physical
+guarantee, not a convention.
 
 Exception: `scripts/migrate.ts` and other tooling scripts run via `tsx`
 do NOT import `'server-only'` because the package throws when imported
@@ -1380,18 +1306,18 @@ outside Next.js's bundler. Scripts construct their own minimal resources
 
 ## Server code import direction
 
-Inside `src/server/`, strict one-way dependency:
+Inside `src/server/` and `src/lib/auth.ts`, strict one-way dependency:
 
-    auth → db → lib → config → (nothing)
+`auth` depends on `db`. `db` depends on `config` and `lib`. `lib`
+depends on `config`. `config` depends on nothing.
 
-No layer depends on anything above it. Read bottom-up.
-
-`src/app/` can import from `src/server/`. `src/server/` can NEVER
-import from `src/app/`.
+`src/app/` can import from `src/server/` and `src/lib/auth.ts`.
+Neither `src/server/` nor `src/lib/auth.ts` can EVER import from
+`src/app/`.
 
 ## Dynamic rendering
 
-Every page that calls `getAuth().api.getSession` or otherwise depends on
+Every page that calls `auth.api.getSession` or otherwise depends on
 per-request state must include:
 
     export const dynamic = 'force-dynamic';
@@ -1399,6 +1325,17 @@ per-request state must include:
 Reason: Next.js 16 is aggressive about static prerendering. Pages that
 fetch at build time will fail CI builds that run `next build` without
 a database reachable.
+
+## Build offline invariant
+
+Branch 1's `next build` must succeed without a reachable database.
+If any module in `src/server/` or `src/lib/auth.ts` tries to connect
+to Postgres at import time, it is a bug. Verify by running:
+
+    npm run build
+
+with `DATABASE_URL=postgresql://fake:fake@localhost:1/fake` and
+confirming exit 0.
 
 ## CSS Modules only
 
@@ -1460,12 +1397,20 @@ uses `drizzle-orm/migrator`'s `migrate()` function.
 - Table names are singular (`user`, not `users`).
 - `additionalFields.role.input = false` MUST stay. Removing it allows
   users to self-assign `role: 'admin'` during signup — trivial
-  privilege escalation. A Vitest test guards this
-  (`src/server/auth/auth.test.ts`). Do not delete that test.
+  privilege escalation. Two Vitest tests guard this
+  (`src/lib/auth.test.ts`): one via `auth.handler` (HTTP path) and
+  one via `auth.api.signUpEmail` (direct API). Do not delete either test.
 - Password minimum length is 10 (NIST-style: length over complexity).
 - Email verification is DISABLED in MVP (no email transport yet).
-- The auth instance is lazy-constructed via `getAuth()`. Never import
-  the unconstructed `auth` directly.
+- The auth instance is a module-level constant. Import as
+  `import { auth } from '@/lib/auth'`.
+
+## Single DB-file rule (test isolation)
+
+Only one test file may use a direct `pg.Pool` connection to the test
+database. Currently that file is `src/lib/auth.test.ts`. Additional
+DB-touching tests must either be added to that file or wait for
+per-worker-schema infrastructure.
 
 ## Owner account model (two separate accounts)
 
@@ -1505,16 +1450,6 @@ via direct DB intervention:
 2. Update `account.password` directly in Postgres for the user's row.
 3. Invalidate all sessions:
    `DELETE FROM "session" WHERE "user_id" = ?`
-
-## API error shape
-
-Every error response uses:
-
-    { error: string, code: string, requestId: string }
-
-`code` is REQUIRED, not optional. The set of canonical codes:
-`DB_UNREACHABLE`, `INTERNAL_ERROR`, `NOT_FOUND`, plus any code Better
-Auth passes through from its own handlers.
 
 ## Logging — don't log secrets
 
@@ -1568,8 +1503,8 @@ Scopes for branch 1: `repo` (flattening), `server`, `app`, `auth`,
 
 Three tiers, much simpler than the original spec:
 
-1. **Unit tests (Vitest)** for pure functions — `parseEnv`, the API error helpers, and isolated component rendering via RTL.
-2. **Integration-as-unit tests (Vitest)** for auth — direct function calls against `auth.api.*` with a real Postgres. No testcontainers, no mock layer. Tests use a separate test database configured via an env var.
+1. **Unit tests (Vitest)** for pure functions — `parseEnv` and isolated component rendering via RTL.
+2. **Integration-as-unit tests (Vitest)** for auth — direct function calls against `auth.api.*` and `auth.handler` with a real Postgres. No testcontainers, no mock layer. Tests use a separate test database configured via an env var.
 3. **End-to-end (Playwright)** for the full user flow — browser spins up against the running Next.js dev server, exercises signup → session → logout.
 
 Total test file count: ~6 files. Runtime: ~30 seconds for the full suite.
@@ -1577,8 +1512,6 @@ Total test file count: ~6 files. Runtime: ~30 seconds for the full suite.
 ### 11.2 Test database setup
 
 Instead of testcontainers, the test suite assumes a Postgres database named `balikha_test` is available at the same host/port as the dev database. Rationale: the dev Postgres container is already running (`docker compose up -d db`), and creating a second database inside the same instance costs nothing.
-
-The test suite sets its own `DATABASE_URL`:
 
 ```ts
 // vitest.config.ts
@@ -1602,11 +1535,19 @@ export default defineConfig({
 
 ```ts
 // vitest.setup.ts
-// Test-safe env for modules that call getEnv() during tests.
-// Integration tests override DATABASE_URL in their own beforeAll to point
-// at a fresh schema or a testcontainer if needed.
+
+// Mock 'server-only' so Vitest can import modules that use it.
+// Vitest is not Next.js's bundler — the 'server-only' package throws
+// a build-time error only inside Next.js's webpack/turbopack pipeline.
+// The real guard is enforced at `next build` time; this mock lets us
+// unit-test server modules in Vitest without that throw.
+vi.mock('server-only', () => ({}));
+
+// Minimal env for modules that import `env` transitively during tests.
+// DATABASE_URL is NOT set here — only the auth integration test needs it,
+// and it sets its own in beforeAll (reading from .env.development or
+// using a hardcoded test value).
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://balikha:secret@localhost:5432/balikha_test';
 process.env.AUTH_SECRET = 'test-secret-at-least-32-characters-long-ok';
 process.env.APP_URL = 'http://localhost:3000';
 ```
@@ -1618,8 +1559,6 @@ The test database is created once via:
 psql "postgresql://balikha:secret@localhost:5432/postgres" -c "CREATE DATABASE balikha_test;"
 ```
 
-Then a test helper script runs migrations against it before each test file. Because `auth.ts` is lazy (`getAuth()`), tests that need a clean DB state call `__resetAuthCache()`, `__resetEnvCache()`, `closePool()`, reset the env var, and call `getAuth()` fresh — no module-load hazard.
-
 ### 11.3 Env validation tests (`src/server/config/env.test.ts`)
 
 Tests `parseEnv` directly with varying input dicts. No singleton, no module-load behavior:
@@ -1630,61 +1569,78 @@ Tests `parseEnv` directly with varying input dicts. No singleton, no module-load
 - Malformed `DATABASE_URL` → throws
 - Invalid `NODE_ENV` value (e.g., `'staging'`) → throws
 
-Additional test for `getEnv()`:
-- First call parses and caches
-- Second call returns cached value (doesn't re-parse)
-- After `__resetEnvCache()`, next call re-parses
+~5 tests, all milliseconds, no I/O.
 
-~8 tests, all milliseconds, no I/O.
+### 11.4 Auth tests (`src/lib/auth.test.ts`) — THE security tests
 
-### 11.4 Auth unit tests (`src/server/auth/auth.test.ts`) — THE security test
-
-This file contains the single most important test in branch 1:
+This file contains the two most important tests in branch 1.
 
 ```ts
 import { beforeAll, beforeEach, afterAll, describe, it, expect } from 'vitest';
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { __resetEnvCache } from '../config/env.js';
-import { getAuth, __resetAuthCache } from './index.js';
-import { closePool } from '../db/index.js';
+import { auth } from './auth.js';
 
-// Uses the test database set in vitest.setup.ts (balikha_test).
-// Assumes Postgres is running and balikha_test exists.
+// Uses a test database. Assumes Postgres is running and balikha_test exists.
+const TEST_DB_URL = 'postgresql://balikha:secret@localhost:5432/balikha_test';
+
+let testPool: pg.Pool;
 
 beforeAll(async () => {
+  process.env.DATABASE_URL = TEST_DB_URL;
   // Run migrations against the test DB
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  await migrate(drizzle(pool), { migrationsFolder: './drizzle' });
-  await pool.end();
+  testPool = new pg.Pool({ connectionString: TEST_DB_URL });
+  await migrate(drizzle(testPool), { migrationsFolder: './drizzle' });
 });
 
 beforeEach(async () => {
-  // Reset all cached state so each test gets a fresh auth instance
-  __resetEnvCache();
-  __resetAuthCache();
-  await closePool();
-
   // Truncate tables for isolation
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  await pool.query('TRUNCATE "user", "session", "account", "verification" CASCADE');
-  await pool.end();
+  await testPool.query('TRUNCATE "user", "session", "account", "verification" CASCADE');
 });
 
 afterAll(async () => {
-  await closePool();
+  await testPool.end();
 });
 
 describe('Better Auth — signup security', () => {
-  // ★ THE SECURITY TEST — do not delete
-  it('ignores role in the signup payload (input: false)', async () => {
-    const auth = getAuth();
+  // ★ THE PRIMARY SECURITY TEST — HTTP path
+  // This exercises the actual attack surface: an HTTP POST to the signup
+  // endpoint with role: 'admin' in the JSON body. Uses auth.handler
+  // (the same web-standard handler that the catch-all route delegates to).
+  it('ignores role in the HTTP signup payload (input: false)', async () => {
+    const request = new Request('http://localhost:3000/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'attacker-http@example.com',
+        password: 'password-at-least-10-chars',
+        name: 'Attacker HTTP',
+        role: 'admin',
+      }),
+    });
+
+    const response = await auth.handler(request);
+    expect(response.status).toBeLessThan(400);
+
+    // Verify in the database that the role is 'buyer', NOT 'admin'
+    const { rows } = await testPool.query<{ role: string }>(
+      'SELECT role FROM "user" WHERE email = $1',
+      ['attacker-http@example.com'],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].role).toBe('buyer');
+  });
+
+  // ★ DEFENSE-IN-DEPTH — direct API path
+  // Belt-and-suspenders: also test via the direct function call API.
+  it('ignores role via direct API call (input: false)', async () => {
     const result = await auth.api.signUpEmail({
       body: {
-        email: 'attacker@example.com',
+        email: 'attacker-direct@example.com',
         password: 'password-at-least-10-chars',
-        name: 'Attacker',
+        name: 'Attacker Direct',
         // @ts-expect-error — deliberately passing a forbidden field
         role: 'admin',
       },
@@ -1692,19 +1648,16 @@ describe('Better Auth — signup security', () => {
     expect(result).toBeTruthy();
 
     // Verify in the database that the role is 'buyer', NOT 'admin'
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query<{ role: string }>(
+    const { rows } = await testPool.query<{ role: string }>(
       'SELECT role FROM "user" WHERE email = $1',
-      ['attacker@example.com'],
+      ['attacker-direct@example.com'],
     );
-    await pool.end();
 
     expect(rows).toHaveLength(1);
     expect(rows[0].role).toBe('buyer');
   });
 
   it('enforces minimum password length of 10', async () => {
-    const auth = getAuth();
     await expect(
       auth.api.signUpEmail({
         body: {
@@ -1717,7 +1670,6 @@ describe('Better Auth — signup security', () => {
   });
 
   it('creates a user with default role buyer on valid signup', async () => {
-    const auth = getAuth();
     await auth.api.signUpEmail({
       body: {
         email: 'normal@example.com',
@@ -1726,12 +1678,10 @@ describe('Better Auth — signup security', () => {
       },
     });
 
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query<{ role: string }>(
+    const { rows } = await testPool.query<{ role: string }>(
       'SELECT role FROM "user" WHERE email = $1',
       ['normal@example.com'],
     );
-    await pool.end();
     expect(rows[0].role).toBe('buyer');
   });
 });
@@ -1739,10 +1689,10 @@ describe('Better Auth — signup security', () => {
 
 Key differences from the original spec's testcontainers approach:
 
-- Direct function calls against `auth.api` — no HTTP layer, no `app.request()` indirection.
+- Two security test paths: the HTTP-path test via `auth.handler(new Request(...))` exercises the real attack surface; the direct `auth.api.signUpEmail` test provides defense-in-depth.
 - Uses the already-running dev Postgres instance via a separate `balikha_test` database. ~0 startup overhead (compared to testcontainers' 5-10 seconds per file).
-- The lazy cache-reset pattern (`__resetEnvCache`, `__resetAuthCache`, `closePool`) eliminates the module-load-order hazard from reviewer Issue 7.
-- The security test is a direct function call against Better Auth's public API. If `input: false` is removed, the test fails in under 100ms.
+- Module-level `auth` constant — no lazy cache reset needed.
+- The security tests are the linchpin: if `input: false` is removed, both tests fail in under 100ms.
 
 ### 11.5 Frontend RTL tests
 
@@ -1821,26 +1771,25 @@ npm run test:e2e
 
 ## 12. Commit plan
 
-Seven commits. Each builds and tests green independently.
+Six commits. Each builds and tests green independently.
 
 | # | Commit | Purpose |
 |---|---|---|
 | 1 | `docs: add CONVENTIONS.md and branch 1 design spec references` | CONVENTIONS.md lands first so the reviewer has rules before seeing code; old spec's frontmatter updated to `status: superseded`. |
-| 2 | `refactor(repo): flatten backend/ and frontend/ into root Next.js app` | Delete `backend/`, move `frontend/src/*` to `src/*`, consolidate `package.json`, update `tsconfig.json` paths, update `next.config.ts`, update `playwright.config.ts`. No Tailwind removal yet — this commit is purely structural and must pass `npm run build`. |
-| 3 | `feat(styles): migrate from Tailwind to CSS Modules with design tokens` | Delete Tailwind deps + postcss config, add `src/styles/tokens.css`, rewrite `globals.css`, `layout.tsx`, `page.tsx`, and delete `HealthCheck.tsx` (home page gets rewritten in commit 6). Add error/not-found/global-error pages with CSS Modules. |
-| 4 | `feat(server): foundation layer — env, logger, db, errors, middleware, instrumentation, prettier, husky` | Add `src/server/{config,lib,db}/`, `src/middleware.ts`, `src/instrumentation.ts`, `.prettierrc`, `.husky/pre-commit`, updated `.env.development`, migrate script at `scripts/migrate.ts`, plus unit tests for env. Dev tooling is folded into this commit because it's small and touches package.json the same way as the server foundation. |
-| 5 | `feat(auth): Better Auth config, schema, migration, catch-all handler, security test` | Install `better-auth`, write `src/server/auth/index.ts`, run CLI to generate `src/server/db/schema.ts`, run `db:generate` for initial migration in `drizzle/`, add `src/app/api/auth/[...all]/route.ts`, add `src/server/auth/auth.test.ts` with the `input: false` security test. |
-| 6 | `feat(app): auth UI — layout, login, signup, logout button, session-aware home` | AuthLayout + login + signup + LogoutButton + RTL tests, rewrite `page.tsx` to show session. |
-| 7 | `test(e2e): auth flow spec` | `e2e/auth.spec.ts` with signup→home→logout happy path and wrong-password negative test. |
+| 2 | `refactor(repo): flatten to monolithic Next.js with CSS Modules and design tokens` | Delete `backend/`, move `frontend/src/*` to `src/*`, consolidate `package.json`, update `tsconfig.json` paths, update `next.config.ts`, update `playwright.config.ts`. Remove Tailwind deps + postcss config, add `src/styles/tokens.css`, rewrite `globals.css`, `layout.tsx`, `page.tsx`, delete `HealthCheck.tsx`. Add error/not-found/global-error pages with CSS Modules. Must pass `npm run build`. |
+| 3 | `feat(server): foundation layer — env, logger, db, proxy, prettier, husky` | Add `src/server/{config,lib,db}/`, `src/proxy.ts`, `.prettierrc`, `.husky/pre-commit`, `drizzle.config.ts`, updated `.env.development`, migrate script at `scripts/migrate.ts`, plus unit tests for env. Dev tooling is folded into this commit because it's small and touches package.json the same way as the server foundation. |
+| 4 | `feat(auth): Better Auth config, schema, migration, catch-all handler, security tests` | Install `better-auth`, write `src/lib/auth.ts`, run CLI to generate `src/server/db/schema.ts`, run `db:generate` for initial migration in `drizzle/`, add `src/app/api/auth/[...all]/route.ts`, add `src/lib/auth.test.ts` with both the HTTP-path and direct-API `input: false` security tests. |
+| 5 | `feat(app): auth UI — layout, login, signup, logout button, session-aware home` | AuthLayout + login + signup + LogoutButton + RTL tests, rewrite `page.tsx` to show session. |
+| 6 | `test(e2e): auth flow spec` | `e2e/auth.spec.ts` with signup→home→logout happy path and wrong-password negative test. |
 
-Seven commits. Each is self-contained and independently green. No env-rename ordering hazard (reviewer Issue 6) because there's only one env file touched, and it's updated in commit 4 alongside the code that reads it.
+Six commits. Each is self-contained and independently green.
 
 ## 13. Review checklist (what `/claude-review-against-plan` verifies)
 
 ### Structural
 - [ ] `backend/` directory is deleted
 - [ ] `frontend/` directory is deleted
-- [ ] Repo root contains `src/app/`, `src/server/`, `src/styles/`, `src/lib/`, `src/middleware.ts`, `src/instrumentation.ts`
+- [ ] Repo root contains `src/app/`, `src/server/`, `src/styles/`, `src/lib/`, `src/proxy.ts`
 - [ ] `scripts/migrate.ts` exists
 - [ ] `tsconfig.json` defines `@/*` → `./src/*` path alias
 - [ ] `frontend/postcss.config.mjs` no longer exists
@@ -1854,28 +1803,34 @@ Seven commits. Each is self-contained and independently green. No env-rename ord
 - [ ] `.env.development` has exactly `NODE_ENV`, `POSTGRES_*`, `DATABASE_URL`, `APP_URL`, `AUTH_SECRET` (5 vars + 3 postgres vars)
 - [ ] `docker-compose.yml` has only the `db` service, no backend/frontend/minio
 - [ ] The old spec `2026-04-12-branch-1-foundations-and-auth-skeleton-design.md` has `status: superseded` in frontmatter
+- [ ] `drizzle.config.ts` at repo root points `schema` at `./src/server/db/schema.ts` and `out` at `./drizzle`
 
 ### Behavior
 - [ ] `parseEnv` throws on missing `AUTH_SECRET`
 - [ ] `parseEnv` throws on `AUTH_SECRET` shorter than 32 chars
-- [ ] `getEnv()` caches the parsed result (second call doesn't re-parse)
-- [ ] `__resetEnvCache()` clears the cache
+- [ ] `env` module-level constant is available after import (throws at import if invalid)
 - [ ] Better Auth config has `additionalFields.role.input = false`
 - [ ] Better Auth config has `minPasswordLength: 10`
-- [ ] `src/server/auth/auth.test.ts` contains the `input: false` security test with a comment flagging it as non-deletable
-- [ ] The security test asserts the role is `'buyer'` after signup with `role: 'admin'` in payload
-- [ ] `src/app/api/auth/[...all]/route.ts` exports GET and POST that delegate to `getAuth().handler`
-- [ ] `src/middleware.ts` sanitizes incoming `x-request-id` with the tightened regex `{16,64}`
-- [ ] `src/instrumentation.ts` uses `logger.flush(callback)` for pino flush (not `setTimeout`)
-- [ ] `src/app/global-error.tsx` is marked `'use client'`, renders its own `<html>` and `<body>`, and imports `tokens.css` and `globals.css` directly
-- [ ] Every page that calls `getAuth().api.getSession` has `export const dynamic = 'force-dynamic'`
+- [ ] `src/lib/auth.test.ts` contains both the HTTP-path and direct-API `input: false` security tests with comments flagging them as non-deletable
+- [ ] The HTTP-path security test calls `auth.handler(new Request(...))` with `role: 'admin'` and asserts `role = 'buyer'` in the DB
+- [ ] The direct-API security test calls `auth.api.signUpEmail` with `role: 'admin'` and asserts `role = 'buyer'` in the DB
+- [ ] `src/app/api/auth/[...all]/route.ts` exports GET and POST via `toNextJsHandler(auth)`
+- [ ] `src/proxy.ts` sanitizes incoming `x-request-id` with the tightened regex `{16,64}`
+- [ ] `src/app/global-error.tsx` is marked `'use client'`, renders its own `<html>` and `<body>`, imports `tokens.css` and `globals.css` directly, and uses `unstable_retry`
+- [ ] `src/app/error.tsx` uses `unstable_retry` instead of `reset`
+- [ ] Every page that calls `auth.api.getSession` has `export const dynamic = 'force-dynamic'`
+- [ ] `npm run build` succeeds with a deliberately wrong `DATABASE_URL` (e.g., `DATABASE_URL=postgresql://fake:fake@localhost:1/fake`)
+- [ ] `npm run build` completes without TS errors; if typescript is ^6, Better Auth/Drizzle/eslint-config-next compatibility has been verified
+- [ ] The migrate script's drizzle import path has been verified against `node_modules` and `tsx scripts/migrate.ts` exits 0
+- [ ] `@better-auth/cli` is pinned to an exact version (no `^` or `~`) in `package.json`
+- [ ] `grep -rn 'new pg.Pool' src/` returns at most one test file
 
 ### Scope guards (no creep)
 - [ ] No `src/app/api/` route handlers other than the Better Auth catch-all
 - [ ] No Google OAuth in auth config
 - [ ] No `admin()` plugin
-- [ ] No `requireRole` middleware file
-- [ ] No rate limiting middleware
+- [ ] No `requireRole` proxy file
+- [ ] No rate limiting proxy logic
 - [ ] No Sentry integration
 - [ ] No per-request structured logging beyond ad-hoc logging in routes
 - [ ] No marketplace tables (`shops`, `items`, `orders`, `order_items`)
@@ -1883,10 +1838,12 @@ Seven commits. Each is self-contained and independently green. No env-rename ord
 - [ ] No `packages/contracts/` workspace
 - [ ] No `/api/health` route handler (deferred to `ops/traefik-deployment`)
 - [ ] No Hono imports anywhere
+- [ ] No `src/server/lib/errors.ts` (deferred to branch 2)
 
 ### Convention guards
 - [ ] No `color: var(--brand-support)` on elements smaller than 14pt
 - [ ] Every file in `src/server/` starts with `import 'server-only';`
+- [ ] `src/lib/auth.ts` starts with `import 'server-only';`
 - [ ] `scripts/migrate.ts` does NOT import `'server-only'` and does NOT import from `src/server/`
 - [ ] No bare `fetch()` to external URLs in server components (Better Auth handles auth via direct function calls; branch 1 has no other outbound HTTP)
 - [ ] `src/app/` code never imports from `src/server/` via relative paths — always via `@/server/*`
@@ -1895,8 +1852,8 @@ Seven commits. Each is self-contained and independently green. No env-rename ord
 - [ ] grep guards: `@import "tailwindcss"` returns nothing, `@theme` returns nothing, no Tailwind utility class patterns in `className` strings (resolves reviewer Issue 20)
 
 ### Tests exist
-- [ ] `src/server/config/env.test.ts` with at least 8 cases from section 11.3
-- [ ] `src/server/auth/auth.test.ts` with the three tests from section 11.4 (including the `input: false` security test)
+- [ ] `src/server/config/env.test.ts` with at least 5 cases from section 11.3
+- [ ] `src/lib/auth.test.ts` with the four tests from section 11.4 (including both `input: false` security tests)
 - [ ] `src/app/(auth)/login/LoginForm.test.tsx`
 - [ ] `src/app/(auth)/signup/SignupForm.test.tsx`
 - [ ] `src/app/components/LogoutButton.test.tsx`
@@ -1915,6 +1872,8 @@ Seven commits. Each is self-contained and independently green. No env-rename ord
 - **Content-Security-Policy configuration** — `feature/observability-baseline`
 - **Shared contracts package (`packages/contracts/`)** — `feature/marketplace-schema-rbac`
 - **Health endpoints (`/live`, `/ready`)** — `ops/traefik-deployment`
+- **Graceful shutdown** — `ops/traefik-deployment` (requires `NEXT_MANUAL_SIG_HANDLE=true` or a custom server wrapper; not worth the complexity in branch 1)
+- **API error types and helpers (`errors.ts`)** — `feature/marketplace-schema-rbac` (no custom routes in branch 1 to consume them)
 - **File upload endpoint and MinIO client** — `feature/seller-dashboard`
 - **PayMongo integration and webhook** — `feature/checkout-paymongo`
 - **CI/CD pipeline (GitHub Actions)** — `ops/ci-cd-pipeline`
@@ -1938,17 +1897,16 @@ None block branch 1, but each should be resolved before the relevant later branc
 - **Soft delete strategy** — `feature/marketplace-schema-rbac`.
 - **Pagination shape** — `feature/public-catalog`.
 - **Postgres ICU collation for Filipino text** — `feature/marketplace-schema-rbac`.
-- **Pinned `@better-auth/cli` version and generate-command flags** — verified during branch 1 implementation before commit 5.
 
 ## 16. Done criteria
 
 Branch 1 is complete when:
 
-1. All 7 commits from section 12 are on the `feature/foundations-and-auth-skeleton` branch.
+1. All 6 commits from section 12 are on the `feature/foundations-and-auth-skeleton` branch.
 2. `npm test` passes (env unit + auth security + RTL).
 3. `npm run test:e2e` passes (Playwright against `npm run dev`).
 4. Running `docker compose up -d db && npm run dev` brings up the app, the home page renders, and a user can sign up → see session on home → sign out.
-5. The `input: false` security test is present in `src/server/auth/auth.test.ts` and passes.
+5. Both `input: false` security tests are present in `src/lib/auth.test.ts` and pass.
 6. `/claude-review-against-plan` passes all checks in section 13.
 7. No Hono imports, no Tailwind files, no `src/app/api/` route handlers besides the Better Auth catch-all, no out-of-scope features from section 14.
 8. The old spec at `docs/superpowers/specs/2026-04-12-branch-1-foundations-and-auth-skeleton-design.md` has its frontmatter updated to `status: superseded`.
