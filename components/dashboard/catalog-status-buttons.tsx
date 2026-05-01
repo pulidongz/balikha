@@ -13,7 +13,11 @@ export function CatalogStatusButtons({ catalogId, status }: { catalogId: string;
 
   function setStatus(next: Status) {
     startTransition(async () => {
-      await setCatalogStatusAction(catalogId, next);
+      const result = await setCatalogStatusAction(catalogId, next);
+      if (!result.ok) {
+        console.error('setCatalogStatusAction failed:', result.error);
+        return;
+      }
       router.refresh();
     });
   }

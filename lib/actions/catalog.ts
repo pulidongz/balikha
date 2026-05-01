@@ -1,36 +1,28 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs } from '@/db/schema';
-import { slugify, uniqueSlug } from '@/lib/slug';
-import { getCurrentArtisanProfile } from '@/lib/auth-helpers';
-import { assertOwnsCatalog } from '@/lib/ownership';
+import { uniqueSlug } from '@/lib/slug';
+import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
+import { ok, err, type Result } from '@/lib/result';
+import {
+  catalogCreateSchema,
+  catalogStatusSchema,
+  catalogUpdateSchema,
+  type CatalogStatus,
+} from '@/lib/validators/catalog';
 
-export type ActionResult = { error: string } | { ok: true };
+export async function createCatalogAction(formData: FormData): Promise<Result<{ slug: string }>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-function parseTimestamp(value: FormDataEntryValue | null): Date | null {
-  if (typeof value !== 'string' || value.trim() === '') return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-export async function createCatalogAction(formData: FormData): Promise<ActionResult> {
-  const profile = await getCurrentArtisanProfile();
-  if (!profile) return { error: 'You must have an artisan profile.' };
-
-  const titleRaw = formData.get('title');
-  if (typeof titleRaw !== 'string') return { error: 'Title is required.' };
-  const title = titleRaw.trim();
-  if (title.length < 2 || title.length > 120) {
-    return { error: 'Title must be between 2 and 120 characters.' };
+  const parsed = catalogCreateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-
-  const baseSlug = slugify(title);
-  if (!baseSlug) return { error: 'Title must contain at least one letter or number.' };
-
-  const description = (formData.get('description') as string | null)?.trim() || null;
+  const { title, description } = parsed.data;
 
   const taken = await db
     .select({ slug: catalogs.slug })
@@ -42,51 +34,80 @@ export async function createCatalogAction(formData: FormData): Promise<ActionRes
     artisanProfileId: profile.id,
     slug,
     title,
-    description,
+    description: description ?? null,
     status: 'draft',
   });
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok({ slug });
 }
 
 export async function updateCatalogAction(
   catalogId: string,
   formData: FormData,
-): Promise<ActionResult> {
-  await assertOwnsCatalog(catalogId);
+): Promise<Result<null>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-  const titleRaw = formData.get('title');
-  if (typeof titleRaw !== 'string') return { error: 'Title is required.' };
-  const title = titleRaw.trim();
-  if (title.length < 2 || title.length > 120) {
-    return { error: 'Title must be between 2 and 120 characters.' };
+  // Load + ownership check, fetching only what's needed for the response.
+  const [catalog] = await db
+    .select({
+      id: catalogs.id,
+      artisanProfileId: catalogs.artisanProfileId,
+    })
+    .from(catalogs)
+    .where(eq(catalogs.id, catalogId))
+    .limit(1);
+  try {
+    requireOwnership(catalog, profile.id);
+  } catch {
+    return err('You do not own this catalog.');
   }
 
-  const description = (formData.get('description') as string | null)?.trim() || null;
-  const releaseAt = parseTimestamp(formData.get('releaseAt'));
-  const closesAt = parseTimestamp(formData.get('closesAt'));
+  const parsed = catalogUpdateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
+  }
+  const { title, description, releaseAt, closesAt } = parsed.data;
 
   await db
     .update(catalogs)
-    .set({ title, description, releaseAt, closesAt, updatedAt: new Date() })
+    .set({
+      title,
+      description: description ?? null,
+      releaseAt: releaseAt ?? null,
+      closesAt: closesAt ?? null,
+      updatedAt: new Date(),
+    })
     .where(eq(catalogs.id, catalogId));
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok(null);
 }
 
 export async function setCatalogStatusAction(
   catalogId: string,
-  status: 'draft' | 'published' | 'archived',
-): Promise<ActionResult> {
-  await assertOwnsCatalog(catalogId);
+  status: CatalogStatus,
+): Promise<Result<null>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-  await db
+  const parsedStatus = catalogStatusSchema.safeParse(status);
+  if (!parsedStatus.success) return err('Invalid status.');
+
+  // Single UPDATE constrained by both id AND ownership — saves a load
+  // round-trip for this hot path. rowCount=0 means either the catalog
+  // doesn't exist or the current artisan doesn't own it; either way the
+  // user-facing message is the same.
+  const result = await db
     .update(catalogs)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(catalogs.id, catalogId));
+    .set({ status: parsedStatus.data, updatedAt: new Date() })
+    .where(and(eq(catalogs.id, catalogId), eq(catalogs.artisanProfileId, profile.id)));
+
+  if ((result as { rowCount?: number }).rowCount === 0) {
+    return err('Catalog not found or not owned.');
+  }
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok(null);
 }
