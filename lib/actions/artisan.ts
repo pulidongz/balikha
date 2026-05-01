@@ -5,9 +5,10 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, catalogs } from '@/db/schema';
 import { slugify, uniqueSlug } from '@/lib/slug';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 
 export type BecomeArtisanResult = { error: string } | { ok: true };
+export type UpdateArtisanResult = { error: string } | { ok: true };
 
 export async function becomeArtisanAction(formData: FormData): Promise<BecomeArtisanResult> {
   const user = await getCurrentUser();
@@ -55,5 +56,40 @@ export async function becomeArtisanAction(formData: FormData): Promise<BecomeArt
   });
 
   revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+export async function updateArtisanProfileAction(formData: FormData): Promise<UpdateArtisanResult> {
+  const profile = await getCurrentArtisanProfile();
+  if (!profile) return { error: 'No artisan profile to update.' };
+
+  const shopNameRaw = formData.get('shopName');
+  if (typeof shopNameRaw !== 'string') return { error: 'Shop name is required.' };
+  const shopName = shopNameRaw.trim();
+  if (shopName.length < 2 || shopName.length > 80) {
+    return { error: 'Shop name must be between 2 and 80 characters.' };
+  }
+
+  const bio = (formData.get('bio') as string | null)?.trim() || null;
+  const location = (formData.get('location') as string | null)?.trim() || null;
+  const policies = (formData.get('policies') as string | null)?.trim() || null;
+  const bannerImageUrl = (formData.get('bannerImageUrl') as string | null)?.trim() || null;
+
+  await db
+    .update(artisanProfiles)
+    .set({
+      shopName,
+      bio,
+      location,
+      policies,
+      bannerImageUrl,
+      updatedAt: new Date(),
+    })
+    .where(eq(artisanProfiles.id, profile.id));
+
+  revalidatePath('/dashboard');
+  revalidatePath('/dashboard/settings');
+  revalidatePath(`/shop/${profile.shopSlug}`);
+
   return { ok: true };
 }

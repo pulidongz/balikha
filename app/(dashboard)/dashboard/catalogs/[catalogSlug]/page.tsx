@@ -4,13 +4,30 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs, products } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
-import { formatPrice } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CatalogForm } from '@/components/dashboard/catalog-form';
 import { CatalogStatusButtons } from '@/components/dashboard/catalog-status-buttons';
+import { EmptyState } from '@/components/marketplace/empty-state';
+import { PriceTag } from '@/components/marketplace/price-tag';
 
 export const metadata = {
   title: 'Catalog · Balikha',
+};
+
+const PRODUCT_STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
+  draft: 'outline',
+  published: 'default',
+  sold_out: 'secondary',
+  archived: 'secondary',
+};
+
+const PRODUCT_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  sold_out: 'Sold out',
+  archived: 'Archived',
 };
 
 export default async function CatalogDetailPage({
@@ -36,16 +53,16 @@ export default async function CatalogDetailPage({
     .orderBy(desc(products.createdAt));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-6 py-12">
-      <header>
+    <div className="mx-auto max-w-3xl space-y-10 px-4 py-10 sm:px-6">
+      <header className="space-y-2">
         <p className="text-muted-foreground text-sm">
           <Link href="/dashboard/catalogs" className="hover:underline">
             ← Catalogs
           </Link>
         </p>
-        <div className="mt-2 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{catalog.title}</h1>
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+          <div className="space-y-1">
+            <h1 className="font-serif text-3xl tracking-tight">{catalog.title}</h1>
             <p className="text-muted-foreground text-sm">/{catalog.slug}</p>
           </div>
           <CatalogStatusButtons catalogId={catalog.id} status={catalog.status} />
@@ -54,7 +71,7 @@ export default async function CatalogDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Catalog details</CardTitle>
+          <CardTitle className="font-serif text-xl">Catalog details</CardTitle>
           <CardDescription>
             Slug is locked once created. To change it, archive and create a new catalog.
           </CardDescription>
@@ -73,41 +90,48 @@ export default async function CatalogDetailPage({
         </CardContent>
       </Card>
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Products</h2>
+          <h2 className="font-serif text-2xl tracking-tight">Products</h2>
           <Link
             href={`/dashboard/catalogs/${catalog.slug}/products/new`}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm"
+            className={buttonVariants({ size: 'sm' })}
           >
             New product
           </Link>
         </div>
         {productList.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No products yet.</p>
+          <EmptyState
+            title="No products yet"
+            description="Add the first piece in this catalog."
+            action={
+              <Link
+                href={`/dashboard/catalogs/${catalog.slug}/products/new`}
+                className={buttonVariants({ size: 'sm' })}
+              >
+                Add a product
+              </Link>
+            }
+          />
         ) : (
-          <ul className="space-y-3">
+          <ul className="divide-y rounded-lg border">
             {productList.map((p) => (
-              <li key={p.id} className="rounded-lg border p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-medium">
-                      <Link
-                        href={`/dashboard/catalogs/${catalog.slug}/products/${p.slug}`}
-                        className="hover:underline"
-                      >
-                        {p.title}
-                      </Link>
-                    </h3>
-                    <p className="text-muted-foreground text-xs">/{p.slug}</p>
-                    <p className="mt-1 text-sm">
-                      {formatPrice(p.price, p.currency)} · stock {p.stockOnHand}
+              <li key={p.id}>
+                <Link
+                  href={`/dashboard/catalogs/${catalog.slug}/products/${p.slug}`}
+                  className="hover:bg-secondary/50 flex items-center gap-4 p-4 transition-colors"
+                >
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <h3 className="font-serif text-lg leading-tight">{p.title}</h3>
+                    <p className="text-muted-foreground text-xs">
+                      /{p.slug} · stock {p.stockOnHand}
                     </p>
                   </div>
-                  <span className="text-muted-foreground rounded border px-2 py-0.5 text-xs">
-                    {p.status}
-                  </span>
-                </div>
+                  <PriceTag price={p.price} currency={p.currency} size="sm" />
+                  <Badge variant={PRODUCT_STATUS_VARIANT[p.status] ?? 'outline'}>
+                    {PRODUCT_STATUS_LABEL[p.status] ?? p.status}
+                  </Badge>
+                </Link>
               </li>
             ))}
           </ul>
