@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Fraunces } from 'next/font/google';
 import './globals.css';
+import { env } from '@/env';
 
 const geistSans = Geist({
   variable: '--font-sans',
@@ -20,7 +21,7 @@ const fraunces = Fraunces({
   weight: ['400', '500'],
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),

@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products } from '@/db/schema';
+import { env } from '@/env';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { PriceTag } from '@/components/marketplace/price-tag';
@@ -15,7 +16,7 @@ export const revalidate = 300;
 
 type Params = Promise<{ artisanSlug: string; productSlug: string }>;
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
 async function loadProductWithArtisan(artisanSlug: string, productSlug: string) {
   const [row] = await db

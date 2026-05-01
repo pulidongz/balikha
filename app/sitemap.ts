@@ -2,10 +2,11 @@ import type { MetadataRoute } from 'next';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
+import { env } from '@/env';
 
 export const revalidate = 3600;
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const artisanRows = await db
