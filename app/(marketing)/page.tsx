@@ -1,24 +1,20 @@
-import Image from 'next/image';
 import Link from 'next/link';
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products } from '@/db/schema';
-import { formatPrice } from '@/lib/format';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { buttonVariants } from '@/components/ui/button';
+import { ArtisanCard } from '@/components/marketplace/artisan-card';
+import { ProductCard } from '@/components/marketplace/product-card';
+import { ProductGrid } from '@/components/marketplace/product-grid';
 
 export const revalidate = 300;
 
-const PAGE_SIZE = 24;
+const RECENT_LIMIT = 12;
+const FEATURED_ARTISANS = 4;
 
-type SearchParams = Promise<{ page?: string }>;
-
-export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
-  const sp = await searchParams;
-  const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
-  const offset = (page - 1) * PAGE_SIZE;
-
-  // Fetch one extra row to know whether there's a next page without a count(*)
-  const rows = await db
+export default async function HomePage() {
+  // Recent published products with their artisan
+  const productRows = await db
     .select({
       id: products.id,
       slug: products.slug,
@@ -32,30 +28,22 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
     .where(eq(products.status, 'published'))
     .orderBy(desc(products.createdAt))
-    .limit(PAGE_SIZE + 1)
-    .offset(offset);
+    .limit(RECENT_LIMIT);
 
-  const hasMore = rows.length > PAGE_SIZE;
-  const visible = rows.slice(0, PAGE_SIZE);
-
-  const primaryByProductId = new Map<
-    string,
-    { url: string; width: number | null; height: number | null; altText: string | null }
-  >();
-  if (visible.length > 0) {
+  // Primary image per product
+  const primaryByProductId = new Map<string, { url: string; altText: string | null }>();
+  if (productRows.length > 0) {
     const imageRows = await db
       .select({
         productId: productImages.productId,
         url: productImages.url,
-        width: productImages.width,
-        height: productImages.height,
         altText: productImages.altText,
       })
       .from(productImages)
       .where(
         inArray(
           productImages.productId,
-          visible.map((p) => p.id),
+          productRows.map((p) => p.id),
         ),
       )
       .orderBy(asc(productImages.position));
@@ -64,95 +52,120 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     }
   }
 
-  const session = await getCurrentSession();
+  // Featured artisans = those with at least one published product, plus a count
+  const featuredArtisans = await db
+    .select({
+      id: artisanProfiles.id,
+      shopSlug: artisanProfiles.shopSlug,
+      shopName: artisanProfiles.shopName,
+      location: artisanProfiles.location,
+      bannerImageUrl: artisanProfiles.bannerImageUrl,
+      productCount: sql<number>`count(${products.id})::int`,
+    })
+    .from(artisanProfiles)
+    .innerJoin(products, eq(products.artisanProfileId, artisanProfiles.id))
+    .where(eq(products.status, 'published'))
+    .groupBy(artisanProfiles.id)
+    .orderBy(desc(sql`count(${products.id})`))
+    .limit(FEATURED_ARTISANS);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-      <section className="mb-10 space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight">Discover handmade work</h1>
-        <p className="text-muted-foreground max-w-2xl">
-          Original pieces from independent artisans. Browse the latest below, or visit a shop to see
-          one maker&apos;s full catalog.
-        </p>
+    <div>
+      {/* Hero */}
+      <section className="border-b">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-12 lg:py-28">
+          <div className="space-y-6 lg:col-span-7">
+            <h1 className="font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-6xl">
+              Quietly made.
+              <br />
+              <span className="text-accent">Made to last.</span>
+            </h1>
+            <p className="text-muted-foreground max-w-xl text-base leading-relaxed md:text-lg">
+              Balikha is a small marketplace for handmade work from independent Filipino artisans —
+              pottery, textiles, prints, and the long-form craft behind each piece.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link href="#recent" className={buttonVariants({ size: 'lg' })}>
+                Browse the catalog
+              </Link>
+              <Link href="#artisans" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
+                Meet the makers
+              </Link>
+            </div>
+          </div>
+          <div className="hidden lg:col-span-5 lg:block">
+            <div className="bg-secondary aspect-[4/5] overflow-hidden rounded-lg" aria-hidden>
+              <div className="text-muted-foreground flex h-full items-center justify-center font-serif text-7xl">
+                B
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      {visible.length === 0 ? (
-        <p className="text-muted-foreground">
-          No products listed yet.{' '}
-          {session ? (
-            <Link href="/dashboard" className="text-foreground underline-offset-4 hover:underline">
-              Be the first.
-            </Link>
-          ) : (
+      {/* Featured artisans */}
+      <section id="artisans" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
+        <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-serif text-3xl tracking-tight">Featured artisans</h2>
+          <p className="text-muted-foreground text-sm">
+            {featuredArtisans.length === 0
+              ? 'No shops yet.'
+              : `${featuredArtisans.length} ${featuredArtisans.length === 1 ? 'shop' : 'shops'}`}
+          </p>
+        </div>
+        {featuredArtisans.length === 0 ? (
+          <p className="text-muted-foreground">
+            Be the first.{' '}
             <Link href="/sign-up" className="text-foreground underline-offset-4 hover:underline">
-              Open a shop to be the first.
+              Open a shop on Balikha
             </Link>
-          )}
-        </p>
-      ) : (
-        <>
-          <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {visible.map((p) => {
-              const img = primaryByProductId.get(p.id);
-              return (
-                <li key={p.id}>
-                  <Link
-                    href={`/shop/${p.artisanShopSlug}/${p.slug}`}
-                    className="group block space-y-3"
-                  >
-                    <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
-                      {img ? (
-                        <Image
-                          src={img.url}
-                          alt={img.altText ?? p.title}
-                          fill
-                          sizes="(min-width: 1280px) 280px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                          className="object-cover transition-transform group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                          No image
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h2 className="font-medium">{p.title}</h2>
-                      <p className="text-muted-foreground text-xs">{p.artisanShopName}</p>
-                      <p className="mt-1 text-sm">{formatPrice(p.price, p.currency)}</p>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
+            .
+          </p>
+        ) : (
+          <ul className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-4">
+            {featuredArtisans.map((a) => (
+              <li key={a.id}>
+                <ArtisanCard artisan={a} productCount={a.productCount} />
+              </li>
+            ))}
           </ul>
+        )}
+      </section>
 
-          {(page > 1 || hasMore) && (
-            <nav
-              aria-label="Pagination"
-              className="text-muted-foreground mt-12 flex items-center justify-between text-sm"
-            >
-              {page > 1 ? (
-                <Link
-                  href={page === 2 ? '/' : `/?page=${page - 1}`}
-                  className="hover:text-foreground"
-                >
-                  ← Previous
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span>Page {page}</span>
-              {hasMore ? (
-                <Link href={`/?page=${page + 1}`} className="hover:text-foreground">
-                  Next →
-                </Link>
-              ) : (
-                <span />
-              )}
-            </nav>
+      {/* Recent listings */}
+      <section id="recent" className="bg-secondary/40 border-t">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
+          <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="font-serif text-3xl tracking-tight">Recent listings</h2>
+            <p className="text-muted-foreground text-sm">
+              {productRows.length} {productRows.length === 1 ? 'piece' : 'pieces'}
+            </p>
+          </div>
+          {productRows.length === 0 ? (
+            <p className="text-muted-foreground">No products listed yet.</p>
+          ) : (
+            <ProductGrid cols={4}>
+              {productRows.map((p) => (
+                <li key={p.id}>
+                  <ProductCard
+                    product={{
+                      slug: p.slug,
+                      title: p.title,
+                      price: p.price,
+                      currency: p.currency,
+                    }}
+                    artisan={{
+                      shopSlug: p.artisanShopSlug,
+                      shopName: p.artisanShopName,
+                    }}
+                    primaryImage={primaryByProductId.get(p.id)}
+                  />
+                </li>
+              ))}
+            </ProductGrid>
           )}
-        </>
-      )}
-    </main>
+        </div>
+      </section>
+    </div>
   );
 }

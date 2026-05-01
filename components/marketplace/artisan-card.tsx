@@ -1,0 +1,52 @@
+import Image from 'next/image';
+import Link from 'next/link';
+
+type Props = {
+  artisan: {
+    shopSlug: string;
+    shopName: string;
+    location: string | null;
+    bannerImageUrl: string | null;
+  };
+  productCount?: number;
+};
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '?';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase();
+}
+
+export function ArtisanCard({ artisan, productCount }: Props) {
+  return (
+    <Link
+      href={`/shop/${artisan.shopSlug}`}
+      className="group block space-y-3 focus-visible:outline-none"
+    >
+      <div className="bg-secondary relative aspect-[4/5] overflow-hidden rounded-lg">
+        {artisan.bannerImageUrl ? (
+          <Image
+            src={artisan.bannerImageUrl}
+            alt={artisan.shopName}
+            fill
+            sizes="(min-width: 768px) 25vw, 50vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="bg-secondary text-muted-foreground flex h-full items-center justify-center font-serif text-4xl">
+            {initialsOf(artisan.shopName)}
+          </div>
+        )}
+      </div>
+      <div className="space-y-0.5">
+        <h3 className="font-serif text-lg leading-tight">{artisan.shopName}</h3>
+        <p className="text-muted-foreground text-xs">
+          {artisan.location ?? '—'}
+          {productCount !== undefined &&
+            ` · ${productCount} ${productCount === 1 ? 'piece' : 'pieces'}`}
+        </p>
+      </div>
+    </Link>
+  );
+}

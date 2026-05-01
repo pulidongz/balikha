@@ -2,10 +2,14 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products } from '@/db/schema';
-import { formatPrice } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { PriceTag } from '@/components/marketplace/price-tag';
+import { ProductCard } from '@/components/marketplace/product-card';
+import { ProductGrid } from '@/components/marketplace/product-grid';
 
 export const revalidate = 300;
 
@@ -24,7 +28,6 @@ async function loadProductWithArtisan(artisanSlug: string, productSlug: string) 
     .where(and(eq(artisanProfiles.shopSlug, artisanSlug), eq(products.slug, productSlug)))
     .limit(1);
   if (!row) return null;
-  // Public visibility: published or sold_out (so deep-linked items still resolve)
   if (row.product.status !== 'published' && row.product.status !== 'sold_out') {
     return null;
   }
@@ -45,8 +48,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const description = row.product.description ?? `${row.product.title} by ${row.artisan.shopName}.`;
   return {
-    title: row.product.title,
-    description,
+    title: `${row.product.title} — ${row.artisan.shopName}`,
+    description: description.slice(0, 155),
     openGraph: {
       type: 'website',
       title: row.product.title,
@@ -72,10 +75,53 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
       altText: productImages.altText,
     })
     .from(productImages)
-    .where(inArray(productImages.productId, [product.id]))
+    .where(eq(productImages.productId, product.id))
     .orderBy(asc(productImages.position));
 
+  // "More from this artisan" — published, excluding the current piece
+  const moreFromArtisan = await db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      price: products.price,
+      currency: products.currency,
+    })
+    .from(products)
+    .where(
+      and(
+        eq(products.artisanProfileId, artisan.id),
+        eq(products.status, 'published'),
+        ne(products.id, product.id),
+      ),
+    )
+    .orderBy(desc(products.createdAt))
+    .limit(4);
+
+  const morePrimaryById = new Map<string, { url: string; altText: string | null }>();
+  if (moreFromArtisan.length > 0) {
+    const moreImages = await db
+      .select({
+        productId: productImages.productId,
+        url: productImages.url,
+        altText: productImages.altText,
+      })
+      .from(productImages)
+      .where(
+        inArray(
+          productImages.productId,
+          moreFromArtisan.map((p) => p.id),
+        ),
+      )
+      .orderBy(asc(productImages.position));
+    for (const img of moreImages) {
+      if (!morePrimaryById.has(img.productId)) morePrimaryById.set(img.productId, img);
+    }
+  }
+
   const inStock = product.status === 'published' && product.stockOnHand > 0;
+  const isSoldOut = product.status === 'sold_out';
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -91,7 +137,7 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
       price: product.price,
       availability: inStock
         ? 'https://schema.org/InStock'
-        : product.status === 'sold_out'
+        : isSoldOut
           ? 'https://schema.org/SoldOut'
           : 'https://schema.org/OutOfStock',
       seller: { '@type': 'Organization', name: artisan.shopName },
@@ -99,48 +145,57 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
   };
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <p className="text-muted-foreground mb-6 text-sm">
-        <Link href={`/shop/${artisan.shopSlug}`} className="hover:underline">
-          ← {artisan.shopName}
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-16">
+      {/* Breadcrumb */}
+      <nav aria-label="Breadcrumb" className="text-muted-foreground mb-8 text-sm">
+        <Link href="/" className="hover:text-foreground">
+          Shop
         </Link>
-      </p>
+        <span className="mx-2 opacity-50">›</span>
+        <Link href={`/shop/${artisan.shopSlug}`} className="hover:text-foreground">
+          {artisan.shopName}
+        </Link>
+        <span className="mx-2 opacity-50">›</span>
+        <span className="text-foreground">{product.title}</span>
+      </nav>
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        <section className="space-y-3">
+      {/* 3:2 split at lg+, stacked below */}
+      <div className="grid gap-10 lg:grid-cols-5">
+        {/* Gallery — wider side (3 of 5) */}
+        <section className="space-y-3 lg:col-span-3">
           {images.length === 0 ? (
-            <div className="bg-muted text-muted-foreground flex aspect-square items-center justify-center rounded-lg text-sm">
+            <div className="bg-secondary text-muted-foreground flex aspect-square items-center justify-center rounded-lg text-sm">
               No image
             </div>
           ) : (
             <>
-              <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
+              <div className="bg-secondary relative aspect-square overflow-hidden rounded-lg">
                 <Image
                   src={images[0]!.url}
                   alt={images[0]!.altText ?? product.title}
                   fill
-                  sizes="(min-width: 1024px) 480px, 100vw"
+                  sizes="(min-width: 1024px) 60vw, 100vw"
                   className="object-cover"
                   priority
                 />
               </div>
               {images.length > 1 && (
                 <div className="grid grid-cols-4 gap-2">
-                  {images.slice(1).map((img) => (
+                  {images.slice(1, 5).map((img) => (
                     <div
                       key={img.id}
-                      className="bg-muted relative aspect-square overflow-hidden rounded"
+                      className="bg-secondary relative aspect-square overflow-hidden rounded"
                     >
                       <Image
                         src={img.url}
                         alt={img.altText ?? product.title}
                         fill
-                        sizes="100px"
+                        sizes="120px"
                         className="object-cover"
                       />
                     </div>
@@ -151,46 +206,64 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
           )}
         </section>
 
-        <section className="space-y-6">
+        {/* Info — narrower side (2 of 5) */}
+        <section className="space-y-6 lg:col-span-2">
           <header className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight">{product.title}</h1>
+            <h1 className="font-serif text-3xl leading-tight tracking-tight md:text-4xl">
+              {product.title}
+            </h1>
             <p className="text-muted-foreground text-sm">
               by{' '}
-              <Link href={`/shop/${artisan.shopSlug}`} className="hover:underline">
+              <Link
+                href={`/shop/${artisan.shopSlug}`}
+                className="text-foreground underline-offset-4 hover:underline"
+              >
                 {artisan.shopName}
               </Link>
             </p>
           </header>
 
-          <p className="text-2xl font-medium">{formatPrice(product.price, product.currency)}</p>
-
-          <p className="text-sm">
-            {product.status === 'sold_out' ? (
-              <span className="text-destructive">Sold out</span>
-            ) : product.stockOnHand > 0 ? (
-              <span className="text-muted-foreground">{product.stockOnHand} in stock</span>
-            ) : (
-              <span className="text-destructive">Out of stock</span>
+          <div className="flex items-center gap-3">
+            <PriceTag price={product.price} currency={product.currency} size="lg" />
+            {isSoldOut && (
+              <Badge variant="secondary" className="tracking-wide uppercase">
+                Sold out
+              </Badge>
             )}
-          </p>
+            {inStock && product.stockOnHand <= 3 && (
+              <Badge className="text-foreground border-transparent bg-[var(--gold)] tracking-wide uppercase">
+                Only {product.stockOnHand} left
+              </Badge>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled
+            className={buttonVariants({ size: 'lg', className: 'w-full md:w-auto' })}
+            aria-disabled="true"
+            title="Cart and checkout arrive in a later phase"
+          >
+            {isSoldOut ? 'Sold out' : 'Add to cart'}
+          </button>
 
           {product.description && (
-            <div className="prose prose-sm max-w-none">
-              <p className="leading-relaxed whitespace-pre-line">{product.description}</p>
-            </div>
+            <p className="text-foreground text-base leading-relaxed whitespace-pre-line">
+              {product.description}
+            </p>
           )}
 
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <dl className="space-y-3 border-t pt-6 text-sm">
             {product.materials && product.materials.length > 0 && (
-              <div className="col-span-2">
+              <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Materials</dt>
-                <dd>{product.materials.join(', ')}</dd>
+                <dd className="text-right">{product.materials.join(', ')}</dd>
               </div>
             )}
             {product.dimensions && (
-              <div>
+              <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Dimensions</dt>
-                <dd>
+                <dd className="text-right">
                   {[product.dimensions.width, product.dimensions.height, product.dimensions.depth]
                     .filter((v): v is number => typeof v === 'number')
                     .join(' × ')}{' '}
@@ -199,14 +272,41 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
               </div>
             )}
             {product.weightGrams !== null && (
-              <div>
+              <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Weight</dt>
-                <dd>{product.weightGrams} g</dd>
+                <dd className="text-right">{product.weightGrams} g</dd>
               </div>
             )}
           </dl>
         </section>
       </div>
-    </main>
+
+      {/* More from this artisan */}
+      {moreFromArtisan.length > 0 && (
+        <section className="mt-16 border-t pt-12 md:mt-20 md:pt-16">
+          <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="font-serif text-2xl tracking-tight">More from {artisan.shopName}</h2>
+            <Link
+              href={`/shop/${artisan.shopSlug}`}
+              className="text-muted-foreground hover:text-foreground text-sm"
+            >
+              View shop →
+            </Link>
+          </div>
+          <ProductGrid cols={4}>
+            {moreFromArtisan.map((p) => (
+              <li key={p.id}>
+                <ProductCard
+                  product={p}
+                  artisan={{ shopSlug: artisan.shopSlug, shopName: artisan.shopName }}
+                  primaryImage={morePrimaryById.get(p.id)}
+                  showArtisan={false}
+                />
+              </li>
+            ))}
+          </ProductGrid>
+        </section>
+      )}
+    </div>
   );
 }

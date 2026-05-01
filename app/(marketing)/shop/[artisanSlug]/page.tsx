@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, productImages, products } from '@/db/schema';
-import { formatPrice } from '@/lib/format';
+import { artisanProfiles, catalogs, productImages, products } from '@/db/schema';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CatalogSection } from '@/components/marketplace/catalog-section';
 
 export const revalidate = 300;
 
@@ -18,6 +18,13 @@ async function loadArtisan(artisanSlug: string) {
     .where(eq(artisanProfiles.shopSlug, artisanSlug))
     .limit(1);
   return profile ?? null;
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '?';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase();
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
@@ -42,24 +49,32 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
   const profile = await loadArtisan(artisanSlug);
   if (!profile) notFound();
 
-  const productList = await db
+  // Published catalogs for this artisan
+  const publishedCatalogs = await db
     .select()
-    .from(products)
-    .where(and(eq(products.artisanProfileId, profile.id), eq(products.status, 'published')))
-    .orderBy(desc(products.createdAt));
+    .from(catalogs)
+    .where(and(eq(catalogs.artisanProfileId, profile.id), eq(catalogs.status, 'published')))
+    .orderBy(desc(catalogs.createdAt));
 
-  // Primary image per product = position 0 (asc by position, take first per product)
-  const primaryByProductId = new Map<
-    string,
-    { url: string; width: number | null; height: number | null; altText: string | null }
-  >();
+  const catalogIds = publishedCatalogs.map((c) => c.id);
+
+  // All published products in those catalogs
+  const productList =
+    catalogIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(products)
+          .where(and(eq(products.status, 'published'), inArray(products.catalogId, catalogIds)))
+          .orderBy(desc(products.createdAt));
+
+  // Primary image per product
+  const primaryByProductId = new Map<string, { url: string; altText: string | null }>();
   if (productList.length > 0) {
     const imageRows = await db
       .select({
         productId: productImages.productId,
         url: productImages.url,
-        width: productImages.width,
-        height: productImages.height,
         altText: productImages.altText,
       })
       .from(productImages)
@@ -75,53 +90,81 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
     }
   }
 
-  return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
-      <header className="mb-10 space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{profile.shopName}</h1>
-        {profile.location && <p className="text-muted-foreground text-sm">{profile.location}</p>}
-        {profile.bio && <p className="max-w-2xl text-base leading-relaxed">{profile.bio}</p>}
-      </header>
+  // Group products by catalog
+  const productsByCatalog = new Map<
+    string,
+    Array<
+      (typeof productList)[number] & {
+        primaryImage?: { url: string; altText: string | null } | null;
+      }
+    >
+  >();
+  for (const p of productList) {
+    const list = productsByCatalog.get(p.catalogId) ?? [];
+    list.push({ ...p, primaryImage: primaryByProductId.get(p.id) ?? null });
+    productsByCatalog.set(p.catalogId, list);
+  }
 
-      {productList.length === 0 ? (
-        <p className="text-muted-foreground">No products listed yet. Check back soon.</p>
-      ) : (
-        <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {productList.map((p) => {
-            const img = primaryByProductId.get(p.id);
-            return (
-              <li key={p.id}>
-                <Link
-                  href={`/shop/${profile.shopSlug}/${p.slug}`}
-                  className="group block space-y-3"
-                >
-                  <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
-                    {img ? (
-                      <Image
-                        src={img.url}
-                        alt={img.altText ?? p.title}
-                        fill
-                        sizes="(min-width: 1024px) 320px, (min-width: 640px) 50vw, 100vw"
-                        className="object-cover transition-transform group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                        No image
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="font-medium">{p.title}</h2>
-                    <p className="text-muted-foreground text-sm">
-                      {formatPrice(p.price, p.currency)}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </main>
+  return (
+    <div>
+      {/* Banner — gracefully degrades if no banner image */}
+      <section
+        aria-label="Shop banner"
+        className="bg-secondary relative aspect-[16/6] w-full overflow-hidden md:aspect-[16/4]"
+      >
+        {profile.bannerImageUrl ? (
+          <Image
+            src={profile.bannerImageUrl}
+            alt={`${profile.shopName} banner`}
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority
+          />
+        ) : (
+          <div className="from-secondary to-muted absolute inset-0 bg-gradient-to-br" />
+        )}
+      </section>
+
+      {/* Artisan info row */}
+      <section className="mx-auto -mt-12 max-w-5xl px-4 sm:px-6 md:-mt-16">
+        <div className="bg-card flex flex-col items-center gap-4 rounded-lg border p-6 text-center md:flex-row md:items-end md:gap-6 md:text-left">
+          <Avatar className="border-card ring-border h-24 w-24 border-4 ring-1">
+            <AvatarImage src={profile.bannerImageUrl ?? undefined} alt={profile.shopName} />
+            <AvatarFallback className="font-serif text-2xl">
+              {initialsOf(profile.shopName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="space-y-1 md:flex-1">
+            <h1 className="font-serif text-3xl tracking-tight md:text-4xl">{profile.shopName}</h1>
+            {profile.location && (
+              <p className="text-muted-foreground text-sm">{profile.location}</p>
+            )}
+          </div>
+        </div>
+        {profile.bio && (
+          <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-center text-base leading-relaxed md:text-left">
+            {profile.bio}
+          </p>
+        )}
+      </section>
+
+      {/* Catalogs */}
+      <div className="mx-auto max-w-6xl space-y-16 px-4 py-16 sm:px-6 md:py-20">
+        {publishedCatalogs.length === 0 ||
+        publishedCatalogs.every((c) => (productsByCatalog.get(c.id) ?? []).length === 0) ? (
+          <p className="text-muted-foreground">No products listed yet. Check back soon.</p>
+        ) : (
+          publishedCatalogs.map((catalog) => (
+            <CatalogSection
+              key={catalog.id}
+              catalog={catalog}
+              artisan={profile}
+              products={productsByCatalog.get(catalog.id) ?? []}
+            />
+          ))
+        )}
+      </div>
+    </div>
   );
 }
