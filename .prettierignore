@@ -1,0 +1,8 @@
+.next
+node_modules
+drizzle
+public
+*.lock
+package-lock.json
+balikha-plan.md
+
