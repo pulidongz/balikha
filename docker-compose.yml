@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: balikha_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: balikha
+      POSTGRES_PASSWORD: balikha_dev
+      POSTGRES_DB: balikha
+    ports:
+      - '5432:5432'
+    volumes:
+      - balikha_pg_data:/var/lib/postgresql/data
+
+volumes:
+  balikha_pg_data:
