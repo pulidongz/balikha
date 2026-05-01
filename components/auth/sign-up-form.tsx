@@ -46,6 +46,7 @@ export function SignUpForm() {
           onChange={(e) => setName(e.target.value)}
           required
           autoComplete="name"
+          className="h-11"
         />
       </div>
       <div className="space-y-2">
@@ -58,6 +59,7 @@ export function SignUpForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
+          className="h-11"
         />
       </div>
       <div className="space-y-2">
@@ -71,6 +73,7 @@ export function SignUpForm() {
           required
           autoComplete="new-password"
           minLength={8}
+          className="h-11"
         />
       </div>
       {error && (
@@ -78,7 +81,7 @@ export function SignUpForm() {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
         {loading ? 'Creating account…' : 'Create account'}
       </Button>
     </form>

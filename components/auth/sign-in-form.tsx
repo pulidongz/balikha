@@ -46,10 +46,20 @@ export function SignInForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
+          className="h-11"
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="signin-password">Password</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="signin-password">Password</Label>
+          <a
+            href="#"
+            className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+            aria-label="Forgot password (coming soon)"
+          >
+            Forgot password?
+          </a>
+        </div>
         <Input
           id="signin-password"
           name="password"
@@ -58,6 +68,7 @@ export function SignInForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
           autoComplete="current-password"
+          className="h-11"
         />
       </div>
       {error && (
@@ -65,7 +76,7 @@ export function SignInForm() {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
         {loading ? 'Signing in…' : 'Sign in'}
       </Button>
     </form>

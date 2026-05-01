@@ -17,7 +17,7 @@ export default function SignUpPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create your account</CardTitle>
+        <CardTitle className="font-serif text-2xl">Create your account</CardTitle>
         <CardDescription>Join Balikha to discover or sell artisan work.</CardDescription>
       </CardHeader>
       <CardContent>

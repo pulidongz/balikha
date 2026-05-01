@@ -17,7 +17,7 @@ export default function SignInPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Welcome back</CardTitle>
+        <CardTitle className="font-serif text-2xl">Welcome back</CardTitle>
         <CardDescription>Sign in to your Balikha account.</CardDescription>
       </CardHeader>
       <CardContent>
