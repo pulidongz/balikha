@@ -20,7 +20,7 @@ export function BecomeSellerForm() {
         setError(null);
         startTransition(async () => {
           const result = await becomeArtisanAction(formData);
-          if ('error' in result) {
+          if (!result.ok) {
             setError(result.error);
             return;
           }

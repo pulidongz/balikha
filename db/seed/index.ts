@@ -20,12 +20,7 @@
 
 import { db } from '@/db';
 import { account, session, user, verification } from '@/db/schema/auth';
-import {
-  artisanProfiles,
-  catalogs,
-  productImages,
-  products,
-} from '@/db/schema/app';
+import { artisanProfiles, catalogs, productImages, products } from '@/db/schema/app';
 import { faker } from '@faker-js/faker';
 import { auth } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -143,8 +138,7 @@ function buildProductsFor(artisanIndex: number): ProductSeed[] {
         },
         {
           title: 'Limited edition gold-rimmed bowl',
-          description:
-            'A small batch of bowls finished with a hand-painted gold rim.',
+          description: 'A small batch of bowls finished with a hand-painted gold rim.',
           price: '3200.00',
           stockOnHand: 3,
           status: 'published',
@@ -163,7 +157,7 @@ function buildProductsFor(artisanIndex: number): ProductSeed[] {
         {
           title: "T'nalak table runner, traditional pattern",
           description:
-            "A 1.8m table runner woven from abaca fiber and dyed with natural pigments. Each pattern carries traditional meaning passed down through generations.",
+            'A 1.8m table runner woven from abaca fiber and dyed with natural pigments. Each pattern carries traditional meaning passed down through generations.',
           price: '4500.00',
           stockOnHand: 2,
           status: 'published',
@@ -193,8 +187,7 @@ function buildProductsFor(artisanIndex: number): ProductSeed[] {
       return [
         {
           title: 'Narra serving bowl, hand-carved',
-          description:
-            'A deep serving bowl carved from a single piece of narra.',
+          description: 'A deep serving bowl carved from a single piece of narra.',
           price: '1800.00',
           stockOnHand: 4,
           status: 'published',
@@ -278,9 +271,7 @@ async function seed() {
       const ps = productSeeds[p]!;
       // Place the last product in the limited catalog if one exists
       const targetCatalog =
-        limitedCatalog && p === productSeeds.length - 1
-          ? limitedCatalog
-          : defaultCatalog;
+        limitedCatalog && p === productSeeds.length - 1 ? limitedCatalog : defaultCatalog;
 
       const [product] = await db
         .insert(products)

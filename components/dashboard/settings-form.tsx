@@ -20,7 +20,12 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [saved, setSaved] = useState(false);
+
+  function fieldError(name: string): string | undefined {
+    return fieldErrors[name]?.[0];
+  }
 
   return (
     <form
@@ -28,11 +33,13 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
       className="space-y-5"
       action={(formData) => {
         setError(null);
+        setFieldErrors({});
         setSaved(false);
         startTransition(async () => {
           const result = await updateArtisanProfileAction(formData);
-          if ('error' in result) {
+          if (!result.ok) {
             setError(result.error);
+            setFieldErrors(result.fieldErrors ?? {});
             return;
           }
           setSaved(true);
@@ -49,7 +56,11 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           required
           minLength={2}
           maxLength={80}
+          aria-invalid={fieldError('shopName') ? true : undefined}
         />
+        {fieldError('shopName') && (
+          <p className="text-destructive text-xs">{fieldError('shopName')}</p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -68,7 +79,11 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           defaultValue={defaults.location ?? ''}
           placeholder="e.g. Quezon City"
           maxLength={120}
+          aria-invalid={fieldError('location') ? true : undefined}
         />
+        {fieldError('location') && (
+          <p className="text-destructive text-xs">{fieldError('location')}</p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -79,7 +94,9 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           defaultValue={defaults.bio ?? ''}
           rows={4}
           placeholder="A short introduction to you and your craft."
+          aria-invalid={fieldError('bio') ? true : undefined}
         />
+        {fieldError('bio') && <p className="text-destructive text-xs">{fieldError('bio')}</p>}
       </div>
 
       <div className="space-y-2">
@@ -90,7 +107,11 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           defaultValue={defaults.policies ?? ''}
           rows={5}
           placeholder="Shipping, returns, custom orders…"
+          aria-invalid={fieldError('policies') ? true : undefined}
         />
+        {fieldError('policies') && (
+          <p className="text-destructive text-xs">{fieldError('policies')}</p>
+        )}
       </div>
 
       {error && (

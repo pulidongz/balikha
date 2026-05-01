@@ -19,7 +19,7 @@ export function BannerUploader({ currentUrl }: { currentUrl: string | null }) {
     if (!confirm('Remove the current banner?')) return;
     startTransition(async () => {
       const result = await deleteArtisanBannerAction();
-      if ('error' in result) {
+      if (!result.ok) {
         setError(result.error);
         return;
       }
@@ -52,7 +52,7 @@ export function BannerUploader({ currentUrl }: { currentUrl: string | null }) {
           setError(null);
           startTransition(async () => {
             const result = await uploadArtisanBannerAction(formData);
-            if ('error' in result) {
+            if (!result.ok) {
               setError(result.error);
               return;
             }

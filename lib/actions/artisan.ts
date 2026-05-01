@@ -6,12 +6,11 @@ import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, catalogs } from '@/db/schema';
-import { slugify, uniqueSlug } from '@/lib/slug';
+import { uniqueSlug } from '@/lib/slug';
 import { getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
-
-export type BecomeArtisanResult = { error: string } | { ok: true };
-export type UpdateArtisanResult = { error: string } | { ok: true };
-export type BannerActionResult = { error: string } | { ok: true };
+import { ok, err, type Result } from '@/lib/result';
+import { logger } from '@/lib/logger';
+import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
 
 const ALLOWED_BANNER_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_BANNER_BYTES = 8 * 1024 * 1024; // 8 MB — banners are larger than product images
@@ -21,34 +20,32 @@ async function bestEffortUnlinkLocalUpload(url: string | null) {
   const filePath = path.join(process.cwd(), 'public', url.replace(/^\//, ''));
   try {
     await fs.unlink(filePath);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
   }
 }
 
-export async function becomeArtisanAction(formData: FormData): Promise<BecomeArtisanResult> {
+export async function becomeArtisanAction(
+  formData: FormData,
+): Promise<Result<{ shopSlug: string }>> {
   const user = await getCurrentUser();
-  if (!user) return { error: 'You must be signed in.' };
+  if (!user) return err('You must be signed in.');
 
-  const raw = formData.get('shopName');
-  if (typeof raw !== 'string') return { error: 'Shop name is required.' };
-  const shopName = raw.trim();
-  if (shopName.length < 2 || shopName.length > 80) {
-    return { error: 'Shop name must be between 2 and 80 characters.' };
+  const parsed = artisanProfileCreateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-
-  const baseSlug = slugify(shopName);
-  if (!baseSlug) return { error: 'Shop name must contain at least one letter or number.' };
+  const { shopName } = parsed.data;
 
   // Idempotency: if the user already has a profile, treat as success.
   const [existing] = await db
-    .select()
+    .select({ shopSlug: artisanProfiles.shopSlug })
     .from(artisanProfiles)
     .where(eq(artisanProfiles.userId, user.id))
     .limit(1);
   if (existing) {
     revalidatePath('/dashboard');
-    return { ok: true };
+    return ok({ shopSlug: existing.shopSlug });
   }
 
   // Resolve a unique shop slug. shop_slug is globally unique (small table for
@@ -71,56 +68,44 @@ export async function becomeArtisanAction(formData: FormData): Promise<BecomeArt
     });
   });
 
+  logger.info({ userId: user.id, shopSlug }, 'Artisan profile created');
   revalidatePath('/dashboard');
-  return { ok: true };
+  return ok({ shopSlug });
 }
 
-export async function updateArtisanProfileAction(formData: FormData): Promise<UpdateArtisanResult> {
+export async function updateArtisanProfileAction(formData: FormData): Promise<Result<null>> {
   const profile = await getCurrentArtisanProfile();
-  if (!profile) return { error: 'No artisan profile to update.' };
+  if (!profile) return err('No artisan profile to update.');
 
-  const shopNameRaw = formData.get('shopName');
-  if (typeof shopNameRaw !== 'string') return { error: 'Shop name is required.' };
-  const shopName = shopNameRaw.trim();
-  if (shopName.length < 2 || shopName.length > 80) {
-    return { error: 'Shop name must be between 2 and 80 characters.' };
+  const parsed = artisanProfileUpdateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-
-  const bio = (formData.get('bio') as string | null)?.trim() || null;
-  const location = (formData.get('location') as string | null)?.trim() || null;
-  const policies = (formData.get('policies') as string | null)?.trim() || null;
 
   await db
     .update(artisanProfiles)
-    .set({
-      shopName,
-      bio,
-      location,
-      policies,
-      updatedAt: new Date(),
-    })
+    .set({ ...parsed.data, updatedAt: new Date() })
     .where(eq(artisanProfiles.id, profile.id));
 
   revalidatePath('/dashboard');
   revalidatePath('/dashboard/settings');
   revalidatePath(`/shop/${profile.shopSlug}`);
-
-  return { ok: true };
+  return ok(null);
 }
 
-export async function uploadArtisanBannerAction(formData: FormData): Promise<BannerActionResult> {
+export async function uploadArtisanBannerAction(formData: FormData): Promise<Result<null>> {
   const profile = await getCurrentArtisanProfile();
-  if (!profile) return { error: 'No artisan profile to update.' };
+  if (!profile) return err('No artisan profile to update.');
 
   const file = formData.get('banner');
   if (!(file instanceof File) || file.size === 0) {
-    return { error: 'Select an image to upload.' };
+    return err('Select an image to upload.');
   }
   if (!ALLOWED_BANNER_TYPES.has(file.type)) {
-    return { error: `Unsupported image type: ${file.type || 'unknown'}.` };
+    return err(`Unsupported image type: ${file.type || 'unknown'}.`);
   }
   if (file.size > MAX_BANNER_BYTES) {
-    return { error: 'Banner must be 8 MB or smaller.' };
+    return err('Banner must be 8 MB or smaller.');
   }
 
   const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'artisans', profile.id);
@@ -132,10 +117,6 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Ban
   await fs.writeFile(path.join(uploadDir, filename), buffer);
 
   const newUrl = `/uploads/artisans/${profile.id}/${filename}`;
-
-  // Best-effort unlink the previous banner *file* (only if it was a local
-  // upload). The DB row is updated next; if unlink fails for ENOENT the
-  // file is already gone, anything else is a real error.
   await bestEffortUnlinkLocalUpload(profile.bannerImageUrl);
 
   await db
@@ -145,14 +126,14 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Ban
 
   revalidatePath('/dashboard/settings');
   revalidatePath(`/shop/${profile.shopSlug}`);
-  return { ok: true };
+  return ok(null);
 }
 
-export async function deleteArtisanBannerAction(): Promise<BannerActionResult> {
+export async function deleteArtisanBannerAction(): Promise<Result<null>> {
   const profile = await getCurrentArtisanProfile();
-  if (!profile) return { error: 'No artisan profile to update.' };
+  if (!profile) return err('No artisan profile to update.');
 
-  if (!profile.bannerImageUrl) return { ok: true };
+  if (!profile.bannerImageUrl) return ok(null);
 
   await bestEffortUnlinkLocalUpload(profile.bannerImageUrl);
 
@@ -163,5 +144,5 @@ export async function deleteArtisanBannerAction(): Promise<BannerActionResult> {
 
   revalidatePath('/dashboard/settings');
   revalidatePath(`/shop/${profile.shopSlug}`);
-  return { ok: true };
+  return ok(null);
 }
