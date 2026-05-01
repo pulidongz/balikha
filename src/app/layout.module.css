@@ -1,8 +1,0 @@
-.body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  font-family: var(--font-sans);
-  background-color: var(--brand-bg);
-  color: var(--neutral-900);
-}
