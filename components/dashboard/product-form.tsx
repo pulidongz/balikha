@@ -28,6 +28,11 @@ export function ProductForm(props: CreateMode | EditMode) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  function fieldError(name: string): string | undefined {
+    return fieldErrors[name]?.[0];
+  }
 
   const isEdit = props.mode === 'edit';
   const d = isEdit ? props.defaults : null;
@@ -38,12 +43,14 @@ export function ProductForm(props: CreateMode | EditMode) {
       className="space-y-4"
       action={(formData) => {
         setError(null);
+        setFieldErrors({});
         startTransition(async () => {
           const result = isEdit
             ? await updateProductAction(props.productId, formData)
             : await createProductAction(props.catalogId, formData);
-          if ('error' in result) {
+          if (!result.ok) {
             setError(result.error);
+            setFieldErrors(result.fieldErrors ?? {});
             return;
           }
           router.refresh();
@@ -60,7 +67,9 @@ export function ProductForm(props: CreateMode | EditMode) {
           minLength={2}
           maxLength={200}
           defaultValue={d?.title}
+          aria-invalid={fieldError('title') ? true : undefined}
         />
+        {fieldError('title') && <p className="text-destructive text-xs">{fieldError('title')}</p>}
       </div>
 
       <div className="space-y-2">
@@ -70,7 +79,11 @@ export function ProductForm(props: CreateMode | EditMode) {
           name="description"
           rows={4}
           defaultValue={d?.description ?? ''}
+          aria-invalid={fieldError('description') ? true : undefined}
         />
+        {fieldError('description') && (
+          <p className="text-destructive text-xs">{fieldError('description')}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -83,7 +96,9 @@ export function ProductForm(props: CreateMode | EditMode) {
             placeholder="0.00"
             required
             defaultValue={d?.price}
+            aria-invalid={fieldError('price') ? true : undefined}
           />
+          {fieldError('price') && <p className="text-destructive text-xs">{fieldError('price')}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="product-currency">Currency</Label>
@@ -92,7 +107,11 @@ export function ProductForm(props: CreateMode | EditMode) {
             name="currency"
             maxLength={3}
             defaultValue={d?.currency ?? 'PHP'}
+            aria-invalid={fieldError('currency') ? true : undefined}
           />
+          {fieldError('currency') && (
+            <p className="text-destructive text-xs">{fieldError('currency')}</p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="product-stock">Stock on hand</Label>
@@ -103,7 +122,11 @@ export function ProductForm(props: CreateMode | EditMode) {
             min={0}
             step={1}
             defaultValue={d?.stockOnHand ?? 0}
+            aria-invalid={fieldError('stockOnHand') ? true : undefined}
           />
+          {fieldError('stockOnHand') && (
+            <p className="text-destructive text-xs">{fieldError('stockOnHand')}</p>
+          )}
         </div>
       </div>
 
@@ -114,7 +137,11 @@ export function ProductForm(props: CreateMode | EditMode) {
           name="materials"
           placeholder="stoneware, glaze, oxide"
           defaultValue={d?.materials?.join(', ') ?? ''}
+          aria-invalid={fieldError('materials') ? true : undefined}
         />
+        {fieldError('materials') && (
+          <p className="text-destructive text-xs">{fieldError('materials')}</p>
+        )}
       </div>
 
       <fieldset className="space-y-2 rounded-md border p-4">
@@ -174,6 +201,9 @@ export function ProductForm(props: CreateMode | EditMode) {
             </select>
           </div>
         </div>
+        {fieldError('dimensions') && (
+          <p className="text-destructive text-xs">{fieldError('dimensions')}</p>
+        )}
       </fieldset>
 
       <div className="space-y-2">
@@ -185,7 +215,11 @@ export function ProductForm(props: CreateMode | EditMode) {
           min={0}
           step={1}
           defaultValue={d?.weightGrams ?? ''}
+          aria-invalid={fieldError('weightGrams') ? true : undefined}
         />
+        {fieldError('weightGrams') && (
+          <p className="text-destructive text-xs">{fieldError('weightGrams')}</p>
+        )}
       </div>
 
       {error && (

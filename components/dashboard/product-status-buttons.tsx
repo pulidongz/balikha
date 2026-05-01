@@ -13,7 +13,11 @@ export function ProductStatusButtons({ productId, status }: { productId: string;
 
   function setStatus(next: Status) {
     startTransition(async () => {
-      await setProductStatusAction(productId, next);
+      const result = await setProductStatusAction(productId, next);
+      if (!result.ok) {
+        console.error('setProductStatusAction failed:', result.error);
+        return;
+      }
       router.refresh();
     });
   }

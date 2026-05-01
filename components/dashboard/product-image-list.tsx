@@ -24,7 +24,11 @@ export function ProductImageList({ images }: { images: ImageRow[] }) {
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await deleteProductImageAction(id);
+      const result = await deleteProductImageAction(id);
+      if (!result.ok) {
+        console.error('deleteProductImageAction failed:', result.error);
+        return;
+      }
       router.refresh();
     });
   }

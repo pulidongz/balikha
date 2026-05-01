@@ -3,79 +3,92 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { imageSize } from 'image-size';
 import { db } from '@/db';
-import { productImages, products } from '@/db/schema';
-import { slugify, uniqueSlug } from '@/lib/slug';
-import { assertOwnsCatalog, assertOwnsProduct, assertOwnsProductImage } from '@/lib/ownership';
+import { catalogs, productImages, products } from '@/db/schema';
+import { uniqueSlug } from '@/lib/slug';
+import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
+import { ok, err, type Result } from '@/lib/result';
+import {
+  productCreateSchema,
+  productStatusSchema,
+  productUpdateSchema,
+  type ProductStatus,
+} from '@/lib/validators/product';
 
-export type ActionResult = { error: string } | { ok: true };
-
-const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 
-function parseMaterials(raw: FormDataEntryValue | null): string[] | null {
-  if (typeof raw !== 'string') return null;
-  const list = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.length === 0 ? null : list;
-}
+// Build the structured input object the schema expects, from a FormData
+// whose fields are flat strings. Materials becomes an array; dimensions
+// becomes a nested object. Empty fields drop to undefined so schema defaults
+// or .optional() behavior kick in.
+function inputFromFormData(formData: FormData) {
+  const get = (k: string): string | undefined => {
+    const v = formData.get(k);
+    return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
+  };
 
-function parseDimensions(formData: FormData) {
-  const w = formData.get('width');
-  const h = formData.get('height');
-  const d = formData.get('depth');
-  const u = formData.get('unit');
-  const dims: { width?: number; height?: number; depth?: number; unit?: 'cm' | 'in' } = {};
-  if (typeof w === 'string' && w !== '') dims.width = Number(w);
-  if (typeof h === 'string' && h !== '') dims.height = Number(h);
-  if (typeof d === 'string' && d !== '') dims.depth = Number(d);
-  if (u === 'cm' || u === 'in') dims.unit = u;
-  return Object.keys(dims).length === 0 ? null : dims;
+  const materialsRaw = get('materials');
+  const materials = materialsRaw
+    ? materialsRaw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined;
+
+  const w = get('width');
+  const h = get('height');
+  const d = get('depth');
+  const u = get('unit');
+  const dims =
+    w || h || d || u
+      ? {
+          width: w,
+          height: h,
+          depth: d,
+          unit: u,
+        }
+      : undefined;
+
+  return {
+    title: get('title'),
+    description: get('description'),
+    price: get('price'),
+    currency: get('currency'),
+    stockOnHand: get('stockOnHand'),
+    weightGrams: get('weightGrams'),
+    materials,
+    dimensions: dims,
+  };
 }
 
 export async function createProductAction(
   catalogId: string,
   formData: FormData,
-): Promise<ActionResult> {
-  const profile = await assertOwnsCatalog(catalogId);
+): Promise<Result<{ slug: string }>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-  const titleRaw = formData.get('title');
-  if (typeof titleRaw !== 'string') return { error: 'Title is required.' };
-  const title = titleRaw.trim();
-  if (title.length < 2 || title.length > 200) {
-    return { error: 'Title must be between 2 and 200 characters.' };
+  // Verify catalog ownership before doing anything expensive.
+  const [catalog] = await db
+    .select({ id: catalogs.id, artisanProfileId: catalogs.artisanProfileId })
+    .from(catalogs)
+    .where(eq(catalogs.id, catalogId))
+    .limit(1);
+  try {
+    requireOwnership(catalog, profile.id);
+  } catch {
+    return err('You do not own this catalog.');
   }
 
-  const baseSlug = slugify(title);
-  if (!baseSlug) return { error: 'Title must contain at least one letter or number.' };
-
-  const priceRaw = formData.get('price');
-  if (typeof priceRaw !== 'string' || !PRICE_RE.test(priceRaw)) {
-    return { error: 'Price must be a positive number with up to 2 decimal places.' };
+  const parsed = productCreateSchema.safeParse({ catalogId, ...inputFromFormData(formData) });
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-
-  const description = (formData.get('description') as string | null)?.trim() || null;
-  const currency = (formData.get('currency') as string | null)?.trim() || 'PHP';
-  const stockRaw = formData.get('stockOnHand');
-  const stockOnHand = typeof stockRaw === 'string' && stockRaw !== '' ? Number(stockRaw) : 0;
-  if (!Number.isInteger(stockOnHand) || stockOnHand < 0) {
-    return { error: 'Stock must be a non-negative integer.' };
-  }
-  const weightRaw = formData.get('weightGrams');
-  let weightGrams: number | null = null;
-  if (typeof weightRaw === 'string' && weightRaw !== '') {
-    const n = Number(weightRaw);
-    if (!Number.isInteger(n) || n < 0) return { error: 'Weight must be a non-negative integer.' };
-    weightGrams = n;
-  }
-
-  const materials = parseMaterials(formData.get('materials'));
-  const dimensions = parseDimensions(formData);
+  const { title, description, price, currency, stockOnHand, weightGrams, materials, dimensions } =
+    parsed.data;
 
   // Slug must be unique within the artisan, not the catalog
   const taken = await db
@@ -89,114 +102,123 @@ export async function createProductAction(
     artisanProfileId: profile.id,
     slug,
     title,
-    description,
-    price: priceRaw,
+    description: description ?? null,
+    price,
     currency,
     stockOnHand,
     status: 'draft',
-    dimensions,
-    materials,
-    weightGrams,
+    dimensions: dimensions ?? null,
+    materials: materials ?? null,
+    weightGrams: weightGrams ?? null,
   });
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok({ slug });
 }
 
 export async function updateProductAction(
   productId: string,
   formData: FormData,
-): Promise<ActionResult> {
-  await assertOwnsProduct(productId);
+): Promise<Result<null>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-  const titleRaw = formData.get('title');
-  if (typeof titleRaw !== 'string') return { error: 'Title is required.' };
-  const title = titleRaw.trim();
-  if (title.length < 2 || title.length > 200) {
-    return { error: 'Title must be between 2 and 200 characters.' };
+  const [product] = await db
+    .select({ id: products.id, artisanProfileId: products.artisanProfileId })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+  try {
+    requireOwnership(product, profile.id);
+  } catch {
+    return err('You do not own this product.');
   }
 
-  const priceRaw = formData.get('price');
-  if (typeof priceRaw !== 'string' || !PRICE_RE.test(priceRaw)) {
-    return { error: 'Price must be a positive number with up to 2 decimal places.' };
+  const parsed = productUpdateSchema.safeParse(inputFromFormData(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-
-  const description = (formData.get('description') as string | null)?.trim() || null;
-  const currency = (formData.get('currency') as string | null)?.trim() || 'PHP';
-  const stockRaw = formData.get('stockOnHand');
-  const stockOnHand = typeof stockRaw === 'string' && stockRaw !== '' ? Number(stockRaw) : 0;
-  if (!Number.isInteger(stockOnHand) || stockOnHand < 0) {
-    return { error: 'Stock must be a non-negative integer.' };
-  }
-  const weightRaw = formData.get('weightGrams');
-  let weightGrams: number | null = null;
-  if (typeof weightRaw === 'string' && weightRaw !== '') {
-    const n = Number(weightRaw);
-    if (!Number.isInteger(n) || n < 0) return { error: 'Weight must be a non-negative integer.' };
-    weightGrams = n;
-  }
-
-  const materials = parseMaterials(formData.get('materials'));
-  const dimensions = parseDimensions(formData);
+  const { title, description, price, currency, stockOnHand, weightGrams, materials, dimensions } =
+    parsed.data;
 
   await db
     .update(products)
     .set({
       title,
-      description,
-      price: priceRaw,
+      description: description ?? null,
+      price,
       currency,
       stockOnHand,
-      dimensions,
-      materials,
-      weightGrams,
+      dimensions: dimensions ?? null,
+      materials: materials ?? null,
+      weightGrams: weightGrams ?? null,
       updatedAt: new Date(),
     })
     .where(eq(products.id, productId));
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok(null);
 }
 
 export async function setProductStatusAction(
   productId: string,
-  status: 'draft' | 'published' | 'sold_out' | 'archived',
-): Promise<ActionResult> {
-  await assertOwnsProduct(productId);
+  status: ProductStatus,
+): Promise<Result<null>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-  await db
+  const parsedStatus = productStatusSchema.safeParse(status);
+  if (!parsedStatus.success) return err('Invalid status.');
+
+  // Single UPDATE constrained by id + ownership — IDOR-safe in one query.
+  const result = await db
     .update(products)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(products.id, productId));
+    .set({ status: parsedStatus.data, updatedAt: new Date() })
+    .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)));
+
+  if ((result as { rowCount?: number }).rowCount === 0) {
+    return err('Product not found or not owned.');
+  }
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok(null);
 }
 
 export async function uploadProductImagesAction(
   productId: string,
   formData: FormData,
-): Promise<ActionResult> {
-  const { profile } = await assertOwnsProduct(productId);
+): Promise<Result<null>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
+
+  const [product] = await db
+    .select({ id: products.id, artisanProfileId: products.artisanProfileId })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+  try {
+    requireOwnership(product, profile.id);
+  } catch {
+    return err('You do not own this product.');
+  }
 
   const files = formData
     .getAll('images')
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
-  if (files.length === 0) return { error: 'Select at least one image.' };
+  if (files.length === 0) return err('Select at least one image.');
 
   for (const file of files) {
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      return { error: `Unsupported image type: ${file.type || 'unknown'}.` };
+      return err(`Unsupported image type: ${file.type || 'unknown'}.`);
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      return { error: `${file.name} exceeds 10 MB.` };
+      return err(`${file.name} exceeds 10 MB.`);
     }
   }
 
   const uploadDir = path.join(process.cwd(), 'public', 'uploads', profile.id, productId);
   await fs.mkdir(uploadDir, { recursive: true });
 
-  // Find current max position so new images append
   const existing = await db
     .select({ position: productImages.position })
     .from(productImages)
@@ -227,33 +249,45 @@ export async function uploadProductImagesAction(
   }
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok(null);
 }
 
-export async function deleteProductImageAction(imageId: string): Promise<ActionResult> {
-  await assertOwnsProductImage(imageId);
+export async function deleteProductImageAction(imageId: string): Promise<Result<null>> {
+  const profile = await requireArtisan().catch(() => null);
+  if (!profile) return err('You must have an artisan profile.');
 
-  // Fetch URL so we can unlink the file as well
-  const [row] = await db
-    .select({ url: productImages.url })
+  // Image ownership comes via JOIN — fetch the artisan_profile_id from
+  // the parent product, plus the URL we'll need for the unlink.
+  const [imageRow] = await db
+    .select({
+      id: productImages.id,
+      url: productImages.url,
+      artisanProfileId: products.artisanProfileId,
+    })
     .from(productImages)
+    .innerJoin(products, eq(products.id, productImages.productId))
     .where(eq(productImages.id, imageId))
     .limit(1);
+  try {
+    requireOwnership(imageRow, profile.id);
+  } catch {
+    return err('You do not own this image.');
+  }
 
   await db.delete(productImages).where(eq(productImages.id, imageId));
 
-  if (row) {
-    const filePath = path.join(process.cwd(), 'public', row.url.replace(/^\//, ''));
-    // Best-effort filesystem cleanup. The DB row is already gone, so a missing
-    // file (e.g. manually deleted, race with another action) shouldn't surface
-    // as a user-visible error — but anything else we re-raise.
+  // Best-effort filesystem cleanup. The DB row is already gone, so a missing
+  // file (manually deleted, or a race with another action) shouldn't surface
+  // as a user-visible error — but anything else we re-raise.
+  if (imageRow) {
+    const filePath = path.join(process.cwd(), 'public', imageRow.url.replace(/^\//, ''));
     try {
       await fs.unlink(filePath);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
   }
 
   revalidatePath('/dashboard/catalogs');
-  return { ok: true };
+  return ok(null);
 }

@@ -21,7 +21,7 @@ export function ProductImageUploader({ productId }: { productId: string }) {
         setError(null);
         startTransition(async () => {
           const result = await uploadProductImagesAction(productId, formData);
-          if ('error' in result) {
+          if (!result.ok) {
             setError(result.error);
             return;
           }
