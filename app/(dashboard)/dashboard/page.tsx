@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SignOutButton } from '@/components/auth/sign-out-button';
 import { BecomeSellerForm } from '@/components/dashboard/become-seller-form';
 import { SellerOverview } from '@/components/dashboard/seller-overview';
 import { getCurrentSession, getCurrentArtisanProfile } from '@/lib/auth-helpers';
@@ -18,17 +17,15 @@ export default async function DashboardPage() {
   }
 
   const profile = await getCurrentArtisanProfile();
+  const firstName = session.user.name.split(' ')[0] ?? session.user.name;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground text-sm">
-            Signed in as {session.user.name} ({session.user.email})
-          </p>
-        </div>
-        <SignOutButton />
+    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <header className="mb-8 space-y-1">
+        <h1 className="font-serif text-3xl tracking-tight">Welcome back, {firstName}</h1>
+        <p className="text-muted-foreground text-sm">
+          {profile ? `Managing ${profile.shopName}.` : 'Open a shop to start listing your work.'}
+        </p>
       </header>
 
       {profile ? (
@@ -46,6 +43,6 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       )}
-    </main>
+    </div>
   );
 }

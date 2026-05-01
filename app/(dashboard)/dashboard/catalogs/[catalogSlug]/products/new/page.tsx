@@ -28,7 +28,7 @@ export default async function NewProductPage({
   if (!catalog) notFound();
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-6 py-12">
+    <div className="mx-auto max-w-2xl space-y-6 px-6 py-12">
       <header>
         <p className="text-muted-foreground text-sm">
           <Link href={`/dashboard/catalogs/${catalog.slug}`} className="hover:underline">
@@ -47,6 +47,6 @@ export default async function NewProductPage({
           <ProductForm mode="create" catalogId={catalog.id} />
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

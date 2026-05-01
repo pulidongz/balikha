@@ -36,7 +36,7 @@ export default async function CatalogDetailPage({
     .orderBy(desc(products.createdAt));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
+    <div className="mx-auto max-w-3xl space-y-8 px-6 py-12">
       <header>
         <p className="text-muted-foreground text-sm">
           <Link href="/dashboard/catalogs" className="hover:underline">
@@ -113,6 +113,6 @@ export default async function CatalogDetailPage({
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }
