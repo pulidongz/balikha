@@ -44,3 +44,6 @@ next-env.d.ts
 # claude code local config
 .claude/
 
+# user-uploaded product images (local prototype storage)
+/public/uploads/
+

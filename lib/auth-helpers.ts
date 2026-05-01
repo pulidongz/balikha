@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
@@ -22,4 +23,12 @@ export async function getCurrentArtisanProfile() {
     .where(eq(artisanProfiles.userId, user.id))
     .limit(1);
   return profile ?? null;
+}
+
+// For dashboard sub-pages that only make sense for sellers. Redirects to
+// /dashboard (which shows the become-seller form) if the user has no profile.
+export async function requireSellerProfile() {
+  const profile = await getCurrentArtisanProfile();
+  if (!profile) redirect('/dashboard');
+  return profile;
 }
