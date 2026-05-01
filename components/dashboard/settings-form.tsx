@@ -13,7 +13,6 @@ type Defaults = {
   shopName: string;
   bio: string | null;
   location: string | null;
-  bannerImageUrl: string | null;
   policies: string | null;
 };
 
@@ -81,20 +80,6 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           rows={4}
           placeholder="A short introduction to you and your craft."
         />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="settings-banner">Banner image URL</Label>
-        <Input
-          id="settings-banner"
-          name="bannerImageUrl"
-          type="url"
-          defaultValue={defaults.bannerImageUrl ?? ''}
-          placeholder="https://…"
-        />
-        <p className="text-muted-foreground text-xs">
-          Direct upload arrives later. For now, paste a URL to any banner image.
-        </p>
       </div>
 
       <div className="space-y-2">

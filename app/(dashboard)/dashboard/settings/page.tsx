@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BannerUploader } from '@/components/dashboard/banner-uploader';
 import { SettingsForm } from '@/components/dashboard/settings-form';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 
@@ -42,10 +43,19 @@ export default async function SettingsPage() {
               shopName: profile.shopName,
               bio: profile.bio,
               location: profile.location,
-              bannerImageUrl: profile.bannerImageUrl,
               policies: profile.policies,
             }}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-xl">Banner image</CardTitle>
+          <CardDescription>Hero image at the top of your public storefront.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BannerUploader currentUrl={profile.bannerImageUrl} />
         </CardContent>
       </Card>
     </div>
