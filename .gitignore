@@ -47,3 +47,6 @@ next-env.d.ts
 # user-uploaded product images (local prototype storage)
 /public/uploads/
 
+# planning docs — kept locally, not source-controlled
+/docs/plans/
+

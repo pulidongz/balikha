@@ -4,6 +4,5 @@ drizzle
 public
 *.lock
 package-lock.json
-balikha-plan.md
-balikha-frontend-plan.md
+/docs/plans/
 
