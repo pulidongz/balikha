@@ -48,10 +48,17 @@ export async function becomeArtisanAction(
     return ok({ shopSlug: existing.shopSlug });
   }
 
-  // Resolve a unique shop slug. shop_slug is globally unique (small table for
-  // a prototype; revisit if the artisan count ever grows large).
-  const taken = await db.select({ slug: artisanProfiles.shopSlug }).from(artisanProfiles);
-  const shopSlug = uniqueSlug(shopName, new Set(taken.map((r) => r.slug)));
+  // Resolve a unique shop slug. shop_slug is globally unique — exists()
+  // probes per candidate (one indexed lookup each), avoiding a full-table
+  // SELECT that the old set-based pattern needed.
+  const shopSlug = await uniqueSlug(shopName, async (candidate) => {
+    const [row] = await db
+      .select({ id: artisanProfiles.id })
+      .from(artisanProfiles)
+      .where(eq(artisanProfiles.shopSlug, candidate))
+      .limit(1);
+    return Boolean(row);
+  });
 
   await db.transaction(async (tx) => {
     const [profile] = await tx

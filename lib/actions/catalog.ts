@@ -24,11 +24,16 @@ export async function createCatalogAction(formData: FormData): Promise<Result<{ 
   }
   const { title, description } = parsed.data;
 
-  const taken = await db
-    .select({ slug: catalogs.slug })
-    .from(catalogs)
-    .where(eq(catalogs.artisanProfileId, profile.id));
-  const slug = uniqueSlug(title, new Set(taken.map((r) => r.slug)));
+  // Catalog slugs are unique per artisan (composite index). exists() probes
+  // by (artisan_profile_id, slug) so the lookup uses the unique index.
+  const slug = await uniqueSlug(title, async (candidate) => {
+    const [row] = await db
+      .select({ id: catalogs.id })
+      .from(catalogs)
+      .where(and(eq(catalogs.artisanProfileId, profile.id), eq(catalogs.slug, candidate)))
+      .limit(1);
+    return Boolean(row);
+  });
 
   await db.insert(catalogs).values({
     artisanProfileId: profile.id,

@@ -85,12 +85,17 @@ export async function createProductAction(
   const { title, description, price, currency, stockOnHand, weightGrams, materials, dimensions } =
     parsed.data;
 
-  // Slug must be unique within the artisan, not the catalog
-  const taken = await db
-    .select({ slug: products.slug })
-    .from(products)
-    .where(eq(products.artisanProfileId, profile.id));
-  const slug = uniqueSlug(title, new Set(taken.map((r) => r.slug)));
+  // Slug must be unique within the artisan, not the catalog (composite
+  // unique index on products(artisan_profile_id, slug)). Probe by that
+  // exact pair so the lookup uses the index.
+  const slug = await uniqueSlug(title, async (candidate) => {
+    const [row] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(and(eq(products.artisanProfileId, profile.id), eq(products.slug, candidate)))
+      .limit(1);
+    return Boolean(row);
+  });
 
   await db.insert(products).values({
     catalogId,

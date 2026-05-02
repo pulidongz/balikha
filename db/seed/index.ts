@@ -586,13 +586,16 @@ async function seed() {
       limitedCatalog = drop ?? null;
     }
 
-    // Track slugs taken within this seller for uniqueSlug
+    // In-process tracker for slugs we've already generated for this seller.
+    // The new uniqueSlug API takes an async exists() callback — perfect fit;
+    // we just check the set instead of hitting the DB (the seed inserts
+    // sequentially, so the in-memory set is always current).
     const slugSet = new Set<string>();
 
     for (let p = 0; p < PRODUCTS_PER_SELLER; p++) {
       const status = pickStatus();
       const title = buildProductTitle(seller.craft, p);
-      const slug = uniqueSlug(title, slugSet);
+      const slug = await uniqueSlug(title, async (candidate) => slugSet.has(candidate));
       slugSet.add(slug);
 
       const stockOnHand = status === 'sold_out' ? 0 : faker.number.int({ min: 0, max: 12 });
