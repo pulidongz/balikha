@@ -12,5 +12,41 @@ services:
     volumes:
       - balikha_pg_data:/var/lib/postgresql/data
 
+  minio:
+    image: minio/minio:latest
+    container_name: balikha_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: balikha_dev
+      MINIO_ROOT_PASSWORD: balikha_dev_secret
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # Web console
+    volumes:
+      - balikha_minio_data:/data
+    command: server /data --console-address ":9001"
+
+  # One-shot container that creates the bucket on startup. Idempotent —
+  # `mc mb -p ... || true` is a no-op when the bucket already exists, so
+  # `docker compose up -d` can be re-run freely. The `mc anonymous set
+  # download` line makes objects publicly readable; this is fine for local
+  # dev where everything is on localhost. Production reads go through
+  # signed URLs or a Cloudflare-fronted public R2 bucket — never replicate
+  # this anonymous-access setup beyond dev.
+  minio-init:
+    image: minio/mc:latest
+    container_name: balikha_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 balikha_dev balikha_dev_secret;
+      mc mb -p local/balikha-images || true;
+      mc anonymous set download local/balikha-images;
+      exit 0;
+      "
+
 volumes:
   balikha_pg_data:
+  balikha_minio_data:
