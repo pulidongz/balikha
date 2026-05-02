@@ -4,7 +4,6 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
-import { imageSize } from 'image-size';
 import { db } from '@/db';
 import { catalogs, productImages, products } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
@@ -16,9 +15,6 @@ import {
   productUpdateSchema,
   type ProductStatus,
 } from '@/lib/validators/product';
-
-const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 // Build the structured input object the schema expects, from a FormData
 // whose fields are flat strings. Materials becomes an array; dimensions
@@ -178,74 +174,6 @@ export async function setProductStatusAction(
 
   if ((result as { rowCount?: number }).rowCount === 0) {
     return err('Product not found or not owned.');
-  }
-
-  revalidatePath('/dashboard/catalogs');
-  return ok(null);
-}
-
-export async function uploadProductImagesAction(
-  productId: string,
-  formData: FormData,
-): Promise<Result<null>> {
-  const profile = await requireArtisan().catch(() => null);
-  if (!profile) return err('You must have an artisan profile.');
-
-  const [product] = await db
-    .select({ id: products.id, artisanProfileId: products.artisanProfileId })
-    .from(products)
-    .where(eq(products.id, productId))
-    .limit(1);
-  try {
-    requireOwnership(product, profile.id);
-  } catch {
-    return err('You do not own this product.');
-  }
-
-  const files = formData
-    .getAll('images')
-    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
-  if (files.length === 0) return err('Select at least one image.');
-
-  for (const file of files) {
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      return err(`Unsupported image type: ${file.type || 'unknown'}.`);
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      return err(`${file.name} exceeds 10 MB.`);
-    }
-  }
-
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', profile.id, productId);
-  await fs.mkdir(uploadDir, { recursive: true });
-
-  const existing = await db
-    .select({ position: productImages.position })
-    .from(productImages)
-    .where(eq(productImages.productId, productId));
-  let nextPosition = existing.reduce((max, r) => Math.max(max, r.position + 1), 0);
-
-  for (const file of files) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const dims = imageSize(buffer);
-
-    const ext = path.extname(file.name) || '.bin';
-    const safeBase = path
-      .basename(file.name, ext)
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .slice(0, 60);
-    const filename = `${Date.now()}-${safeBase}${ext.toLowerCase()}`;
-    await fs.writeFile(path.join(uploadDir, filename), buffer);
-
-    await db.insert(productImages).values({
-      productId,
-      url: `/uploads/${profile.id}/${productId}/${filename}`,
-      altText: null,
-      position: nextPosition,
-      width: dims.width ?? null,
-      height: dims.height ?? null,
-    });
-    nextPosition += 1;
   }
 
   revalidatePath('/dashboard/catalogs');

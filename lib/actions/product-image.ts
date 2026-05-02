@@ -82,6 +82,7 @@ export async function confirmImageUploadAction(
     .insert(productImages)
     .values({
       productId,
+      storageKey: key,
       url: publicUrlForKey(key),
       altText: altText ?? null,
       position: nextPosition,

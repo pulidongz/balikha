@@ -101,6 +101,12 @@ export const productImages = pgTable(
     productId: uuid('product_id')
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
+    // Source of truth for what's in our S3 bucket. Null means the image is
+    // an external URL we don't own (e.g. seeded placeholder images, future
+    // hot-linked imports) — storage cleanup logic must check before deleting.
+    storageKey: text('storage_key'),
+    // Denormalized public URL — derived from storageKey + S3_PUBLIC_URL_BASE
+    // when our images, or an arbitrary external URL when not.
     url: text('url').notNull(),
     altText: text('alt_text'),
     position: integer('position').notNull().default(0),
