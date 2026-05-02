@@ -44,8 +44,9 @@ openssl rand -base64 32
 # 5. Bring up Postgres + MinIO + Caddy (TLS reverse proxy)
 docker compose up -d
 
-# 6. Trust Caddy's local root CA (one-time) — see "Local HTTPS / certificates"
-#    section below for the command + GUI alternative + troubleshooting.
+# 6. Trust Caddy's local root CA (one-time) — runs the steps in the
+#    "Local HTTPS / certificates" section below. Asks for your password.
+./bin/trust-cert
 
 # 7. Apply the database schema
 npm run db:migrate
@@ -67,13 +68,20 @@ Open <https://balikha.localhost:8443>.
 
 The `caddy` container generates its own root CA on first boot and mints a leaf cert for `balikha.localhost`. The CA is **not trusted by macOS by default**, so the browser shows a warning the first time you visit. Trusting it is a one-time step.
 
-### Install (CLI — fastest)
+### Install (script — recommended)
 
 ```bash
-# Extract Caddy's root CA from the container
-docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
+./bin/trust-cert
+```
 
-# Add it to the System keychain as a trusted root (asks for sudo)
+That script extracts the CA from the running `balikha_caddy` container, checks whether it's already in the System keychain (idempotent — safe to re-run), and runs `sudo security add-trusted-cert` if needed. Verifies with `curl` afterwards. Run it again any time `docker compose down -v` wipes the caddy volume — Caddy regenerates a new CA, the script detects the fingerprint mismatch and re-trusts.
+
+### Install (manual CLI)
+
+If you'd rather see exactly what the script runs, the equivalent two commands:
+
+```bash
+docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
 sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain /tmp/balikha-caddy-root.crt
 ```

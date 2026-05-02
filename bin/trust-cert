@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+#
+# bin/trust-cert
+#
+# Extracts Caddy's local root CA from the balikha_caddy container and adds
+# it to the macOS System keychain as a trusted root, so the browser stops
+# warning about https://balikha.localhost:8443.
+#
+# Idempotent — safe to re-run any time. After `docker compose down -v`
+# wipes the caddy volume and Caddy regenerates a new CA, just run this
+# script again; it'll detect the new fingerprint and re-trust.
+
+set -euo pipefail
+
+CONTAINER="balikha_caddy"
+CERT_PATH="/tmp/balikha-caddy-root.crt"
+URL="https://balikha.localhost:8443/"
+
+red()    { printf "\033[31m%s\033[0m" "$*"; }
+green()  { printf "\033[32m%s\033[0m" "$*"; }
+yellow() { printf "\033[33m%s\033[0m" "$*"; }
+dim()    { printf "\033[2m%s\033[0m"  "$*"; }
+bold()   { printf "\033[1m%s\033[0m"  "$*"; }
+
+# --- guards ---------------------------------------------------------------
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "$(red ✗) This script is macOS-only."
+  echo "  For Linux / WSL / Windows, see the README's"
+  echo "  'Local HTTPS / certificates' section."
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "$(red ✗) docker not found on PATH."
+  exit 1
+fi
+
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+  echo "$(red ✗) Caddy container '${CONTAINER}' isn't running."
+  echo "  Start it first:"
+  echo "    $(bold "docker compose up -d")"
+  exit 1
+fi
+
+# --- extract --------------------------------------------------------------
+
+echo "$(bold "1.") Extracting root CA from ${CONTAINER}…"
+docker exec "${CONTAINER}" cat /data/caddy/pki/authorities/local/root.crt > "${CERT_PATH}"
+echo "   $(dim "→ ${CERT_PATH}")"
+
+CURRENT_SHA1=$(openssl x509 -in "${CERT_PATH}" -noout -sha1 -fingerprint \
+  | cut -d= -f2 \
+  | tr -d ':' \
+  | tr 'A-F' 'a-f')
+echo "   $(dim "fingerprint: ${CURRENT_SHA1}")"
+
+# --- check if already trusted --------------------------------------------
+
+echo ""
+echo "$(bold "2.") Checking System keychain for an existing trust entry…"
+
+# `security find-certificate -a -Z` lists every cert with its SHA-1 hash
+# (uppercase, no colons). Match against the current fingerprint.
+if security find-certificate -a -Z /Library/Keychains/System.keychain 2>/dev/null \
+     | grep -iq "SHA-1 hash: ${CURRENT_SHA1}$"; then
+  echo "   $(green ✓) This CA is already trusted. Nothing to do."
+else
+  # If a stale "Caddy Local Authority" cert is in the keychain, warn the
+  # user — usually means they did `docker compose down -v` and Caddy
+  # regenerated, so the old trust entry is now orphaned.
+  if security find-certificate -c "Caddy Local Authority" /Library/Keychains/System.keychain >/dev/null 2>&1; then
+    echo "   $(yellow ⚠) Found an older 'Caddy Local Authority' entry."
+    echo "      The new CA will be added alongside it. To remove the stale"
+    echo "      entry afterwards, see 'Removing trust' in the README."
+  fi
+  echo "   Adding new CA. You'll be prompted for your password…"
+  sudo security add-trusted-cert -d -r trustRoot \
+    -k /Library/Keychains/System.keychain "${CERT_PATH}"
+  echo "   $(green ✓) Added to System keychain."
+fi
+
+# --- verify ---------------------------------------------------------------
+
+echo ""
+echo "$(bold "3.") Verifying with curl…"
+
+if curl -sSf -o /dev/null --max-time 5 "${URL}" 2>/dev/null; then
+  echo "   $(green ✓) ${URL} returns 200 (no -k flag needed)."
+else
+  HTTP_CODE=$(curl -sS -o /dev/null --max-time 5 -w "%{http_code}" "${URL}" 2>/dev/null || echo "000")
+  if [[ "${HTTP_CODE}" == "000" ]]; then
+    echo "   $(yellow ⚠) Trust looks installed, but ${URL} isn't reachable."
+    echo "      Is the Next dev server running?  $(bold "npm run dev")"
+  elif [[ "${HTTP_CODE}" == "60" ]] || curl -sS -o /dev/null --max-time 5 "${URL}" 2>&1 | grep -qi "certificate"; then
+    echo "   $(red ✗) Cert isn't being trusted by curl."
+    echo "      Try restarting your terminal session."
+  else
+    echo "   $(yellow ⚠) Got HTTP ${HTTP_CODE} from ${URL} — TLS works, app may be misconfigured."
+  fi
+fi
+
+echo ""
+echo "$(bold "Done.") Open ${URL} in your browser."
+echo "$(dim "  (Restart the browser if it was already open — trust decisions cache per-process.)")"
