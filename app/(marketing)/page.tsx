@@ -1,58 +1,31 @@
 import Link from 'next/link';
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, productImages, products } from '@/db/schema';
+import { artisanProfiles, products } from '@/db/schema';
 import { buttonVariants } from '@/components/ui/button';
 import { ArtisanCard } from '@/components/marketplace/artisan-card';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
+import { getRecentProducts } from '@/lib/queries/products';
 
 export const revalidate = 300;
 
-const RECENT_LIMIT = 12;
 const FEATURED_ARTISANS = 4;
 
-export default async function HomePage() {
-  // Recent published products with their artisan
-  const productRows = await db
-    .select({
-      id: products.id,
-      slug: products.slug,
-      title: products.title,
-      price: products.price,
-      currency: products.currency,
-      artisanShopSlug: artisanProfiles.shopSlug,
-      artisanShopName: artisanProfiles.shopName,
-    })
-    .from(products)
-    .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
-    .where(eq(products.status, 'published'))
-    .orderBy(desc(products.createdAt))
-    .limit(RECENT_LIMIT);
+interface HomePageProps {
+  searchParams: Promise<{ cursor?: string }>;
+}
 
-  // Primary image per product
-  const primaryByProductId = new Map<string, { url: string; altText: string | null }>();
-  if (productRows.length > 0) {
-    const imageRows = await db
-      .select({
-        productId: productImages.productId,
-        url: productImages.url,
-        altText: productImages.altText,
-      })
-      .from(productImages)
-      .where(
-        inArray(
-          productImages.productId,
-          productRows.map((p) => p.id),
-        ),
-      )
-      .orderBy(asc(productImages.position));
-    for (const img of imageRows) {
-      if (!primaryByProductId.has(img.productId)) primaryByProductId.set(img.productId, img);
-    }
-  }
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const { cursor } = await searchParams;
 
-  // Featured artisans = those with at least one published product, plus a count
+  // Cursor-paginated. Forward-only: nextCursor lets us build "Next →";
+  // browser back covers "Previous". Stable under concurrent inserts —
+  // a new product appearing between page loads doesn't shift rows around.
+  const recent = await getRecentProducts({ cursor });
+
+  // Featured artisans — those with at least one published product, plus a count.
+  // Not paginated; this is a "homepage hero" slot.
   const featuredArtisans = await db
     .select({
       id: artisanProfiles.id,
@@ -68,6 +41,8 @@ export default async function HomePage() {
     .groupBy(artisanProfiles.id)
     .orderBy(desc(sql`count(${products.id})`))
     .limit(FEATURED_ARTISANS);
+
+  const onFirstPage = !cursor;
 
   return (
     <div>
@@ -136,33 +111,50 @@ export default async function HomePage() {
       <section id="recent" className="bg-secondary/40 border-t">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
           <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="font-serif text-3xl tracking-tight">Recent listings</h2>
-            <p className="text-muted-foreground text-sm">
-              {productRows.length} {productRows.length === 1 ? 'piece' : 'pieces'}
-            </p>
+            <h2 className="font-serif text-3xl tracking-tight">
+              {onFirstPage ? 'Recent listings' : 'More listings'}
+            </h2>
+            {!onFirstPage && (
+              <Link href="/#recent" className="text-muted-foreground hover:text-foreground text-sm">
+                ← Back to most recent
+              </Link>
+            )}
           </div>
-          {productRows.length === 0 ? (
+          {recent.items.length === 0 ? (
             <p className="text-muted-foreground">No products listed yet.</p>
           ) : (
-            <ProductGrid cols={4}>
-              {productRows.map((p) => (
-                <li key={p.id}>
-                  <ProductCard
-                    product={{
-                      slug: p.slug,
-                      title: p.title,
-                      price: p.price,
-                      currency: p.currency,
-                    }}
-                    artisan={{
-                      shopSlug: p.artisanShopSlug,
-                      shopName: p.artisanShopName,
-                    }}
-                    primaryImage={primaryByProductId.get(p.id)}
-                  />
-                </li>
-              ))}
-            </ProductGrid>
+            <>
+              <ProductGrid cols={4}>
+                {recent.items.map((p) => (
+                  <li key={p.id}>
+                    <ProductCard
+                      product={{
+                        slug: p.slug,
+                        title: p.title,
+                        price: p.price,
+                        currency: p.currency,
+                      }}
+                      artisan={{
+                        shopSlug: p.artisanShopSlug,
+                        shopName: p.artisanShopName,
+                      }}
+                      primaryImage={p.primaryImage ?? undefined}
+                    />
+                  </li>
+                ))}
+              </ProductGrid>
+
+              {recent.nextCursor && (
+                <div className="mt-12 flex justify-center">
+                  <Link
+                    href={`/?cursor=${recent.nextCursor}#recent`}
+                    className={buttonVariants({ variant: 'outline' })}
+                  >
+                    Next →
+                  </Link>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
