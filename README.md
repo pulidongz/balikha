@@ -44,12 +44,8 @@ openssl rand -base64 32
 # 5. Bring up Postgres + MinIO + Caddy (TLS reverse proxy)
 docker compose up -d
 
-# 6. Trust Caddy's local root CA so the browser stops warning (one-time):
-docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
-sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain /tmp/balikha-caddy-root.crt
-# (or open /tmp/balikha-caddy-root.crt in Keychain Access and set
-#  "When using this certificate" to "Always Trust" — same effect)
+# 6. Trust Caddy's local root CA (one-time) — see "Local HTTPS / certificates"
+#    section below for the command + GUI alternative + troubleshooting.
 
 # 7. Apply the database schema
 npm run db:migrate
@@ -64,6 +60,82 @@ npm run dev
 Open <https://balikha.localhost:8443>.
 
 `balikha.localhost` resolves to 127.0.0.1 automatically (RFC 6761), so no `/etc/hosts` editing. Caddy terminates TLS on `:8443` and proxies to the Next dev server on `:3000`. You can also reach the dev server directly at <http://localhost:3000> — useful for quick curl tests where TLS is in the way.
+
+---
+
+## Local HTTPS / certificates
+
+The `caddy` container generates its own root CA on first boot and mints a leaf cert for `balikha.localhost`. The CA is **not trusted by macOS by default**, so the browser shows a warning the first time you visit. Trusting it is a one-time step.
+
+### Install (CLI — fastest)
+
+```bash
+# Extract Caddy's root CA from the container
+docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
+
+# Add it to the System keychain as a trusted root (asks for sudo)
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain /tmp/balikha-caddy-root.crt
+```
+
+### Install (GUI alternative)
+
+If you'd rather not use `sudo` from the terminal:
+
+```bash
+docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
+open /tmp/balikha-caddy-root.crt
+```
+
+Keychain Access opens with the certificate selected. Expand **Trust** → set **When using this certificate** to **Always Trust** → close the window. macOS prompts for your login password to save the change.
+
+### Verify it worked
+
+```bash
+curl -sS -o /dev/null -w "status=%{http_code}\n" https://balikha.localhost:8443/
+# Expected: status=200 (no -k flag needed)
+```
+
+If you get a TLS error: the cert isn't trusted yet, or it was extracted from a stale container. Re-run the extract step.
+
+In the browser: open <https://balikha.localhost:8443> in a fresh tab — the address bar should show a closed padlock with no warning. **Restart the browser if you trusted the cert while it was already open** — Chrome and Firefox cache trust decisions per-process.
+
+### Re-extracting after `docker compose down -v`
+
+`docker compose down -v` deletes the `balikha_caddy_data` volume, which wipes the CA. Next time Caddy boots it generates a brand new CA — and the one you trusted earlier is no longer valid. Symptoms: padlock icon turns red, `curl` fails with `unable to get local issuer certificate`.
+
+Fix:
+
+```bash
+# Remove the old (now-orphaned) trust entry
+sudo security delete-certificate -c "Caddy Local Authority - 2026 ECC Root" \
+  /Library/Keychains/System.keychain
+# (the year + suffix may differ — check Keychain Access for the exact name)
+
+# Re-extract + re-trust the new CA
+docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain /tmp/balikha-caddy-root.crt
+```
+
+To **avoid** this: don't `docker compose down -v`. Use `docker compose stop` (preserves volumes) or `docker compose down` (removes containers but keeps volumes).
+
+### Removing trust (uninstall)
+
+```bash
+sudo security delete-certificate -c "Caddy Local Authority - 2026 ECC Root" \
+  /Library/Keychains/System.keychain
+```
+
+Or open Keychain Access → search "Caddy Local Authority" → right-click → Delete.
+
+### What about Linux / WSL / Windows?
+
+Same `docker exec ... cat root.crt` first step. Then:
+
+- **Linux**: `sudo cp /tmp/balikha-caddy-root.crt /usr/local/share/ca-certificates/balikha-caddy-root.crt && sudo update-ca-certificates`
+- **Firefox** (any OS): Firefox uses its own trust store. Settings → Privacy & Security → Certificates → View Certificates → Authorities → Import → check "Trust this CA to identify websites".
+- **Windows**: `certutil -addstore "Root" C:\path\to\root.crt` (PowerShell as Admin) or run `certmgr.msc` → Trusted Root Certification Authorities → Import.
 
 ---
 
@@ -106,7 +178,7 @@ Open <https://balikha.localhost:8443>.
 | Seller — Sagada Roasters (coffee)   | `sagada-roasters@balikha.test`                 | `password123` |
 | Buyers (10)                         | `buyer1@balikha.test` … `buyer10@balikha.test` | `password123` |
 
-⚠️ Dev-only credentials. Sign in at <http://localhost:3000/sign-in>.
+⚠️ Dev-only credentials. Sign in at <https://balikha.localhost:8443/sign-in>.
 
 **Seed timing:** the first run takes ~30s because it fetches a pool of 50 placeholder photos from picsum.photos (cached to `/tmp/balikha-seed-images/`). Re-runs are ~8s — bucket-clear, DB-clear, then upload-from-cache.
 
