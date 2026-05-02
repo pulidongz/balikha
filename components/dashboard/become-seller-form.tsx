@@ -12,12 +12,22 @@ export function BecomeSellerForm() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Generated once when the form mounts. Carries through every retry of
+  // this form session — so a double-click or network-retry within 24h
+  // returns the cached response (the artisan profile from the first
+  // attempt) instead of re-creating. New page mount → new key → new
+  // chance to actually try again.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+
   return (
     <form
       noValidate
       className="space-y-4"
       action={(formData) => {
         setError(null);
+        // Inject the per-mount key into the FormData. Server schema
+        // validates as a UUID via lib/validators/_shared.ts.
+        formData.set('idempotencyKey', idempotencyKey);
         startTransition(async () => {
           const result = await becomeArtisanAction(formData);
           if (!result.ok) {

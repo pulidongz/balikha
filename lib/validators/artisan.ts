@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { idempotencyKeyField } from './_shared';
 
 // shopSlug is server-generated from shopName via lib/slug.ts uniqueSlug —
 // never accepted from clients. bannerImageUrl is owned exclusively by the
@@ -8,6 +9,7 @@ export const artisanProfileCreateSchema = z.object({
     .string()
     .min(2, 'Shop name must be at least 2 characters')
     .max(80, 'Shop name must be 80 characters or fewer'),
+  idempotencyKey: idempotencyKeyField,
 });
 
 export const artisanProfileUpdateSchema = z.object({

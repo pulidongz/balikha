@@ -10,6 +10,7 @@ import { uniqueSlug } from '@/lib/slug';
 import { getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { logger } from '@/lib/logger';
+import { withIdempotency } from '@/lib/idempotency';
 import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
 
 const ALLOWED_BANNER_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -35,49 +36,56 @@ export async function becomeArtisanAction(
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-  const { shopName } = parsed.data;
+  const { shopName, idempotencyKey } = parsed.data;
 
-  // Idempotency: if the user already has a profile, treat as success.
-  const [existing] = await db
-    .select({ shopSlug: artisanProfiles.shopSlug })
-    .from(artisanProfiles)
-    .where(eq(artisanProfiles.userId, user.id))
-    .limit(1);
-  if (existing) {
-    revalidatePath('/dashboard');
-    return ok({ shopSlug: existing.shopSlug });
-  }
+  return withIdempotency({
+    key: idempotencyKey,
+    scope: 'becomeArtisan',
+    userId: user.id,
+    fn: async () => {
+      // If the user already has a profile, treat the request as success
+      // (covers double-clicks across page reloads where idempotencyKey
+      // changed but the desired end-state was already achieved).
+      const [existing] = await db
+        .select({ shopSlug: artisanProfiles.shopSlug })
+        .from(artisanProfiles)
+        .where(eq(artisanProfiles.userId, user.id))
+        .limit(1);
+      if (existing) {
+        revalidatePath('/dashboard');
+        return ok({ shopSlug: existing.shopSlug });
+      }
 
-  // Resolve a unique shop slug. shop_slug is globally unique — exists()
-  // probes per candidate (one indexed lookup each), avoiding a full-table
-  // SELECT that the old set-based pattern needed.
-  const shopSlug = await uniqueSlug(shopName, async (candidate) => {
-    const [row] = await db
-      .select({ id: artisanProfiles.id })
-      .from(artisanProfiles)
-      .where(eq(artisanProfiles.shopSlug, candidate))
-      .limit(1);
-    return Boolean(row);
+      // Resolve a unique shop slug — globally unique, probes per candidate.
+      const shopSlug = await uniqueSlug(shopName, async (candidate) => {
+        const [row] = await db
+          .select({ id: artisanProfiles.id })
+          .from(artisanProfiles)
+          .where(eq(artisanProfiles.shopSlug, candidate))
+          .limit(1);
+        return Boolean(row);
+      });
+
+      await db.transaction(async (tx) => {
+        const [profile] = await tx
+          .insert(artisanProfiles)
+          .values({ userId: user.id, shopName, shopSlug })
+          .returning();
+        if (!profile) throw new Error('Failed to create artisan profile.');
+
+        await tx.insert(catalogs).values({
+          artisanProfileId: profile.id,
+          slug: 'shop',
+          title: 'Shop',
+          status: 'draft',
+        });
+      });
+
+      logger.info({ userId: user.id, shopSlug }, 'Artisan profile created');
+      revalidatePath('/dashboard');
+      return ok({ shopSlug });
+    },
   });
-
-  await db.transaction(async (tx) => {
-    const [profile] = await tx
-      .insert(artisanProfiles)
-      .values({ userId: user.id, shopName, shopSlug })
-      .returning();
-    if (!profile) throw new Error('Failed to create artisan profile.');
-
-    await tx.insert(catalogs).values({
-      artisanProfileId: profile.id,
-      slug: 'shop',
-      title: 'Shop',
-      status: 'draft',
-    });
-  });
-
-  logger.info({ userId: user.id, shopSlug }, 'Artisan profile created');
-  revalidatePath('/dashboard');
-  return ok({ shopSlug });
 }
 
 export async function updateArtisanProfileAction(formData: FormData): Promise<Result<null>> {

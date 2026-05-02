@@ -115,3 +115,25 @@ export const productImages = pgTable(
   },
   (t) => [index('product_images_product_idx').on(t.productId)],
 );
+
+// Idempotency cache. Mutating server actions accept an optional client-
+// generated UUID; on retry within 24h the cached response is returned
+// instead of re-executing. The expires_at index supports the periodic
+// cleanup sweep (deferred per plan §8 — add when the table grows).
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    key: text('key').primaryKey(),
+    // null when the action was called by an unauthenticated session.
+    userId: text('user_id'),
+    // Discriminator so the same key reused across different actions
+    // doesn't conflict (or pull a wrong cached response).
+    scope: text('scope').notNull(),
+    // The full Result<T> serialized — both success and failure are cached
+    // so a retry sees the same outcome the first attempt did.
+    responseJson: text('response_json').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (t) => [index('idempotency_keys_expires_idx').on(t.expiresAt)],
+);

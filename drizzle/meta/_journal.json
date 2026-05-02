@@ -15,6 +15,13 @@
       "when": 1777713908607,
       "tag": "0001_goofy_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777736956561,
+      "tag": "0002_sweet_iceman",
+      "breakpoints": true
     }
   ]
 }
