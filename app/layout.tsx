@@ -48,7 +48,16 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      {/*
+        suppressHydrationWarning silences mismatches injected by browser
+        extensions (ColorZilla's cz-shortcut-listen, Grammarly's data-gr-*,
+        password managers, Dark Reader, etc.) that mutate <body> before
+        React hydrates. Scope is limited to attributes on this element —
+        children still get full hydration validation, so real bugs surface.
+      */}
+      <body className="flex min-h-full flex-col" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
