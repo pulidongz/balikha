@@ -1,36 +1,423 @@
-// Deterministic, idempotent seed. Run via `npm run db:seed` or
-// `npm run db:reset` (which schema-pushes first).
+// Deterministic, idempotent seed.
+// Run via `npm run db:seed` or `npm run db:reset` (which schema-pushes first).
 //
-// Edge cases intentionally seeded:
-// - Product with zero stock + sold_out status
-// - Product in draft (should NOT appear publicly)
-// - Product with no images
-// - Product with very long description
-// - Product with empty description
-// - Product with max-length materials list
-// - Catalog with release/closes window (Limited drop)
-// - Catalog with archived status (separate test for archival flow)
+// What this creates:
+// - 1 admin account (admin@balikha.com / password) — no artisan profile.
+// - 10 sellers, each with their own craft and 20 products = 200 products total.
+//   Status mix: ~75% published, ~10% sold_out, ~10% draft, ~5% archived.
+//   Image counts vary 0–4 per product. ~600 images total.
+// - 10 buyer accounts (buyer1@…@balikha.test through buyer10@…/password123).
+// - Each product image is a real binary uploaded to MinIO with a unique
+//   storage_key. The image bytes come from a pool of 50 unique placeholder
+//   photos fetched from picsum.photos (cached on disk so re-runs are fast).
 //
-// Test credentials are logged at the end — single source of truth.
+// Idempotency: every run wipes the bucket AND the DB, then re-creates from
+// scratch. Safe to run twice.
 //
-// Env loading: this script is invoked via `tsx --env-file=.env.development`,
-// so process.env is populated before any module evaluates. Don't add
-// dotenv.config() here — ESM hoists imports, and `@/db` (which imports
-// `@/env`) would run before any inline config() call.
+// Env loading: invoked via `tsx --env-file=.env.development`, so process.env
+// is populated before any module evaluates. Don't add dotenv.config() here —
+// ESM hoists imports, and `@/db` (→ `@/env`) would run before any inline
+// config() call.
 
+import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { DeleteObjectsCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
+import { faker } from '@faker-js/faker';
+import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { account, session, user, verification } from '@/db/schema/auth';
 import { artisanProfiles, catalogs, productImages, products } from '@/db/schema/app';
-import { faker } from '@faker-js/faker';
-import { auth } from '@/lib/auth';
 import { logger } from '@/lib/logger';
-import { slugify } from '@/lib/slug';
+import { slugify, uniqueSlug } from '@/lib/slug';
+import { BUCKET, PUBLIC_URL_BASE, s3 } from '@/lib/storage/client';
 
 faker.seed(42);
 
-const TEST_PASSWORD = 'password123'; // dev only
+// --- Configuration ----------------------------------------------------------
 
-async function clear() {
+const ADMIN = { email: 'admin@balikha.com', password: 'password', name: 'Admin' };
+const TEST_PASSWORD = 'password123';
+const NUM_BUYERS = 10;
+const PRODUCTS_PER_SELLER = 20;
+const UNIQUE_IMAGE_POOL = 50;
+const IMAGE_FETCH_CONCURRENCY = 8;
+const IMAGE_CACHE_DIR = path.join(os.tmpdir(), 'balikha-seed-images');
+
+// --- Sellers ----------------------------------------------------------------
+
+type Craft =
+  | 'pottery'
+  | 'weaves'
+  | 'wood'
+  | 'silver'
+  | 'leather'
+  | 'glass'
+  | 'soap'
+  | 'textiles'
+  | 'paper'
+  | 'coffee';
+
+interface SellerSeed {
+  email: string;
+  name: string;
+  shopName: string;
+  shopSlug: string;
+  bio: string;
+  location: string;
+  craft: Craft;
+}
+
+const SELLERS: SellerSeed[] = [
+  {
+    email: 'maria@balikha.test',
+    name: 'Maria Santos',
+    shopName: 'Maria Ceramics',
+    shopSlug: 'maria-ceramics',
+    bio: 'Hand-thrown stoneware and porcelain from a small studio in Quezon City. Each piece is one-of-a-kind, made with locally sourced clay and fired in a small electric kiln.',
+    location: 'Quezon City',
+    craft: 'pottery',
+  },
+  {
+    email: 'tboli@balikha.test',
+    name: "T'boli Collective",
+    shopName: "T'boli Weaves",
+    shopSlug: 'tboli-weaves',
+    bio: "Traditional T'nalak weaves from South Cotabato, made by a collective of women weavers preserving generations-old techniques with abaca fiber and natural dyes.",
+    location: 'Lake Sebu, South Cotabato',
+    craft: 'weaves',
+  },
+  {
+    email: 'narra@balikha.test',
+    name: 'Junnie Narra',
+    shopName: 'Narra Studio',
+    shopSlug: 'narra-studio',
+    bio: 'Hand-carved bowls and serving boards from sustainably harvested narra and acacia. Working out of a small workshop in Baguio.',
+    location: 'Baguio',
+    craft: 'wood',
+  },
+  {
+    email: 'kapinunan@balikha.test',
+    name: 'Esperanza Reyes',
+    shopName: 'Kapinunan Silver',
+    shopSlug: 'kapinunan-silver',
+    bio: 'Hand-forged silver jewelry from a tiny atelier in Cebu, drawing on traditional baybayin and pre-colonial motifs.',
+    location: 'Cebu City',
+    craft: 'silver',
+  },
+  {
+    email: 'pasig-leather@balikha.test',
+    name: 'Ronaldo Cruz',
+    shopName: 'Pasig Leatherworks',
+    shopSlug: 'pasig-leatherworks',
+    bio: 'Vegetable-tanned leather goods, hand-stitched with linen thread. Built to age, not to be replaced.',
+    location: 'Pasig',
+    craft: 'leather',
+  },
+  {
+    email: 'banwa-glass@balikha.test',
+    name: 'Liza Tomas',
+    shopName: 'Banwa Glass',
+    shopSlug: 'banwa-glass',
+    bio: 'Hand-blown glassware from recycled bottles and offcuts, made in a converted barn outside Iloilo.',
+    location: 'Iloilo',
+    craft: 'glass',
+  },
+  {
+    email: 'davao-dipping@balikha.test',
+    name: 'Apolinario Velasco',
+    shopName: 'Davao Dipping Co.',
+    shopSlug: 'davao-dipping-co',
+    bio: 'Cold-process soap and pure-essential-oil candles, scented with locally distilled botanicals from Mindanao.',
+    location: 'Davao',
+    craft: 'soap',
+  },
+  {
+    email: 'hablon@balikha.test',
+    name: 'Cecilia Aquino',
+    shopName: 'Hablon Heritage',
+    shopSlug: 'hablon-heritage',
+    bio: 'Heirloom hablon textiles from Iloilo, woven on antique foot looms in patterns passed down through five generations.',
+    location: 'Iloilo',
+    craft: 'textiles',
+  },
+  {
+    email: 'lola-letras@balikha.test',
+    name: 'Imelda Bautista',
+    shopName: 'Lola Letras',
+    shopSlug: 'lola-letras',
+    bio: 'Hand-bound notebooks, broadsides, and letterpress cards out of a small studio in Vigan.',
+    location: 'Vigan',
+    craft: 'paper',
+  },
+  {
+    email: 'sagada-roasters@balikha.test',
+    name: 'Lakan Pulido',
+    shopName: 'Sagada Roasters',
+    shopSlug: 'sagada-roasters',
+    bio: 'Single-origin coffee from Cordillera growers, small-batch roasted weekly in Sagada.',
+    location: 'Sagada',
+    craft: 'coffee',
+  },
+];
+
+// --- Per-craft product templates -------------------------------------------
+
+const TEMPLATES: Record<Craft, { types: string[]; materials: string[]; adjectives: string[] }> = {
+  pottery: {
+    types: ['vase', 'bowl', 'mug', 'plate', 'pitcher', 'teapot', 'planter', 'cup', 'jar', 'dish'],
+    materials: [
+      'stoneware',
+      'porcelain',
+      'earthenware',
+      'terracotta',
+      'ash glaze',
+      'celadon glaze',
+    ],
+    adjectives: ['Hand-thrown', 'Wheel-thrown', 'Slab-built', 'Hand-pinched', 'Rustic'],
+  },
+  weaves: {
+    types: [
+      'runner',
+      'placemat set',
+      'wall hanging',
+      'cushion cover',
+      'throw',
+      'tote',
+      'sash',
+      'bookmark',
+      'tablecloth',
+      'panel',
+    ],
+    materials: ['abaca fiber', 'natural dye', 'cotton warp', 'silk weft'],
+    adjectives: ['T’nalak', 'Backstrap-woven', 'Hand-loomed', 'Heirloom', 'Traditional'],
+  },
+  wood: {
+    types: [
+      'bowl',
+      'cutting board',
+      'spoon',
+      'tray',
+      'coaster set',
+      'serving plate',
+      'pestle',
+      'spatula',
+      'utensil rest',
+      'side board',
+    ],
+    materials: ['narra wood', 'acacia wood', 'mahogany', 'food-safe finish', 'beeswax finish'],
+    adjectives: ['Hand-carved', 'Lathe-turned', 'Reclaimed', 'Solid', 'Heirloom'],
+  },
+  silver: {
+    types: [
+      'ring',
+      'pendant',
+      'earring pair',
+      'bracelet',
+      'cuff',
+      'pin',
+      'brooch',
+      'necklace',
+      'bangle',
+      'charm',
+    ],
+    materials: [
+      'sterling silver',
+      'oxidized silver',
+      'hand-engraved detail',
+      'mother of pearl',
+      'baybayin script',
+    ],
+    adjectives: ['Hand-forged', 'Hammered', 'Engraved', 'Cast', 'Wire-wrapped'],
+  },
+  leather: {
+    types: [
+      'wallet',
+      'belt',
+      'cardholder',
+      'keychain',
+      'satchel',
+      'tote',
+      'pouch',
+      'journal cover',
+      'watch strap',
+      'luggage tag',
+    ],
+    materials: [
+      'vegetable-tanned leather',
+      'linen thread',
+      'brass hardware',
+      'natural edge finish',
+    ],
+    adjectives: ['Hand-stitched', 'Hand-cut', 'Saddle-stitched', 'Edge-burnished', 'Minimal'],
+  },
+  glass: {
+    types: [
+      'tumbler',
+      'vase',
+      'bowl',
+      'plate',
+      'paperweight',
+      'bottle',
+      'candle holder',
+      'ornament',
+      'decanter',
+      'pitcher',
+    ],
+    materials: ['recycled glass', 'borosilicate', 'soda-lime glass', 'sand-cast'],
+    adjectives: ['Hand-blown', 'Free-blown', 'Mold-blown', 'Recycled', 'Sculpted'],
+  },
+  soap: {
+    types: [
+      'bar',
+      'scrub',
+      'balm',
+      'travel set',
+      'candle',
+      'sachet',
+      'salt scrub',
+      'gift set',
+      'face oil',
+      'lip balm',
+    ],
+    materials: [
+      'coconut oil',
+      'lemongrass essential oil',
+      'mango butter',
+      'beeswax',
+      'kaffir lime',
+    ],
+    adjectives: ['Cold-process', 'Small-batch', 'Hand-poured', 'Botanical', 'Pure'],
+  },
+  textiles: {
+    types: [
+      'scarf',
+      'shawl',
+      'wrap',
+      'blouse panel',
+      'runner',
+      'placemat',
+      'kitchen towel',
+      'napkin set',
+      'curtain panel',
+      'cushion cover',
+    ],
+    materials: ['hablon weave', 'cotton', 'piña fiber', 'natural dye'],
+    adjectives: ['Loom-woven', 'Heirloom', 'Hand-loomed', 'Traditional', 'Indigo-dyed'],
+  },
+  paper: {
+    types: [
+      'notebook',
+      'journal',
+      'sketchbook',
+      'card set',
+      'broadside print',
+      'planner',
+      'bookmark',
+      'gift tag',
+      'envelope set',
+      'monthly calendar',
+    ],
+    materials: ['handmade paper', 'cotton thread binding', 'letterpress ink', 'kraft cover'],
+    adjectives: ['Hand-bound', 'Letterpress-printed', 'Smyth-sewn', 'Long-stitch', 'Saddle-stitch'],
+  },
+  coffee: {
+    types: [
+      '250g bag',
+      '500g bag',
+      '1kg bag',
+      'cold brew kit',
+      'drip set',
+      'espresso blend',
+      'single-origin lot',
+      'pour-over filters',
+      'gift box',
+      'sampler set',
+    ],
+    materials: ['Cordillera arabica', 'Sagada heirloom', 'medium roast', 'dark roast'],
+    adjectives: ['Single-origin', 'Small-batch', 'Slow-roasted', 'Whole-bean', 'Freshly-roasted'],
+  },
+};
+
+const DESCRIPTION_OPENERS: Record<Craft, string[]> = {
+  pottery: [
+    'Wheel-thrown by hand and finished with a soft matte glaze.',
+    'A one-of-a-kind piece from a small studio. Subtle variations are part of the charm.',
+    'Hand-built and fired in a small electric kiln; locally sourced clay throughout.',
+  ],
+  weaves: [
+    'Woven on a backstrap loom from abaca fiber dyed with natural pigments.',
+    'Each pattern carries traditional meaning passed down through generations of weavers.',
+    'A piece of heritage textile work from a women’s collective in South Cotabato.',
+  ],
+  wood: [
+    'Hand-carved from a single block, finished with a food-safe oil and beeswax mix.',
+    'Sustainably harvested wood worked entirely by hand. Each piece develops a patina over time.',
+    'Lathe-turned in a small workshop; the grain is what makes it.',
+  ],
+  silver: [
+    'Hand-forged in a small atelier, then hand-finished. Stamps with the maker’s mark.',
+    'Each piece is made one at a time — no two are exactly alike.',
+    'Solid sterling silver, hammered and oxidized for depth.',
+  ],
+  leather: [
+    'Vegetable-tanned full-grain leather, saddle-stitched by hand with waxed linen.',
+    'Built to last and to age. Will develop a patina with use.',
+    'Hand-cut and edge-burnished in our Pasig workshop.',
+  ],
+  glass: [
+    'Free-blown from recycled bottle glass — every bubble is intentional.',
+    'Made in small batches. Slight asymmetry is the signature of hand-blown work.',
+    'Heat-treated for everyday use. Dishwasher safe with care.',
+  ],
+  soap: [
+    'Cold-process soap cured for a minimum of 6 weeks. Scented with pure essential oils.',
+    'Made in small batches with locally sourced botanicals from Mindanao.',
+    'Free of synthetic fragrance, palm oil, and animal products.',
+  ],
+  textiles: [
+    'Loom-woven from hablon and finished by hand. A piece of Iloilo heritage.',
+    'Each panel is woven on antique foot looms; the pattern is heirloom.',
+    'Naturally dyed with locally foraged plants — colors deepen with washing.',
+  ],
+  paper: [
+    'Hand-bound with cotton thread on handmade paper. Lays flat when open.',
+    'Letterpress-printed in small editions on archival cotton paper.',
+    'A small-edition piece from our Vigan studio.',
+  ],
+  coffee: [
+    'Single-origin from Cordillera growers, roasted within the past week.',
+    'Small-batch roasted in Sagada. Best within 30 days of roast.',
+    'Tasting notes change subtly with the harvest. We list the current notes on the bag.',
+  ],
+};
+
+// --- Helpers ---------------------------------------------------------------
+
+async function clearBucket(): Promise<void> {
+  let continuationToken: string | undefined;
+  let total = 0;
+  do {
+    const list = await s3.send(
+      new ListObjectsV2Command({ Bucket: BUCKET, ContinuationToken: continuationToken }),
+    );
+    const keys = list.Contents?.map((o) => o.Key).filter((k): k is string => Boolean(k)) ?? [];
+    if (keys.length > 0) {
+      await s3.send(
+        new DeleteObjectsCommand({
+          Bucket: BUCKET,
+          Delete: { Objects: keys.map((Key) => ({ Key })) },
+        }),
+      );
+      total += keys.length;
+    }
+    continuationToken = list.NextContinuationToken;
+  } while (continuationToken);
+  if (total > 0) logger.info({ deleted: total }, 'Cleared MinIO bucket');
+}
+
+async function clearDb(): Promise<void> {
   // Order matters — children before parents
   await db.delete(productImages);
   await db.delete(products);
@@ -42,199 +429,133 @@ async function clear() {
   await db.delete(user);
 }
 
+async function fetchCachedImage(seedKey: string): Promise<Buffer> {
+  const cacheFile = path.join(IMAGE_CACHE_DIR, `${seedKey}.jpg`);
+  try {
+    return await fs.readFile(cacheFile);
+  } catch {
+    const url = `https://picsum.photos/seed/${seedKey}/800/1000`;
+    const res = await fetch(url, { redirect: 'follow' });
+    if (!res.ok) throw new Error(`picsum.photos fetch failed for ${seedKey}: ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+    await fs.writeFile(cacheFile, buf);
+    return buf;
+  }
+}
+
+async function preloadImagePool(): Promise<Buffer[]> {
+  logger.info(
+    { pool: UNIQUE_IMAGE_POOL, cacheDir: IMAGE_CACHE_DIR },
+    'Preloading image pool (cached on disk; first run is slow, re-runs are fast)…',
+  );
+  const buffers: Buffer[] = new Array(UNIQUE_IMAGE_POOL);
+  for (let start = 0; start < UNIQUE_IMAGE_POOL; start += IMAGE_FETCH_CONCURRENCY) {
+    const end = Math.min(start + IMAGE_FETCH_CONCURRENCY, UNIQUE_IMAGE_POOL);
+    await Promise.all(
+      Array.from({ length: end - start }, (_, k) => start + k).map(async (i) => {
+        buffers[i] = await fetchCachedImage(`balikha-${i}`);
+      }),
+    );
+  }
+  return buffers;
+}
+
+async function uploadProductImage(buffer: Buffer, productId: string): Promise<string> {
+  const key = `products/${productId}/${randomUUID()}.jpg`;
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: 'image/jpeg',
+      ContentLength: buffer.length,
+    }),
+  );
+  return key;
+}
+
 async function createUser(email: string, password: string, name: string) {
-  const result = await auth.api.signUpEmail({
-    body: { email, password, name },
-  });
+  const result = await auth.api.signUpEmail({ body: { email, password, name } });
   if (!result.user) throw new Error(`Failed to create user ${email}`);
   return result.user;
 }
 
-const placeholderImage = (text: string) =>
-  `https://placehold.co/800x1000/EFE9DC/1A2B3A?text=${encodeURIComponent(text)}`;
-
-interface ArtisanSeed {
-  email: string;
-  name: string;
-  shopName: string;
-  bio: string;
-  location: string;
+function pickStatus(): 'draft' | 'published' | 'sold_out' | 'archived' {
+  const r = faker.number.int({ min: 0, max: 19 });
+  if (r < 15) return 'published'; // 75%
+  if (r < 17) return 'sold_out'; //  10%
+  if (r < 19) return 'draft'; //     10%
+  return 'archived'; //              5%
 }
 
-const ARTISANS: ArtisanSeed[] = [
-  {
-    email: 'maria@balikha.test',
-    name: 'Maria Santos',
-    shopName: 'Maria Ceramics',
-    bio: 'Hand-thrown stoneware and porcelain from a small studio in Quezon City. Each piece is one-of-a-kind, made with locally sourced clay and fired in a small electric kiln.',
-    location: 'Quezon City',
-  },
-  {
-    email: 'tboli@balikha.test',
-    name: "T'boli Collective",
-    shopName: "T'boli Weaves",
-    bio: "Traditional T'nalak weaves from South Cotabato, made by a collective of women weavers preserving generations-old techniques with abaca fiber and natural dyes.",
-    location: 'Lake Sebu, South Cotabato',
-  },
-  {
-    email: 'narra@balikha.test',
-    name: 'Junnie Narra',
-    shopName: 'Narra Studio',
-    bio: 'Hand-carved bowls and serving boards from sustainably harvested narra and acacia. Working out of a small workshop in Baguio.',
-    location: 'Baguio',
-  },
-];
-
-interface ProductSeed {
-  title: string;
-  description: string;
-  price: string;
-  stockOnHand: number;
-  status: 'draft' | 'published' | 'sold_out' | 'archived';
-  materials: string[];
-  imageCount: number;
+function buildProductTitle(craft: Craft, productIndex: number): string {
+  const t = TEMPLATES[craft];
+  const type = t.types[productIndex % t.types.length]!;
+  const adj = faker.helpers.arrayElement(t.adjectives);
+  const material = faker.helpers.arrayElement(t.materials);
+  // Append index to keep slugs unique within an artisan even when the
+  // adj/material/type combo collides.
+  return `${adj} ${material} ${type} #${productIndex + 1}`;
 }
 
-function buildProductsFor(artisanIndex: number): ProductSeed[] {
-  switch (artisanIndex) {
-    case 0: // Maria Ceramics — exercises stock/status edge cases
-      return [
-        {
-          title: 'Hand-thrown stoneware vase with ash glaze',
-          description:
-            'A tall, hand-thrown vase finished in a pale ash glaze. Each piece varies subtly — this one has gentle ridges from the throwing process and a soft matte finish.',
-          price: '2400.00',
-          stockOnHand: 1,
-          status: 'published',
-          materials: ['stoneware', 'ash glaze'],
-          imageCount: 3,
-        },
-        {
-          title: 'Tea bowl set (pair)',
-          description: 'Two matched tea bowls, glazed in deep cobalt.',
-          price: '880.00',
-          stockOnHand: 0,
-          status: 'sold_out',
-          materials: ['stoneware', 'cobalt glaze'],
-          imageCount: 2,
-        },
-        {
-          title: 'Glazed dinner plate',
-          description: '',
-          price: '1200.00',
-          stockOnHand: 6,
-          status: 'published',
-          materials: ['porcelain'],
-          imageCount: 1,
-        },
-        {
-          title: 'Mug, raw clay finish (work in progress, not yet for sale)',
-          description: faker.lorem.paragraphs(4),
-          price: '650.00',
-          stockOnHand: 0,
-          status: 'draft',
-          materials: ['stoneware'],
-          imageCount: 0,
-        },
-        {
-          title: 'Limited edition gold-rimmed bowl',
-          description: 'A small batch of bowls finished with a hand-painted gold rim.',
-          price: '3200.00',
-          stockOnHand: 3,
-          status: 'published',
-          materials: [
-            'porcelain',
-            'gold luster',
-            'hand-painted detail',
-            'food-safe glaze',
-            'kiln-fired',
-          ],
-          imageCount: 4,
-        },
-      ];
-    case 1: // T'boli Weaves
-      return [
-        {
-          title: "T'nalak table runner, traditional pattern",
-          description:
-            'A 1.8m table runner woven from abaca fiber and dyed with natural pigments. Each pattern carries traditional meaning passed down through generations.',
-          price: '4500.00',
-          stockOnHand: 2,
-          status: 'published',
-          materials: ['abaca fiber', 'natural dye'],
-          imageCount: 3,
-        },
-        {
-          title: "T'nalak placemats (set of 4)",
-          description: 'Four matched placemats in earth tones.',
-          price: '2200.00',
-          stockOnHand: 5,
-          status: 'published',
-          materials: ['abaca fiber'],
-          imageCount: 2,
-        },
-        {
-          title: 'Archived: vintage runner',
-          description: 'No longer available — kept for reference.',
-          price: '5000.00',
-          stockOnHand: 0,
-          status: 'archived',
-          materials: ['abaca'],
-          imageCount: 1,
-        },
-      ];
-    case 2: // Narra Studio
-      return [
-        {
-          title: 'Narra serving bowl, hand-carved',
-          description: 'A deep serving bowl carved from a single piece of narra.',
-          price: '1800.00',
-          stockOnHand: 4,
-          status: 'published',
-          materials: ['narra wood', 'food-safe finish'],
-          imageCount: 3,
-        },
-        {
-          title: 'Acacia cutting board, large',
-          description: 'A 40x25cm cutting board with a beveled edge.',
-          price: '2400.00',
-          stockOnHand: 2,
-          status: 'published',
-          materials: ['acacia wood', 'mineral oil finish'],
-          imageCount: 2,
-        },
-      ];
-    default:
-      return [];
-  }
+function buildDescription(craft: Craft): string {
+  const opener = faker.helpers.arrayElement(DESCRIPTION_OPENERS[craft]);
+  return `${opener} ${faker.lorem.sentences({ min: 2, max: 4 })}`;
 }
+
+function buildMaterials(craft: Craft): string[] {
+  const pool = TEMPLATES[craft].materials;
+  const count = faker.number.int({ min: 1, max: Math.min(4, pool.length) });
+  return faker.helpers.arrayElements(pool, count);
+}
+
+// --- Main ------------------------------------------------------------------
 
 async function seed() {
-  logger.info('Clearing existing data…');
-  await clear();
+  logger.info('Clearing MinIO bucket…');
+  await clearBucket();
 
-  logger.info('Creating buyer test account…');
-  await createUser('buyer@balikha.test', TEST_PASSWORD, 'Test Buyer');
+  logger.info('Clearing database…');
+  await clearDb();
 
-  for (let i = 0; i < ARTISANS.length; i++) {
-    const a = ARTISANS[i]!;
-    logger.info({ shop: a.shopName }, 'Creating artisan…');
+  // Preload images upfront so per-product image loops are pure CPU + uploads
+  const imagePool = await preloadImagePool();
+  let imagePoolCursor = 0;
+  const nextImage = (): Buffer => imagePool[imagePoolCursor++ % imagePool.length]!;
 
-    const created = await createUser(a.email, TEST_PASSWORD, a.name);
+  // Admin (no artisan profile) — special password per the spec
+  logger.info({ email: ADMIN.email }, 'Creating admin account…');
+  await createUser(ADMIN.email, ADMIN.password, ADMIN.name);
+
+  // Buyer accounts (no artisan profile)
+  logger.info({ count: NUM_BUYERS }, 'Creating buyer accounts…');
+  for (let i = 1; i <= NUM_BUYERS; i++) {
+    await createUser(`buyer${i}@balikha.test`, TEST_PASSWORD, faker.person.fullName());
+  }
+
+  // Sellers
+  let totalProducts = 0;
+  let totalImages = 0;
+
+  for (let s = 0; s < SELLERS.length; s++) {
+    const seller = SELLERS[s]!;
+    logger.info({ shop: seller.shopName, idx: s + 1, total: SELLERS.length }, 'Seeding seller…');
+
+    const created = await createUser(seller.email, TEST_PASSWORD, seller.name);
 
     const [profile] = await db
       .insert(artisanProfiles)
       .values({
         userId: created.id,
-        shopSlug: slugify(a.shopName),
-        shopName: a.shopName,
-        bio: a.bio,
-        location: a.location,
+        shopSlug: seller.shopSlug,
+        shopName: seller.shopName,
+        bio: seller.bio,
+        location: seller.location,
       })
       .returning();
     if (!profile) throw new Error('Failed to create artisan profile');
 
-    // Default catalog (auto-created in real app by becomeArtisanAction)
     const [defaultCatalog] = await db
       .insert(catalogs)
       .values({
@@ -246,17 +567,17 @@ async function seed() {
       .returning();
     if (!defaultCatalog) throw new Error('Failed to create catalog');
 
-    // Optional limited drop catalog for the first artisan — exercises the
-    // release/close window code path and the "Limited" badge.
+    // Optional limited-drop catalog for the first 3 sellers — exercises the
+    // release/closes window UI and the "Limited" badge.
     let limitedCatalog: typeof defaultCatalog | null = null;
-    if (i === 0) {
+    if (s < 3) {
       const [drop] = await db
         .insert(catalogs)
         .values({
           artisanProfileId: profile.id,
           slug: 'holiday-2026',
           title: 'Holiday 2026',
-          description: 'Limited holiday pieces, available through December.',
+          description: `Limited holiday pieces from ${seller.shopName}, available through December.`,
           status: 'published',
           releaseAt: new Date('2026-11-15'),
           closesAt: new Date('2026-12-24'),
@@ -265,51 +586,85 @@ async function seed() {
       limitedCatalog = drop ?? null;
     }
 
-    const productSeeds = buildProductsFor(i);
+    // Track slugs taken within this seller for uniqueSlug
+    const slugSet = new Set<string>();
 
-    for (let p = 0; p < productSeeds.length; p++) {
-      const ps = productSeeds[p]!;
+    for (let p = 0; p < PRODUCTS_PER_SELLER; p++) {
+      const status = pickStatus();
+      const title = buildProductTitle(seller.craft, p);
+      const slug = uniqueSlug(title, slugSet);
+      slugSet.add(slug);
+
+      const stockOnHand = status === 'sold_out' ? 0 : faker.number.int({ min: 0, max: 12 });
+      const price = faker.commerce.price({ min: 250, max: 8500, dec: 2 });
+
+      // ~5% of products have no images (edge case); rest have 1–4
+      const imageCount =
+        faker.number.int({ min: 0, max: 100 }) < 5 ? 0 : faker.number.int({ min: 1, max: 4 });
+
       // Place the last product in the limited catalog if one exists
       const targetCatalog =
-        limitedCatalog && p === productSeeds.length - 1 ? limitedCatalog : defaultCatalog;
+        limitedCatalog && p === PRODUCTS_PER_SELLER - 1 ? limitedCatalog : defaultCatalog;
 
       const [product] = await db
         .insert(products)
         .values({
           catalogId: targetCatalog.id,
           artisanProfileId: profile.id,
-          slug: slugify(ps.title),
-          title: ps.title,
-          description: ps.description || null,
-          price: ps.price,
+          slug,
+          title,
+          description: buildDescription(seller.craft),
+          price,
           currency: 'PHP',
-          stockOnHand: ps.stockOnHand,
-          status: ps.status,
-          materials: ps.materials,
+          stockOnHand,
+          status,
+          materials: buildMaterials(seller.craft),
         })
         .returning();
       if (!product) throw new Error('Failed to create product');
+      totalProducts++;
 
-      for (let img = 0; img < ps.imageCount; img++) {
+      // Upload images sequentially for this product (fast since images are
+      // already in memory). Sequential keeps positions monotonic.
+      for (let img = 0; img < imageCount; img++) {
+        const buffer = nextImage();
+        const storageKey = await uploadProductImage(buffer, product.id);
         await db.insert(productImages).values({
           productId: product.id,
-          url: placeholderImage(`${ps.title} ${img + 1}`),
-          altText: `${ps.title} — view ${img + 1}`,
+          storageKey,
+          url: `${PUBLIC_URL_BASE}/${storageKey}`,
+          altText: title,
           position: img,
           width: 800,
           height: 1000,
         });
+        totalImages++;
       }
     }
   }
 
-  logger.info('Seed complete.');
+  logger.info(
+    {
+      sellers: SELLERS.length,
+      buyers: NUM_BUYERS,
+      products: totalProducts,
+      images: totalImages,
+    },
+    'Seed complete.',
+  );
+
   logger.info('--- Test credentials ---');
-  logger.info(`Seller: maria@balikha.test / ${TEST_PASSWORD}`);
-  logger.info(`Seller: tboli@balikha.test / ${TEST_PASSWORD}`);
-  logger.info(`Seller: narra@balikha.test / ${TEST_PASSWORD}`);
-  logger.info(`Buyer:  buyer@balikha.test / ${TEST_PASSWORD}`);
+  logger.info(`Admin:  ${ADMIN.email} / ${ADMIN.password}`);
+  for (const seller of SELLERS) {
+    logger.info(`Seller: ${seller.email} / ${TEST_PASSWORD}  (${seller.shopName})`);
+  }
+  logger.info(
+    `Buyers: buyer1@balikha.test through buyer${NUM_BUYERS}@balikha.test / ${TEST_PASSWORD}`,
+  );
 }
+
+// Marked as void use to satisfy ts when slugify isn't otherwise referenced
+void slugify;
 
 seed()
   .then(() => process.exit(0))
