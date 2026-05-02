@@ -1,7 +1,5 @@
 'use server';
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
@@ -9,6 +7,7 @@ import { catalogs, productImages, products } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
+import { deleteObject } from '@/lib/storage/delete';
 import {
   productCreateSchema,
   productStatusSchema,
@@ -184,12 +183,12 @@ export async function deleteProductImageAction(imageId: string): Promise<Result<
   const profile = await requireArtisan().catch(() => null);
   if (!profile) return err('You must have an artisan profile.');
 
-  // Image ownership comes via JOIN — fetch the artisan_profile_id from
-  // the parent product, plus the URL we'll need for the unlink.
+  // Image ownership comes via JOIN to the parent product. Also fetch
+  // storageKey so we can delete the underlying object after the row is gone.
   const [imageRow] = await db
     .select({
       id: productImages.id,
-      url: productImages.url,
+      storageKey: productImages.storageKey,
       artisanProfileId: products.artisanProfileId,
     })
     .from(productImages)
@@ -204,16 +203,11 @@ export async function deleteProductImageAction(imageId: string): Promise<Result<
 
   await db.delete(productImages).where(eq(productImages.id, imageId));
 
-  // Best-effort filesystem cleanup. The DB row is already gone, so a missing
-  // file (manually deleted, or a race with another action) shouldn't surface
-  // as a user-visible error — but anything else we re-raise.
-  if (imageRow) {
-    const filePath = path.join(process.cwd(), 'public', imageRow.url.replace(/^\//, ''));
-    try {
-      await fs.unlink(filePath);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    }
+  // S3 cleanup is best-effort and only applies to images we own in our
+  // bucket. External URLs (seeded placeholders, future hot-linked imports)
+  // have storageKey=null and we leave them alone — not ours to delete.
+  if (imageRow?.storageKey) {
+    await deleteObject(imageRow.storageKey);
   }
 
   revalidatePath('/dashboard/catalogs');
