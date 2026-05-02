@@ -9,6 +9,7 @@ import { buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -95,10 +96,12 @@ export function DashboardHeaderMenu({
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="space-y-0.5">
-            <p className="text-sm font-medium">{userName}</p>
-            <p className="text-muted-foreground text-xs">{userEmail}</p>
-          </DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="space-y-0.5">
+              <p className="text-sm font-medium">{userName}</p>
+              <p className="text-muted-foreground text-xs">{userEmail}</p>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           {shopSlug && (
             <DropdownMenuItem
