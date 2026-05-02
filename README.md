@@ -82,20 +82,20 @@ Open <http://localhost:3000>.
 
 `npm run db:seed` creates 21 accounts: 1 admin, 10 sellers, 10 buyers. Plus 200 products (20 per seller) with ~455 real images uploaded to MinIO. The credentials print at the end of every seed run.
 
-| Role | Email | Password |
-|---|---|---|
-| **Admin** (no shop) | `admin@balikha.com` | `password` |
-| Seller — Maria Ceramics (pottery) | `maria@balikha.test` | `password123` |
-| Seller — T'boli Weaves | `tboli@balikha.test` | `password123` |
-| Seller — Narra Studio (wood) | `narra@balikha.test` | `password123` |
-| Seller — Kapinunan Silver | `kapinunan@balikha.test` | `password123` |
-| Seller — Pasig Leatherworks | `pasig-leather@balikha.test` | `password123` |
-| Seller — Banwa Glass | `banwa-glass@balikha.test` | `password123` |
-| Seller — Davao Dipping Co. (soap) | `davao-dipping@balikha.test` | `password123` |
-| Seller — Hablon Heritage (textiles) | `hablon@balikha.test` | `password123` |
-| Seller — Lola Letras (paper) | `lola-letras@balikha.test` | `password123` |
-| Seller — Sagada Roasters (coffee) | `sagada-roasters@balikha.test` | `password123` |
-| Buyers (10) | `buyer1@balikha.test` … `buyer10@balikha.test` | `password123` |
+| Role                                | Email                                          | Password      |
+| ----------------------------------- | ---------------------------------------------- | ------------- |
+| **Admin** (no shop)                 | `admin@balikha.com`                            | `password`    |
+| Seller — Maria Ceramics (pottery)   | `maria@balikha.test`                           | `password123` |
+| Seller — T'boli Weaves              | `tboli@balikha.test`                           | `password123` |
+| Seller — Narra Studio (wood)        | `narra@balikha.test`                           | `password123` |
+| Seller — Kapinunan Silver           | `kapinunan@balikha.test`                       | `password123` |
+| Seller — Pasig Leatherworks         | `pasig-leather@balikha.test`                   | `password123` |
+| Seller — Banwa Glass                | `banwa-glass@balikha.test`                     | `password123` |
+| Seller — Davao Dipping Co. (soap)   | `davao-dipping@balikha.test`                   | `password123` |
+| Seller — Hablon Heritage (textiles) | `hablon@balikha.test`                          | `password123` |
+| Seller — Lola Letras (paper)        | `lola-letras@balikha.test`                     | `password123` |
+| Seller — Sagada Roasters (coffee)   | `sagada-roasters@balikha.test`                 | `password123` |
+| Buyers (10)                         | `buyer1@balikha.test` … `buyer10@balikha.test` | `password123` |
 
 ⚠️ Dev-only credentials. Sign in at <http://localhost:3000/sign-in>.
 
