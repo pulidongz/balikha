@@ -35,6 +35,12 @@ https://balikha.localhost:8443 {
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-Port 8443
 
+		# Mint a request ID at the edge so Caddy's access log and the app's
+		# logs share the same value. The Next proxy reads this header and
+		# falls back to its own crypto.randomUUID() if absent (e.g. when
+		# hitting :3000 directly during dev).
+		header_up X-Request-Id {http.request.uuid}
+
 		# WebSocket / HMR support — without these, Next's dev overlay and
 		# fast-refresh socket disconnect on every keystroke.
 		header_up Upgrade {http.request.header.Upgrade}

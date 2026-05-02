@@ -9,7 +9,7 @@ import { artisanProfiles, catalogs } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
-import { logger } from '@/lib/logger';
+import { getRequestLogger } from '@/lib/logger-context';
 import { withIdempotency } from '@/lib/idempotency';
 import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
 
@@ -29,11 +29,16 @@ async function bestEffortUnlinkLocalUpload(url: string | null) {
 export async function becomeArtisanAction(
   formData: FormData,
 ): Promise<Result<{ shopSlug: string }>> {
+  const log = await getRequestLogger();
   const user = await getCurrentUser();
   if (!user) return err('You must be signed in.');
 
   const parsed = artisanProfileCreateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
+    log.warn(
+      { userId: user.id, errors: parsed.error.flatten().fieldErrors },
+      'becomeArtisan validation failed',
+    );
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
   const { shopName, idempotencyKey } = parsed.data;
@@ -81,7 +86,7 @@ export async function becomeArtisanAction(
         });
       });
 
-      logger.info({ userId: user.id, shopSlug }, 'Artisan profile created');
+      log.info({ userId: user.id, shopSlug }, 'Artisan profile created');
       revalidatePath('/dashboard');
       return ok({ shopSlug });
     },
