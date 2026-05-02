@@ -41,20 +41,29 @@ cp .env.example .env.development
 openssl rand -base64 32
 # (paste the output into BETTER_AUTH_SECRET in .env.development)
 
-# 5. Bring up Postgres + MinIO
+# 5. Bring up Postgres + MinIO + Caddy (TLS reverse proxy)
 docker compose up -d
 
-# 6. Apply the database schema
+# 6. Trust Caddy's local root CA so the browser stops warning (one-time):
+docker exec balikha_caddy cat /data/caddy/pki/authorities/local/root.crt > /tmp/balikha-caddy-root.crt
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain /tmp/balikha-caddy-root.crt
+# (or open /tmp/balikha-caddy-root.crt in Keychain Access and set
+#  "When using this certificate" to "Always Trust" — same effect)
+
+# 7. Apply the database schema
 npm run db:migrate
 
-# 7. Seed deterministic test data (3 artisans + buyer + edge-case products)
+# 8. Seed deterministic test data (21 users + 200 products + ~455 MinIO images)
 npm run db:seed
 
-# 8. Start the dev server
+# 9. Start the dev server
 npm run dev
 ```
 
-Open <http://localhost:3000>.
+Open <https://balikha.localhost:8443>.
+
+`balikha.localhost` resolves to 127.0.0.1 automatically (RFC 6761), so no `/etc/hosts` editing. Caddy terminates TLS on `:8443` and proxies to the Next dev server on `:3000`. You can also reach the dev server directly at <http://localhost:3000> — useful for quick curl tests where TLS is in the way.
 
 ---
 
@@ -107,7 +116,9 @@ Open <http://localhost:3000>.
 
 | Service           | URL                                                        | Credentials                          |
 | ----------------- | ---------------------------------------------------------- | ------------------------------------ |
-| App               | <http://localhost:3000>                                    | use seeded test accounts             |
+| App (HTTPS)       | <https://balikha.localhost:8443>                           | use seeded test accounts             |
+| App (direct)      | <http://localhost:3000>                                    | bypasses Caddy/TLS — for curl tests  |
+| Caddy             | reverse-proxies :8443 → host.docker.internal:3000          | —                                    |
 | Postgres          | `localhost:5432`                                           | `balikha` / `balikha_dev`            |
 | MinIO S3 API      | `localhost:9000`                                           | `balikha_dev` / `balikha_dev_secret` |
 | MinIO web console | <http://localhost:9001>                                    | same as above                        |

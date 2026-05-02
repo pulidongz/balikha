@@ -47,6 +47,23 @@ services:
       exit 0;
       "
 
+  # Caddy reverse proxy + TLS terminator. Lets you reach the Next dev server
+  # at https://balikha.localhost:8443 with a real (locally-trusted) cert.
+  # Caddy generates its own root CA on first boot — the host has to trust
+  # it once; see README for the one-line command.
+  caddy:
+    image: caddy:2-alpine
+    container_name: balikha_caddy
+    restart: unless-stopped
+    ports:
+      - '8443:8443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - balikha_caddy_data:/data
+      - balikha_caddy_config:/config
+
 volumes:
   balikha_pg_data:
   balikha_minio_data:
+  balikha_caddy_data:
+  balikha_caddy_config:

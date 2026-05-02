@@ -1,0 +1,43 @@
+# Local development reverse proxy + TLS termination for Balikha.
+#
+# Maps:
+#   https://balikha.localhost:8443/*  →  host.docker.internal:3000  (Next.js dev)
+#
+# Cert source: Caddy's built-in internal PKI mints a leaf cert under a local
+# root CA. The root cert lives at /data/caddy/pki/authorities/local/root.crt
+# inside the container (persisted via the balikha_caddy_data volume) and
+# must be trusted on the host one time — see README.
+
+{
+	# Caddy's admin API — keep loopback-only.
+	admin localhost:2019
+
+	# We don't expose plain HTTP. Disable the auto HTTP→HTTPS redirector so
+	# Caddy doesn't try to bind port 80 (would require sudo on the container
+	# and fight with anything else on the host).
+	auto_https disable_redirects
+}
+
+https://balikha.localhost:8443 {
+	tls {
+		issuer internal {
+			lifetime 30d
+		}
+	}
+
+	reverse_proxy host.docker.internal:3000 {
+		# Preserve the public-facing host so Next sees the right URL in
+		# `headers()` / `req.headers.host` — important for absolute URLs in
+		# OpenGraph tags and the auth handler's CSRF check.
+		header_up Host {host}
+		header_up X-Real-IP {remote}
+		header_up X-Forwarded-For {remote}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Port 8443
+
+		# WebSocket / HMR support — without these, Next's dev overlay and
+		# fast-refresh socket disconnect on every keystroke.
+		header_up Upgrade {http.request.header.Upgrade}
+		header_up Connection {http.request.header.Connection}
+	}
+}
