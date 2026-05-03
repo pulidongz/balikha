@@ -29,6 +29,13 @@
       "when": 1777799729673,
       "tag": "0003_stale_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777805526255,
+      "tag": "0004_sharp_nick_fury",
+      "breakpoints": true
     }
   ]
 }

@@ -9,8 +9,22 @@ import {
   pgEnum,
   index,
   uniqueIndex,
+  customType,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { user } from './auth';
+
+// Postgres tsvector — preprocessed full-text-searchable representation of
+// one or more text columns. Drizzle has no built-in tsvector type, so we
+// declare a minimal customType. The actual computation happens in SQL via
+// generatedAlwaysAs() on the column itself; this is just the type tag so
+// Drizzle emits `tsvector` as the column type in DDL and treats reads as
+// strings.
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
 
 export const catalogStatus = pgEnum('catalog_status', ['draft', 'published', 'archived']);
 export const productStatus = pgEnum('product_status', [
@@ -20,21 +34,36 @@ export const productStatus = pgEnum('product_status', [
   'archived',
 ]);
 
-export const artisanProfiles = pgTable('artisan_profiles', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id')
-    .notNull()
-    .unique()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  shopSlug: text('shop_slug').notNull().unique(),
-  shopName: text('shop_name').notNull(),
-  bio: text('bio'),
-  bannerImageUrl: text('banner_image_url'),
-  location: text('location'),
-  policies: text('policies'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+export const artisanProfiles = pgTable(
+  'artisan_profiles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    shopSlug: text('shop_slug').notNull().unique(),
+    shopName: text('shop_name').notNull(),
+    bio: text('bio'),
+    bannerImageUrl: text('banner_image_url'),
+    location: text('location'),
+    policies: text('policies'),
+    // Weighted FTS document. A=shop_name (highest), B=location, C=bio.
+    // Generated STORED — Postgres recomputes on UPDATE of any source column,
+    // and backfills existing rows when the column is added.
+    searchVector: tsvector('search_vector').generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(shop_name, '')), 'A') || setweight(to_tsvector('english', coalesce(location, '')), 'B') || setweight(to_tsvector('english', coalesce(bio, '')), 'C')`,
+    ),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('artisan_profiles_search_idx').using('gin', t.searchVector),
+    // Trigram fallback for typo-tolerant matching on the high-signal
+    // shop_name field. Joined with FTS via OR in the query layer.
+    index('artisan_profiles_shop_name_trgm').using('gin', sql`${t.shopName} gin_trgm_ops`),
+  ],
+);
 
 export const catalogs = pgTable(
   'catalogs',
@@ -49,12 +78,17 @@ export const catalogs = pgTable(
     status: catalogStatus('status').notNull().default('draft'),
     releaseAt: timestamp('release_at'),
     closesAt: timestamp('closes_at'),
+    // Weighted FTS document. A=title, B=description.
+    searchVector: tsvector('search_vector').generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(description, '')), 'B')`,
+    ),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
     index('catalogs_artisan_idx').on(t.artisanProfileId),
     uniqueIndex('catalogs_slug_per_artisan').on(t.artisanProfileId, t.slug),
+    index('catalogs_search_idx').using('gin', t.searchVector),
   ],
 );
 
@@ -83,6 +117,19 @@ export const products = pgTable(
     }>(),
     materials: text('materials').array(),
     weightGrams: integer('weight_grams'),
+    // Weighted FTS document. A=title, B=materials (joined into a string),
+    // C=description. Materials at B because a buyer searching "porcelain"
+    // wants matches in the materials field, not just "...made of porcelain"
+    // buried in prose.
+    //
+    // `immutable_array_to_string` is a SQL wrapper around `array_to_string`
+    // — Postgres marks the built-in as STABLE (locale-dependent for some
+    // element types) and rejects STABLE functions in generated column
+    // expressions. For text[] the result is deterministic, so we wrap in
+    // an IMMUTABLE function. Defined in drizzle/0004_sharp_nick_fury.sql.
+    searchVector: tsvector('search_vector').generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(immutable_array_to_string(materials, ' '), '')), 'B') || setweight(to_tsvector('english', coalesce(description, '')), 'C')`,
+    ),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -91,6 +138,10 @@ export const products = pgTable(
     index('products_artisan_idx').on(t.artisanProfileId),
     index('products_status_idx').on(t.status),
     uniqueIndex('products_slug_per_artisan').on(t.artisanProfileId, t.slug),
+    index('products_search_idx').using('gin', t.searchVector),
+    // Trigram fallback for typo-tolerant matching on title. Joined with
+    // FTS via OR in the query layer.
+    index('products_title_trgm').using('gin', sql`${t.title} gin_trgm_ops`),
   ],
 );
 
