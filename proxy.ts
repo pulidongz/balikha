@@ -3,13 +3,21 @@ import { getSessionCookie } from 'better-auth/cookies';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
+// Cookie-only auth gate. The DB-backed admin check (is_admin column) lives in
+// app/(admin)/layout.tsx — Drizzle/postgres aren't safe in the Edge runtime
+// proxy runs on, so role enforcement happens server-side after the route loads.
+const PROTECTED_PREFIXES = ['/dashboard', '/admin'];
+
 export default async function proxy(request: NextRequest) {
   // Reuse an upstream-supplied ID (Caddy injects {http.request.uuid} so the
   // edge access log and the app log share the same value), otherwise mint
   // one. crypto.randomUUID is available in the Edge runtime.
   const requestId = request.headers.get(REQUEST_ID_HEADER) ?? crypto.randomUUID();
 
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+  const path = request.nextUrl.pathname;
+  const requiresAuth = PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
+
+  if (requiresAuth) {
     const sessionCookie = getSessionCookie(request);
     if (!sessionCookie) {
       const redirect = NextResponse.redirect(new URL('/sign-in', request.url));
@@ -30,6 +38,6 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   // Run on every request except static assets and Next internals so every
-  // request gets an ID. The /dashboard auth check stays inside the function.
+  // request gets an ID. Auth checks for protected prefixes happen inside.
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
