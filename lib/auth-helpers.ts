@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
-import { artisanProfiles } from '@/db/schema';
+import { artisanProfiles, user } from '@/db/schema';
 import { logger } from '@/lib/logger';
 
 // --- Error classes ----------------------------------------------------------
@@ -22,6 +22,13 @@ export class ForbiddenError extends Error {
   constructor(message = 'Not authorized') {
     super(message);
     this.name = 'ForbiddenError';
+  }
+}
+
+export class AdminRequiredError extends Error {
+  constructor(message = 'Admin required') {
+    super(message);
+    this.name = 'AdminRequiredError';
   }
 }
 
@@ -47,6 +54,15 @@ export async function getCurrentArtisanProfile() {
   return profile ?? null;
 }
 
+// Better Auth's session.user doesn't include hand-managed columns like
+// `is_admin`. Re-fetch the row from the DB so callers can read the role flag.
+export async function getCurrentUserWithRole() {
+  const session = await getCurrentSession();
+  if (!session?.user) return null;
+  const [row] = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+  return row ?? null;
+}
+
 // --- Throw-on-missing variants for server actions ---------------------------
 
 export async function requireUser() {
@@ -59,6 +75,16 @@ export async function requireArtisan() {
   const profile = await getCurrentArtisanProfile();
   if (!profile) throw new ForbiddenError('Artisan profile required');
   return profile;
+}
+
+export async function requireAdmin() {
+  const u = await getCurrentUserWithRole();
+  if (!u) throw new UnauthorizedError();
+  if (!u.isAdmin) {
+    logger.warn({ userId: u.id }, 'Non-admin attempted admin action');
+    throw new AdminRequiredError();
+  }
+  return u;
 }
 
 // --- Page-level redirect variant --------------------------------------------
