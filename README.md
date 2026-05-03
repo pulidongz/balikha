@@ -1,5 +1,7 @@
 # Balikha
 
+[![CI](https://github.com/pulidongz/balikha/actions/workflows/ci.yml/badge.svg)](https://github.com/pulidongz/balikha/actions/workflows/ci.yml)
+
 An artisan marketplace where independent makers list and sell handmade work. Built as a working local prototype with SEO and speed baked in.
 
 ## Tech stack
