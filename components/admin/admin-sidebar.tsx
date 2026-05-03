@@ -18,7 +18,7 @@ const NAV: readonly NavItem[] = [
   { href: '/admin', label: 'Overview', disabled: false, exact: true },
   { href: '/admin/users', label: 'Users', disabled: true, exact: false },
   { href: '/admin/products', label: 'Products', disabled: true, exact: false },
-  { href: '/admin/search', label: 'Search analytics', disabled: true, exact: false },
+  { href: '/admin/search', label: 'Search analytics', disabled: false, exact: false },
   { href: '/admin/audit-log', label: 'Audit log', disabled: true, exact: false },
 ];
 
