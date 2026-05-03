@@ -1,10 +1,17 @@
+import Link from 'next/link';
+import { sql } from 'drizzle-orm';
+import { db } from '@/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// The four placeholder panels intentionally name the four most-likely upcoming
-// admin features. They double as a roadmap and as slot markers — when search
-// ships, that plan replaces the search panel; when audit logging lands, that
-// plan replaces the activity panel; etc.
-export default function AdminOverview() {
+// The remaining placeholder panels intentionally name the three most-likely
+// upcoming admin features. They double as a roadmap and as slot markers —
+// when audit logging lands, that plan replaces the activity panel; when
+// reporting ships, the moderation panel; etc. Search analytics shipped in
+// the search plan, so its placeholder is now a real summary linking to the
+// dedicated page.
+export default async function AdminOverview() {
+  const searchCount7d = await loadSearchCount7d();
+
   return (
     <div className="space-y-8">
       <header>
@@ -21,10 +28,7 @@ export default function AdminOverview() {
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <PlaceholderPanel
-          title="Search analytics"
-          description="Top queries, no-result queries, and click-through behavior will appear here once search ships."
-        />
+        <SearchAnalyticsCard searchCount7d={searchCount7d} />
         <PlaceholderPanel
           title="Recent activity"
           description="An audit log of meaningful marketplace events will appear here once event logging is wired in."
@@ -61,6 +65,23 @@ function StatCard({ label }: { label: string }) {
   );
 }
 
+function SearchAnalyticsCard({ searchCount7d }: { searchCount7d: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Search analytics</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-medium">{searchCount7d.toLocaleString()}</p>
+        <p className="text-muted-foreground mt-1 text-xs">searches in the last 7 days</p>
+        <Link href="/admin/search" className="text-foreground mt-3 inline-block text-sm underline">
+          View details →
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlaceholderPanel({ title, description }: { title: string; description: string }) {
   return (
     <Card>
@@ -72,4 +93,16 @@ function PlaceholderPanel({ title, description }: { title: string; description: 
       </CardContent>
     </Card>
   );
+}
+
+type CountRow = { count: string } & Record<string, unknown>;
+
+// Hoisted out of the component body so the impure `Date.now()` doesn't
+// trip the react-hooks/purity rule.
+async function loadSearchCount7d(): Promise<number> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const result = await db.execute<CountRow>(sql`
+    SELECT COUNT(*) AS count FROM search_events WHERE created_at >= ${sevenDaysAgo}
+  `);
+  return Number(result[0]?.count ?? 0);
 }

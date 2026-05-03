@@ -29,6 +29,27 @@
       "when": 1777799729673,
       "tag": "0003_stale_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777805526255,
+      "tag": "0004_sharp_nick_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777807333468,
+      "tag": "0005_superb_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777808294260,
+      "tag": "0006_flippant_trish_tilby",
+      "breakpoints": true
     }
   ]
 }

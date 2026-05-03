@@ -1,12 +1,13 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs, productImages, products } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
+import { FACET_TAG } from '@/lib/search/facets';
 import { deleteObject } from '@/lib/storage/delete';
 import {
   productCreateSchema,
@@ -113,6 +114,7 @@ export async function createProductAction(
   });
 
   revalidatePath('/dashboard/catalogs');
+  revalidateTag(FACET_TAG, 'max');
   return ok({ slug });
 }
 
@@ -157,6 +159,7 @@ export async function updateProductAction(
     .where(eq(products.id, productId));
 
   revalidatePath('/dashboard/catalogs');
+  revalidateTag(FACET_TAG, 'max');
   return ok(null);
 }
 
@@ -181,6 +184,7 @@ export async function setProductStatusAction(
   }
 
   revalidatePath('/dashboard/catalogs');
+  revalidateTag(FACET_TAG, 'max');
   return ok(null);
 }
 
