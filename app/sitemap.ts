@@ -4,7 +4,13 @@ import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
 import { env } from '@/env';
 
-export const revalidate = 3600;
+// Generated per-request, not at build time. Without this, Next tries
+// to prerender the sitemap as part of `next build`, which would require
+// a live database during the build — fine in dev, broken in CI where
+// only dummy DB credentials exist. Sitemaps for a marketplace want to
+// reflect new listings anyway; per-request with edge caching is the
+// natural fit.
+export const dynamic = 'force-dynamic';
 
 const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
