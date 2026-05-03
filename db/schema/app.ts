@@ -10,6 +10,7 @@ import {
   index,
   uniqueIndex,
   customType,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth';
@@ -168,6 +169,39 @@ export const productImages = pgTable(
     height: integer('height'),
   },
   (t) => [index('product_images_product_idx').on(t.productId)],
+);
+
+// Search query log. Aggregations on this table power the admin search
+// analytics view (Phase 7). Deliberately no `user_id` — search behavior
+// is product signal, and tying queries to specific users creates a
+// privacy footprint with no operational benefit. `was_logged_in` is the
+// only signed-in vs anonymous distinction we keep, as a single boolean.
+//
+// `request_id` correlates to the per-request ID propagated through
+// proxy.ts → logger-context.ts, so a search event can be cross-referenced
+// with its full request log when debugging.
+export const searchEvents = pgTable(
+  'search_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Raw user input — kept for cases where the normalized form has lost
+    // signal (e.g. punctuation patterns indicating bot traffic).
+    query: text('query').notNull(),
+    // lowercased + whitespace-collapsed; the GROUP BY key for analytics.
+    normalizedQuery: text('normalized_query').notNull(),
+    resultCount: integer('result_count').notNull(),
+    productResultCount: integer('product_result_count').notNull(),
+    artisanResultCount: integer('artisan_result_count').notNull(),
+    catalogResultCount: integer('catalog_result_count').notNull(),
+    hadFilters: boolean('had_filters').notNull().default(false),
+    wasLoggedIn: boolean('was_logged_in').notNull().default(false),
+    requestId: text('request_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('search_events_normalized_query_idx').on(t.normalizedQuery),
+    index('search_events_created_at_idx').on(t.createdAt),
+  ],
 );
 
 // Idempotency cache. Mutating server actions accept an optional client-
