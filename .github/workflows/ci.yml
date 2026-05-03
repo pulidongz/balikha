@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel an in-progress run for the same ref when a new commit lands. The
+# older run becomes irrelevant the moment a fresher commit exists, and
+# canceling it saves Actions minutes + gets faster feedback on the latest
+# code.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  format:
+    name: Format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier check
+        run: npm run format:check
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      # Cache Next.js's incremental build artifacts (Webpack/Turbopack
+      # caches, RSC compilation). Keyed on the lockfile + every source
+      # file so unrelated PRs share a cache, but the cache is busted as
+      # soon as code changes. The restore-keys fallback gets a partial
+      # cache hit when only source changes (deps unchanged), which is
+      # the common case.
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # env.ts validates required vars at build time and fails fast if
+          # any are missing — that's the whole point of the validator. CI
+          # never connects to anything; these are placeholders that satisfy
+          # the schema. Real prod values land in deployment secrets when
+          # CD is added.
+          DATABASE_URL: 'postgres://ci:ci@localhost:5432/ci'
+          BETTER_AUTH_SECRET: 'this-is-a-ci-only-dummy-secret-32-chars-min'
+          BETTER_AUTH_URL: 'http://localhost:3000'
+          NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
+          S3_ENDPOINT: 'http://localhost:9000'
+          S3_REGION: 'auto'
+          S3_ACCESS_KEY_ID: 'ci-dummy'
+          S3_SECRET_ACCESS_KEY: 'ci-dummy-secret'
+          S3_BUCKET: 'ci-dummy-bucket'
+          S3_PUBLIC_URL_BASE: 'http://localhost:9000/ci-dummy-bucket'
