@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DeleteObjectsCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
+import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { account, session, user, verification } from '@/db/schema/auth';
@@ -544,6 +545,12 @@ async function seed() {
 
     const created = await createUser(seller.email, TEST_PASSWORD, seller.name);
 
+    // Promote Maria to admin so /admin is reachable immediately after seeding.
+    if (seller.email === 'maria@balikha.test') {
+      await db.update(user).set({ isAdmin: true }).where(eq(user.id, created.id));
+      logger.info({ email: seller.email }, 'Promoted seller to admin');
+    }
+
     const [profile] = await db
       .insert(artisanProfiles)
       .values({
@@ -659,7 +666,8 @@ async function seed() {
   logger.info('--- Test credentials ---');
   logger.info(`Admin:  ${ADMIN.email} / ${ADMIN.password}`);
   for (const seller of SELLERS) {
-    logger.info(`Seller: ${seller.email} / ${TEST_PASSWORD}  (${seller.shopName})`);
+    const label = seller.email === 'maria@balikha.test' ? 'Seller (admin):' : 'Seller:        ';
+    logger.info(`${label} ${seller.email} / ${TEST_PASSWORD}  (${seller.shopName})`);
   }
   logger.info(
     `Buyers: buyer1@balikha.test through buyer${NUM_BUYERS}@balikha.test / ${TEST_PASSWORD}`,

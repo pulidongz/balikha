@@ -1,11 +1,16 @@
 import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 
+// `is_admin` is hand-managed and NOT part of Better Auth's schema. If you ever
+// regenerate this file via Better Auth's CLI, re-add it — Better Auth will
+// strip columns it doesn't know about. It's safe to leave on the table at
+// runtime: Better Auth ignores unknown columns.
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
+  isAdmin: boolean('is_admin').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
