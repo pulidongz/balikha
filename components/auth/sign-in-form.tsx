@@ -1,14 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signIn } from '@/lib/auth-client';
 
+// Reject anything that isn't a same-origin path. Required: starts with `/`,
+// not protocol-relative (`//foo.com`), not a backslash-trick. This blocks
+// the open-redirect attack where ?next=https://evil.example sends a freshly
+// signed-in user off-site.
+function safeNextOr(next: string | null, fallback: string): string {
+  if (!next) return fallback;
+  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
+  return next;
+}
+
 export function SignInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNextOr(searchParams.get('next'), '/dashboard');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +35,7 @@ export function SignInForm() {
       setError(result.error.message ?? 'Invalid email or password');
       return;
     }
-    router.push('/dashboard');
+    router.push(next);
     router.refresh();
   }
 

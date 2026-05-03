@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { Search } from 'lucide-react';
+import { eq } from 'drizzle-orm';
 import { buttonVariants } from '@/components/ui/button';
 import { SearchBar } from '@/components/search/search-bar';
 import { getCurrentSession } from '@/lib/auth-helpers';
+import { db } from '@/db';
+import { artisanProfiles, user as userTable } from '@/db/schema';
 import { SiteHeaderMobileMenu } from './site-header-mobile-menu';
 import { SiteHeaderUserMenu } from './site-header-user-menu';
 
@@ -11,6 +14,30 @@ export async function SiteHeader() {
   const signedIn = session !== null;
   const userName = session?.user.name ?? null;
   const userEmail = session?.user.email ?? null;
+
+  // Conditional menu items ("My shop", "Admin") need to know whether the
+  // current user has an artisan profile and whether they're an admin.
+  // Fetched in parallel to keep header render fast on signed-in pages;
+  // skipped entirely for anonymous visitors.
+  let hasShop = false;
+  let isAdmin = false;
+  if (session) {
+    const userId = session.user.id;
+    const [shopRow, roleRow] = await Promise.all([
+      db
+        .select({ id: artisanProfiles.id })
+        .from(artisanProfiles)
+        .where(eq(artisanProfiles.userId, userId))
+        .limit(1),
+      db
+        .select({ isAdmin: userTable.isAdmin })
+        .from(userTable)
+        .where(eq(userTable.id, userId))
+        .limit(1),
+    ]);
+    hasShop = shopRow.length > 0;
+    isAdmin = roleRow[0]?.isAdmin ?? false;
+  }
 
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-40 border-b backdrop-blur">
@@ -35,7 +62,12 @@ export async function SiteHeader() {
 
           <nav className="hidden items-center gap-2 md:flex">
             {signedIn && userName && userEmail ? (
-              <SiteHeaderUserMenu userName={userName} userEmail={userEmail} />
+              <SiteHeaderUserMenu
+                userName={userName}
+                userEmail={userEmail}
+                hasShop={hasShop}
+                isAdmin={isAdmin}
+              />
             ) : (
               <>
                 <Link href="/sign-in" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
@@ -49,7 +81,12 @@ export async function SiteHeader() {
           </nav>
 
           {signedIn ? (
-            <SiteHeaderMobileMenu signedIn userName={userName} />
+            <SiteHeaderMobileMenu
+              signedIn
+              userName={userName}
+              hasShop={hasShop}
+              isAdmin={isAdmin}
+            />
           ) : (
             <SiteHeaderMobileMenu signedIn={false} />
           )}
