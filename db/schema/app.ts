@@ -142,6 +142,9 @@ export const products = pgTable(
     // Trigram fallback for typo-tolerant matching on title. Joined with
     // FTS via OR in the query layer.
     index('products_title_trgm').using('gin', sql`${t.title} gin_trgm_ops`),
+    // GIN array index for the `materials && $1::text[]` filter. Without
+    // this, materials filtering does a sequential scan over all products.
+    index('products_materials_idx').using('gin', t.materials),
   ],
 );
 
