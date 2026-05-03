@@ -527,7 +527,8 @@ async function seed() {
 
   // Admin (no artisan profile) — special password per the spec
   logger.info({ email: ADMIN.email }, 'Creating admin account…');
-  await createUser(ADMIN.email, ADMIN.password, ADMIN.name);
+  const adminUser = await createUser(ADMIN.email, ADMIN.password, ADMIN.name);
+  await db.update(user).set({ isAdmin: true }).where(eq(user.id, adminUser.id));
 
   // Buyer accounts (no artisan profile)
   logger.info({ count: NUM_BUYERS }, 'Creating buyer accounts…');
