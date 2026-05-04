@@ -20,7 +20,11 @@ function safeNextOr(next: string | null, fallback: string): string {
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = safeNextOr(searchParams.get('next'), '/dashboard');
+  // Default destination is the buyer surface — every signed-in user has
+  // access to /account, whereas /dashboard redirects non-sellers off to
+  // the become-seller flow. Sellers reach /dashboard from the avatar
+  // dropdown's "My shop" link.
+  const next = safeNextOr(searchParams.get('next'), '/account');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

@@ -17,7 +17,10 @@ function safeNextOr(next: string | null, fallback: string): string {
 export function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = safeNextOr(searchParams.get('next'), '/dashboard');
+  // Same as sign-in: default lands buyers on /account. New users haven't
+  // chosen "I want to be a seller" yet, so /dashboard's auto-redirect to
+  // become-seller would feel pushy. /account is the safe shared default.
+  const next = safeNextOr(searchParams.get('next'), '/account');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
