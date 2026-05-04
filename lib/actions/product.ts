@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { catalogs, productImages, products } from '@/db/schema';
+import { artisanFollows, catalogs, notifications, productImages, products } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
@@ -173,13 +173,60 @@ export async function setProductStatusAction(
   const parsedStatus = productStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
 
-  // Single UPDATE constrained by id + ownership — IDOR-safe in one query.
-  const result = await db
-    .update(products)
-    .set({ status: parsedStatus.data, updatedAt: new Date() })
-    .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)));
+  // Wrapped in a transaction so the follower-notification fan-out either
+  // commits with the publish or rolls back together. Keeps the system from
+  // ever being in a state where notifications point at a product whose
+  // publish failed.
+  const txResult = await db.transaction(async (tx) => {
+    // Read existing row with ownership constraint baked into the WHERE —
+    // IDOR-safe even before any write happens.
+    const [existing] = await tx
+      .select({
+        id: products.id,
+        slug: products.slug,
+        title: products.title,
+        status: products.status,
+      })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)))
+      .limit(1);
+    if (!existing) return { ok: false as const };
 
-  if ((result as { rowCount?: number }).rowCount === 0) {
+    await tx
+      .update(products)
+      .set({ status: parsedStatus.data, updatedAt: new Date() })
+      .where(eq(products.id, productId));
+
+    // Notification fan-out: only when the product transitions INTO the
+    // published state from anywhere else. Already-published → published
+    // is a no-op and intentionally doesn't re-notify.
+    if (existing.status !== 'published' && parsedStatus.data === 'published') {
+      const followers = await tx
+        .select({ userId: artisanFollows.userId })
+        .from(artisanFollows)
+        .where(eq(artisanFollows.artisanProfileId, profile.id));
+
+      if (followers.length > 0) {
+        await tx.insert(notifications).values(
+          followers.map((f) => ({
+            userId: f.userId,
+            type: 'follow_new_listing' as const,
+            title: `${profile.shopName} listed a new piece`,
+            body: existing.title,
+            target: {
+              kind: 'product',
+              id: productId,
+              url: `/shop/${profile.shopSlug}/${existing.slug}`,
+            },
+          })),
+        );
+      }
+    }
+
+    return { ok: true as const };
+  });
+
+  if (!txResult.ok) {
     return err('Product not found or not owned.');
   }
 

@@ -3,9 +3,10 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, catalogs, productImages, products } from '@/db/schema';
+import { artisanFollows, artisanProfiles, catalogs, productImages, products } from '@/db/schema';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CatalogSection } from '@/components/marketplace/catalog-section';
+import { FollowToggle } from '@/components/marketplace/follow-toggle';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 
@@ -111,6 +112,19 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
 
+  // Cheap PK lookup — only run for signed-in viewers.
+  let initiallyFollowing = false;
+  if (viewer) {
+    const [row] = await db
+      .select({ userId: artisanFollows.userId })
+      .from(artisanFollows)
+      .where(
+        and(eq(artisanFollows.userId, viewer.id), eq(artisanFollows.artisanProfileId, profile.id)),
+      )
+      .limit(1);
+    initiallyFollowing = Boolean(row);
+  }
+
   return (
     <div>
       {/* Banner — gracefully degrades if no banner image */}
@@ -147,6 +161,11 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
               <p className="text-muted-foreground text-sm">{profile.location}</p>
             )}
           </div>
+          <FollowToggle
+            artisanProfileId={profile.id}
+            initiallyFollowing={initiallyFollowing}
+            isSignedIn={viewer !== null}
+          />
         </div>
         {profile.bio && (
           <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-center text-base leading-relaxed md:text-left">
