@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { deleteAddressAction } from '@/lib/actions/addresses';
 
@@ -77,13 +77,12 @@ export function AddressCard({ address }: { address: Address }) {
       )}
 
       <div className="flex items-center gap-2 pt-1">
-        <Button
-          variant="outline"
-          size="sm"
-          render={<Link href={`/account/addresses/${address.id}/edit`} />}
+        <Link
+          href={`/account/addresses/${address.id}/edit`}
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
         >
           Edit
-        </Button>
+        </Link>
         <Button variant="ghost" size="sm" onClick={handleDelete} disabled={isPending}>
           {isPending ? 'Deleting…' : 'Delete'}
         </Button>

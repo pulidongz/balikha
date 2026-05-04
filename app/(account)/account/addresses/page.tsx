@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { db } from '@/db';
 import { userAddresses } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
@@ -30,7 +30,9 @@ export default async function AddressesPage() {
             Saved shipping and billing addresses.
           </p>
         </div>
-        <Button render={<Link href="/account/addresses/new" />}>+ Add address</Button>
+        <Link href="/account/addresses/new" className={buttonVariants()}>
+          + Add address
+        </Link>
       </header>
 
       {list.length === 0 ? (
