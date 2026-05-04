@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { search } from '@/lib/actions/search';
@@ -11,6 +11,10 @@ interface Props {
   initialNextCursor: string | null;
   query: string;
   filters: ProductFilters;
+  // Set is not RSC-serializable; the server passes a string[] and we
+  // rebuild the Set in-component for O(1) `.has()` per card.
+  wishlistedProductIds: string[];
+  isSignedIn: boolean;
 }
 
 /**
@@ -20,11 +24,19 @@ interface Props {
  * state. URL doesn't change on load-more clicks — pagination is client state,
  * unlike filters which live in the URL.
  */
-export function ProductSearchGrid({ initialProducts, initialNextCursor, query, filters }: Props) {
+export function ProductSearchGrid({
+  initialProducts,
+  initialNextCursor,
+  query,
+  filters,
+  wishlistedProductIds,
+  isSignedIn,
+}: Props) {
   const [products, setProducts] = useState(initialProducts);
   const [cursor, setCursor] = useState(initialNextCursor);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const wishlistedSet = useMemo(() => new Set(wishlistedProductIds), [wishlistedProductIds]);
 
   function loadMore() {
     if (!cursor) return;
@@ -61,9 +73,17 @@ export function ProductSearchGrid({ initialProducts, initialNextCursor, query, f
         {products.map((p) => (
           <ProductCard
             key={p.id}
-            product={{ slug: p.slug, title: p.title, price: p.price, currency: p.currency }}
+            product={{
+              id: p.id,
+              slug: p.slug,
+              title: p.title,
+              price: p.price,
+              currency: p.currency,
+            }}
             artisan={{ shopSlug: p.artisanSlug, shopName: p.artisanName }}
             primaryImage={p.imageUrl ? { url: p.imageUrl, altText: p.title } : null}
+            inWishlist={wishlistedSet.has(p.id)}
+            isSignedIn={isSignedIn}
           />
         ))}
       </div>

@@ -1,0 +1,91 @@
+#!/usr/bin/env node
+//
+// bin/build
+//
+// `next build` doesn't auto-load `.env.development` (Next only reads
+// `.env`, `.env.local`, `.env.production*` for production builds). This
+// wrapper mirrors what `tsx --env-file=.env.development` does for the
+// db scripts: it loads env vars from the first matching dev env file
+// before spawning `next build`.
+//
+// We can't use `node --env-file-if-exists=.env.development next build`
+// directly because Node propagates that flag to Worker threads via
+// NODE_OPTIONS, and Next 16 spawns workers — workers then crash with
+// `--env-file-if-exists= is not allowed in NODE_OPTIONS`. So we parse
+// the env file ourselves into process.env, then spawn next with a
+// clean NODE_OPTIONS.
+//
+// In production deploys the platform injects env vars directly and no
+// `.env*` file is present — this wrapper silently no-ops in that case
+// and `next build` runs as usual.
+
+import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, '..');
+
+// Order mirrors Next.js convention: most-specific wins, but only one
+// dev-env file is ever loaded so dev defaults don't bleed into prod.
+const CANDIDATES = ['.env', '.env.local', '.env.development'];
+
+// Minimal dotenv parser: KEY=VALUE per line, # comments, optional
+// surrounding quotes on values, no interpolation. Sufficient for the
+// shape of `.env.development` (URLs and tokens, no shell expansion).
+function parseEnv(content) {
+  const out = {};
+  for (const raw of content.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    out[key] = val;
+  }
+  return out;
+}
+
+let loadedFrom = null;
+for (const file of CANDIDATES) {
+  try {
+    const content = readFileSync(resolve(ROOT, file), 'utf8');
+    const parsed = parseEnv(content);
+    for (const [k, v] of Object.entries(parsed)) {
+      // Don't clobber values already set by the platform.
+      if (!(k in process.env)) process.env[k] = v;
+    }
+    loadedFrom = file;
+    break;
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+}
+
+if (loadedFrom) {
+  console.log(`bin/build: loaded env from ${loadedFrom}`);
+} else {
+  console.log('bin/build: no .env file found, using process env only');
+}
+
+// Strip NODE_OPTIONS so any flags the user passed at the outer level
+// (e.g. running `node --env-file-if-exists=... bin/build`) don't get
+// propagated to Next's worker threads, which reject some flags.
+const env = { ...process.env };
+delete env.NODE_OPTIONS;
+
+const next = resolve(ROOT, 'node_modules/next/dist/bin/next');
+const child = spawn(process.execPath, [next, 'build', ...process.argv.slice(2)], {
+  stdio: 'inherit',
+  env,
+  cwd: ROOT,
+});
+child.on('exit', (code, signal) => {
+  if (signal) process.kill(process.pid, signal);
+  else process.exit(code ?? 1);
+});

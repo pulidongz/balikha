@@ -8,7 +8,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { signOut } from '@/lib/auth-client';
 
-type Props = { signedIn: true; userName: string | null } | { signedIn: false; userName?: never };
+type Props =
+  | { signedIn: true; userName: string | null; hasShop: boolean; isAdmin: boolean }
+  | {
+      signedIn: false;
+      userName?: never;
+      hasShop?: never;
+      isAdmin?: never;
+    };
 
 export function SiteHeaderMobileMenu(props: Props) {
   const router = useRouter();
@@ -47,12 +54,30 @@ export function SiteHeaderMobileMenu(props: Props) {
           {props.signedIn ? (
             <>
               <Link
-                href="/dashboard"
+                href="/account"
                 onClick={() => setOpen(false)}
                 className="hover:bg-secondary rounded-md px-3 py-2"
               >
-                Dashboard
+                My account
               </Link>
+              {props.hasShop && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="hover:bg-secondary rounded-md px-3 py-2"
+                >
+                  My shop
+                </Link>
+              )}
+              {props.isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setOpen(false)}
+                  className="hover:bg-secondary rounded-md px-3 py-2"
+                >
+                  Admin
+                </Link>
+              )}
               {/* Visual separator + destructive-tinted sign-out at the bottom */}
               <div className="my-2 border-t" />
               <button

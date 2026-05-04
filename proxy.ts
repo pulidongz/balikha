@@ -6,7 +6,7 @@ const REQUEST_ID_HEADER = 'x-request-id';
 // Cookie-only auth gate. The DB-backed admin check (is_admin column) lives in
 // app/(admin)/layout.tsx — Drizzle/postgres aren't safe in the Edge runtime
 // proxy runs on, so role enforcement happens server-side after the route loads.
-const PROTECTED_PREFIXES = ['/dashboard', '/admin'];
+const PROTECTED_PREFIXES = ['/dashboard', '/admin', '/account'];
 
 export default async function proxy(request: NextRequest) {
   // Reuse an upstream-supplied ID (Caddy injects {http.request.uuid} so the
@@ -20,7 +20,11 @@ export default async function proxy(request: NextRequest) {
   if (requiresAuth) {
     const sessionCookie = getSessionCookie(request);
     if (!sessionCookie) {
-      const redirect = NextResponse.redirect(new URL('/sign-in', request.url));
+      // Preserve the original destination (path + query) so sign-in can
+      // bounce the user back to where they were going.
+      const signInUrl = new URL('/sign-in', request.url);
+      signInUrl.searchParams.set('next', path + request.nextUrl.search);
+      const redirect = NextResponse.redirect(signInUrl);
       redirect.headers.set(REQUEST_ID_HEADER, requestId);
       return redirect;
     }

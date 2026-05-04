@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import {
   Card,
@@ -13,6 +14,8 @@ export const metadata = {
   title: 'Create account · Balikha',
 };
 
+// SignUpForm reads the `next` query param via useSearchParams() — same
+// CSR-bailout-during-prerender pattern as the sign-in page.
 export default function SignUpPage() {
   return (
     <Card>
@@ -21,7 +24,9 @@ export default function SignUpPage() {
         <CardDescription>Join Balikha to discover or sell artisan work.</CardDescription>
       </CardHeader>
       <CardContent>
-        <SignUpForm />
+        <Suspense fallback={null}>
+          <SignUpForm />
+        </Suspense>
       </CardContent>
       <CardFooter>
         <p className="text-muted-foreground text-sm">

@@ -34,10 +34,14 @@ export function CatalogSection({
   catalog,
   artisan,
   products,
+  wishlistedIds,
+  isSignedIn,
 }: {
   catalog: CatalogLike;
   artisan: ArtisanLike;
   products: ProductLike[];
+  wishlistedIds: Set<string>;
+  isSignedIn: boolean;
 }) {
   if (products.length === 0) return null;
 
@@ -66,6 +70,7 @@ export function CatalogSection({
           <li key={p.id}>
             <ProductCard
               product={{
+                id: p.id,
                 slug: p.slug,
                 title: p.title,
                 price: p.price,
@@ -74,6 +79,8 @@ export function CatalogSection({
               artisan={artisan}
               primaryImage={p.primaryImage}
               showArtisan={false}
+              inWishlist={wishlistedIds.has(p.id)}
+              isSignedIn={isSignedIn}
             />
           </li>
         ))}

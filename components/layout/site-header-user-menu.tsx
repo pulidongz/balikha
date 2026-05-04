@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut } from 'lucide-react';
+import { LayoutDashboard, LogOut, Shield, User } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -24,15 +24,20 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase();
 }
 
-// Public-pages user menu — visible at md+ in the SiteHeader. Mirrors the
-// dashboard's avatar dropdown but with a slimmer item list (Dashboard +
-// Sign out only — no Settings, no View-shop, no mobile-sidebar trigger).
+// Public-pages user menu — visible at md+ in the SiteHeader. "My account"
+// is always present; "My shop" only when the user has an artisan profile;
+// "Admin" only when isAdmin. Keeps the menu honest about which surfaces
+// the current user actually has access to.
 export function SiteHeaderUserMenu({
   userName,
   userEmail,
+  hasShop,
+  isAdmin,
 }: {
   userName: string;
   userEmail: string;
+  hasShop: boolean;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
@@ -67,9 +72,19 @@ export function SiteHeaderUserMenu({
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/dashboard" />}>
-          <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+        <DropdownMenuItem render={<Link href="/account" />}>
+          <User className="mr-2 h-4 w-4" /> My account
         </DropdownMenuItem>
+        {hasShop && (
+          <DropdownMenuItem render={<Link href="/dashboard" />}>
+            <LayoutDashboard className="mr-2 h-4 w-4" /> My shop
+          </DropdownMenuItem>
+        )}
+        {isAdmin && (
+          <DropdownMenuItem render={<Link href="/admin" />}>
+            <Shield className="mr-2 h-4 w-4" /> Admin
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
           <LogOut className="mr-2 h-4 w-4" />

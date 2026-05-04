@@ -4,6 +4,7 @@ import { getAvailableMaterials } from '@/lib/search/facets';
 import { logSearchEvent } from '@/lib/search/log';
 import { searchAll } from '@/lib/search/queries';
 import { parseSearchParams } from '@/lib/search/url';
+import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { ArtisansSection } from '@/components/search/artisans-section';
 import { CatalogsSection } from '@/components/search/catalogs-section';
 import { MobileFiltersTrigger } from '@/components/search/mobile-filters-trigger';
@@ -57,6 +58,8 @@ export default async function SearchPage({
     wasLoggedIn: Boolean(user),
   });
 
+  const wishlistedIds = await getWishlistProductIds(user?.id ?? null);
+
   const totalHits = results.totalProductCount + results.artisans.length + results.catalogs.length;
 
   return (
@@ -96,6 +99,8 @@ export default async function SearchPage({
                 initialNextCursor={results.products.nextCursor}
                 query={parsed.q}
                 filters={filters}
+                wishlistedProductIds={Array.from(wishlistedIds)}
+                isSignedIn={user !== null}
               />
             </div>
           </div>

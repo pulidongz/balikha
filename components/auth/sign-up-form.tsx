@@ -1,14 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUp } from '@/lib/auth-client';
 
+// Same open-redirect guard as sign-in: same-origin paths only.
+function safeNextOr(next: string | null, fallback: string): string {
+  if (!next) return fallback;
+  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
+  return next;
+}
+
 export function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Same as sign-in: default lands buyers on /account. New users haven't
+  // chosen "I want to be a seller" yet, so /dashboard's auto-redirect to
+  // become-seller would feel pushy. /account is the safe shared default.
+  const next = safeNextOr(searchParams.get('next'), '/account');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +36,7 @@ export function SignUpForm() {
       setError(result.error.message ?? 'Sign-up failed');
       return;
     }
-    router.push('/dashboard');
+    router.push(next);
     router.refresh();
   }
 

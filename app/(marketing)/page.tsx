@@ -6,9 +6,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { ArtisanCard } from '@/components/marketplace/artisan-card';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
+import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 import { getRecentProducts } from '@/lib/queries/products';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import { getWishlistProductIds } from '@/lib/queries/wishlist';
 
-export const revalidate = 300;
+// Previously cached for 5 min, but personalized wishlist hearts make this
+// per-user. Calling getCurrentUser() opts the page into dynamic rendering
+// anyway via headers(); the explicit revalidate is dropped for clarity.
 
 const FEATURED_ARTISANS = 4;
 
@@ -23,6 +28,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // browser back covers "Previous". Stable under concurrent inserts —
   // a new product appearing between page loads doesn't shift rows around.
   const recent = await getRecentProducts({ cursor });
+
+  const viewer = await getCurrentUser();
+  const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
 
   // Featured artisans — those with at least one published product, plus a count.
   // Not paginated; this is a "homepage hero" slot.
@@ -129,6 +137,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   <li key={p.id}>
                     <ProductCard
                       product={{
+                        id: p.id,
                         slug: p.slug,
                         title: p.title,
                         price: p.price,
@@ -139,6 +148,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                         shopName: p.artisanShopName,
                       }}
                       primaryImage={p.primaryImage ?? undefined}
+                      inWishlist={wishlistedIds.has(p.id)}
+                      isSignedIn={viewer !== null}
                     />
                   </li>
                 ))}
@@ -157,6 +168,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </>
           )}
         </div>
+      </section>
+
+      {/* Recently viewed — only renders for signed-in viewers with 4+
+          tracked views. Component returns null below the threshold. */}
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
+        <RecentlyViewedStrip userId={viewer?.id ?? null} minItems={4} />
       </section>
     </div>
   );

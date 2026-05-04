@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   customType,
   boolean,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth';
@@ -224,4 +225,218 @@ export const idempotencyKeys = pgTable(
     expiresAt: timestamp('expires_at').notNull(),
   },
   (t) => [index('idempotency_keys_expires_idx').on(t.expiresAt)],
+);
+
+// Saved shipping/billing addresses for a user. One user has many addresses;
+// at most one is marked default-shipping and at most one default-billing.
+// The mutual-exclusion of defaults is enforced in the server action layer
+// inside a transaction (no partial-unique constraint at the DB level so
+// that an address with no default flag is the cheap common case).
+export const userAddresses = pgTable(
+  'user_addresses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    label: text('label'),
+    recipientName: text('recipient_name').notNull(),
+    phone: text('phone'),
+    line1: text('line1').notNull(),
+    line2: text('line2'),
+    barangay: text('barangay'),
+    city: text('city').notNull(),
+    province: text('province').notNull(),
+    postalCode: text('postal_code'),
+    countryCode: text('country_code').notNull().default('PH'),
+    isDefaultShipping: boolean('is_default_shipping').notNull().default(false),
+    isDefaultBilling: boolean('is_default_billing').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('user_addresses_user_idx').on(t.userId)],
+);
+
+// Buyer follows artisan. Composite primary key (userId, artisanProfileId)
+// makes duplicate follows structurally impossible — no UNIQUE INDEX needed.
+// Buyer privacy: this table is queried in two directions only — "who do I
+// follow?" (userId) and "how many follow this artisan?" (aggregated count
+// on artisanProfileId). Sellers must NEVER see follower identities.
+export const artisanFollows = pgTable(
+  'artisan_follows',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    artisanProfileId: uuid('artisan_profile_id')
+      .notNull()
+      .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.artisanProfileId] }),
+    index('artisan_follows_artisan_idx').on(t.artisanProfileId),
+    index('artisan_follows_user_idx').on(t.userId),
+  ],
+);
+
+// Wishlist items. Schema is future-friendly for multi-list support
+// (`listId` is reserved; null means "default wishlist"). The unique index
+// on (userId, productId) prevents duplicate wishlist entries — relied on
+// by the toggle action's onConflictDoNothing() insert.
+export const wishlistItems = pgTable(
+  'wishlist_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    listId: uuid('list_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('wishlist_items_user_idx').on(t.userId),
+    index('wishlist_items_product_idx').on(t.productId),
+    uniqueIndex('wishlist_items_unique_per_user').on(t.userId, t.productId),
+  ],
+);
+
+// Recently viewed. Capped at 50 per user (enforced in app code, not DDL).
+// One row per (user, product); a repeat view updates `lastViewedAt` via
+// onConflictDoUpdate. Composite PK matches that upsert target.
+//
+// Buyer privacy: this is buyer-private data. No seller-facing query may
+// join this table to user identity (no "who viewed my product?" feature).
+export const recentlyViewed = pgTable(
+  'recently_viewed',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    lastViewedAt: timestamp('last_viewed_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.productId] }),
+    index('recently_viewed_user_last_viewed_idx').on(t.userId, t.lastViewedAt),
+  ],
+);
+
+// In-app notifications. Append-only with a `readAt` timestamp.
+// `target` is polymorphic JSON so different notification types can point
+// at different entities without a column-per-target-type explosion.
+export const notificationType = pgEnum('notification_type', [
+  'follow_new_listing',
+  'wishlist_back_in_stock',
+  'wishlist_low_stock',
+  'order_status_changed',
+  'system_announcement',
+]);
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    type: notificationType('type').notNull(),
+    title: text('title').notNull(),
+    body: text('body'),
+    target: jsonb('target').$type<{ kind: string; id: string; url?: string }>(),
+    readAt: timestamp('read_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('notifications_user_created_idx').on(t.userId, t.createdAt),
+    // Partial index — the layout-level unread count query reads only
+    // unread rows. Without WHERE, we'd index every notification ever sent.
+    index('notifications_user_unread_idx')
+      .on(t.userId)
+      .where(sql`read_at IS NULL`),
+  ],
+);
+
+// Orders. Schema lands now; rows arrive when checkout ships. The buyer
+// foreign key uses ON DELETE RESTRICT — deleting a user with order
+// history is a deliberate operation, not a cascade.
+export const orderStatus = pgEnum('order_status', [
+  'pending_payment',
+  'paid',
+  'shipped',
+  'delivered',
+  'cancelled',
+  'refunded',
+]);
+
+export const orders = pgTable(
+  'orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    buyerUserId: text('buyer_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    reference: text('reference').notNull().unique(),
+    status: orderStatus('status').notNull().default('pending_payment'),
+    subtotal: numeric('subtotal', { precision: 10, scale: 2 }).notNull(),
+    shippingFee: numeric('shipping_fee', { precision: 10, scale: 2 }).notNull().default('0'),
+    total: numeric('total', { precision: 10, scale: 2 }).notNull(),
+    currency: text('currency').notNull().default('PHP'),
+    // Snapshot of the shipping address at order time. Address rows can
+    // change; orders don't.
+    shippingAddressJson: jsonb('shipping_address_json').notNull(),
+    notesFromBuyer: text('notes_from_buyer'),
+    placedAt: timestamp('placed_at').notNull().defaultNow(),
+    paidAt: timestamp('paid_at'),
+    shippedAt: timestamp('shipped_at'),
+    deliveredAt: timestamp('delivered_at'),
+    cancelledAt: timestamp('cancelled_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('orders_buyer_idx').on(t.buyerUserId),
+    index('orders_status_idx').on(t.status),
+    index('orders_placed_at_idx').on(t.placedAt),
+  ],
+);
+
+// Order line items. Snapshot columns make these immutable records of the
+// purchase, decoupled from current product state. ON DELETE SET NULL on
+// productId/artisanProfileId means deleting a product severs the live
+// link without destroying order history.
+export const orderItems = pgTable(
+  'order_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id').references(() => products.id, {
+      onDelete: 'set null',
+    }),
+    artisanProfileId: uuid('artisan_profile_id').references(() => artisanProfiles.id, {
+      onDelete: 'set null',
+    }),
+    titleSnapshot: text('title_snapshot').notNull(),
+    priceSnapshot: numeric('price_snapshot', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    imageUrlSnapshot: text('image_url_snapshot'),
+    artisanNameSnapshot: text('artisan_name_snapshot').notNull(),
+    artisanSlugSnapshot: text('artisan_slug_snapshot').notNull(),
+    productSlugSnapshot: text('product_slug_snapshot').notNull(),
+    quantity: integer('quantity').notNull().default(1),
+    lineTotal: numeric('line_total', { precision: 10, scale: 2 }).notNull(),
+  },
+  (t) => [
+    index('order_items_order_idx').on(t.orderId),
+    index('order_items_product_idx').on(t.productId),
+  ],
 );

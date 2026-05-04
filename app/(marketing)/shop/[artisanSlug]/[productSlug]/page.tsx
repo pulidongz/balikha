@@ -11,8 +11,13 @@ import { buttonVariants } from '@/components/ui/button';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
+import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
 
-export const revalidate = 300;
+// Previously cached for 5 min — now per-user because of wishlist hearts.
+// Calling getCurrentUser() makes this dynamic via headers().
 
 type Params = Promise<{ artisanSlug: string; productSlug: string }>;
 
@@ -66,6 +71,14 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
   const row = await loadProductWithArtisan(artisanSlug, productSlug);
   if (!row) notFound();
   const { product, artisan } = row;
+
+  const viewer = await getCurrentUser();
+  const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
+
+  // Track this view. Fire-and-forget — the helper swallows its own
+  // errors so a tracking failure can't break the product page render.
+  // No-op for anonymous viewers (helper checks current user).
+  await recordRecentlyViewedAction({ productId: product.id });
 
   const images = await db
     .select({
@@ -238,15 +251,24 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
             )}
           </div>
 
-          <button
-            type="button"
-            disabled
-            className={buttonVariants({ size: 'lg', className: 'w-full md:w-auto' })}
-            aria-disabled="true"
-            title="Cart and checkout arrive in a later phase"
-          >
-            {isSoldOut ? 'Sold out' : 'Add to cart'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled
+              className={buttonVariants({ size: 'lg', className: 'flex-1 md:flex-none' })}
+              aria-disabled="true"
+              title="Cart and checkout arrive in a later phase"
+            >
+              {isSoldOut ? 'Sold out' : 'Add to cart'}
+            </button>
+            <WishlistToggle
+              productId={product.id}
+              initiallyInWishlist={wishlistedIds.has(product.id)}
+              isSignedIn={viewer !== null}
+              variant="inline"
+              className="h-11 w-11"
+            />
+          </div>
 
           {product.description && (
             <p className="text-foreground text-base leading-relaxed whitespace-pre-line">
@@ -302,6 +324,8 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
                   artisan={{ shopSlug: artisan.shopSlug, shopName: artisan.shopName }}
                   primaryImage={morePrimaryById.get(p.id)}
                   showArtisan={false}
+                  inWishlist={wishlistedIds.has(p.id)}
+                  isSignedIn={viewer !== null}
                 />
               </li>
             ))}

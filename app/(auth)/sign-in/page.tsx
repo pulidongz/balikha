@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import {
   Card,
@@ -13,6 +14,10 @@ export const metadata = {
   title: 'Sign in · Balikha',
 };
 
+// SignInForm reads the `next` query param via useSearchParams(), which
+// forces the form into a CSR bailout during prerendering. Suspense
+// boundary tells Next that's expected and lets the rest of the page
+// stay statically prerenderable.
 export default function SignInPage() {
   return (
     <Card>
@@ -21,7 +26,9 @@ export default function SignInPage() {
         <CardDescription>Sign in to your Balikha account.</CardDescription>
       </CardHeader>
       <CardContent>
-        <SignInForm />
+        <Suspense fallback={null}>
+          <SignInForm />
+        </Suspense>
       </CardContent>
       <CardFooter>
         <p className="text-muted-foreground text-sm">

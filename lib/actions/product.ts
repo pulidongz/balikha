@@ -3,7 +3,14 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { catalogs, productImages, products } from '@/db/schema';
+import {
+  artisanFollows,
+  catalogs,
+  notifications,
+  productImages,
+  products,
+  wishlistItems,
+} from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
@@ -143,20 +150,52 @@ export async function updateProductAction(
   const { title, description, price, currency, stockOnHand, weightGrams, materials, dimensions } =
     parsed.data;
 
-  await db
-    .update(products)
-    .set({
-      title,
-      description: description ?? null,
-      price,
-      currency,
-      stockOnHand,
-      dimensions: dimensions ?? null,
-      materials: materials ?? null,
-      weightGrams: weightGrams ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(products.id, productId));
+  // Wrapped in a tx so the back-in-stock notification fan-out either
+  // commits with the update or rolls back together — same rationale as
+  // setProductStatusAction's follow_new_listing trigger.
+  await db.transaction(async (tx) => {
+    const [prev] = await tx
+      .select({
+        slug: products.slug,
+        status: products.status,
+        stockOnHand: products.stockOnHand,
+      })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
+
+    await tx
+      .update(products)
+      .set({
+        title,
+        description: description ?? null,
+        price,
+        currency,
+        stockOnHand,
+        dimensions: dimensions ?? null,
+        materials: materials ?? null,
+        weightGrams: weightGrams ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, productId));
+
+    // Stock-driven back-in-stock: previous was unavailable, now available.
+    // Status only changes via setProductStatusAction, so prev.status here
+    // is identical to the new status — that simplifies the predicate.
+    if (prev) {
+      const wasUnavailable = prev.status === 'sold_out' || prev.stockOnHand === 0;
+      const isAvailable = prev.status === 'published' && stockOnHand > 0;
+      if (wasUnavailable && isAvailable) {
+        await emitWishlistBackInStock(tx, {
+          productId,
+          productTitle: title,
+          productSlug: prev.slug,
+          shopName: profile.shopName,
+          shopSlug: profile.shopSlug,
+        });
+      }
+    }
+  });
 
   revalidatePath('/dashboard/catalogs');
   revalidateTag(FACET_TAG, 'max');
@@ -173,13 +212,75 @@ export async function setProductStatusAction(
   const parsedStatus = productStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
 
-  // Single UPDATE constrained by id + ownership — IDOR-safe in one query.
-  const result = await db
-    .update(products)
-    .set({ status: parsedStatus.data, updatedAt: new Date() })
-    .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)));
+  // Wrapped in a transaction so the follower-notification fan-out either
+  // commits with the publish or rolls back together. Keeps the system from
+  // ever being in a state where notifications point at a product whose
+  // publish failed.
+  const txResult = await db.transaction(async (tx) => {
+    // Read existing row with ownership constraint baked into the WHERE —
+    // IDOR-safe even before any write happens.
+    const [existing] = await tx
+      .select({
+        id: products.id,
+        slug: products.slug,
+        title: products.title,
+        status: products.status,
+        stockOnHand: products.stockOnHand,
+      })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)))
+      .limit(1);
+    if (!existing) return { ok: false as const };
 
-  if ((result as { rowCount?: number }).rowCount === 0) {
+    await tx
+      .update(products)
+      .set({ status: parsedStatus.data, updatedAt: new Date() })
+      .where(eq(products.id, productId));
+
+    // Notification fan-out: only when the product transitions INTO the
+    // published state from anywhere else. Already-published → published
+    // is a no-op and intentionally doesn't re-notify.
+    if (existing.status !== 'published' && parsedStatus.data === 'published') {
+      const followers = await tx
+        .select({ userId: artisanFollows.userId })
+        .from(artisanFollows)
+        .where(eq(artisanFollows.artisanProfileId, profile.id));
+
+      if (followers.length > 0) {
+        await tx.insert(notifications).values(
+          followers.map((f) => ({
+            userId: f.userId,
+            type: 'follow_new_listing' as const,
+            title: `${profile.shopName} listed a new piece`,
+            body: existing.title,
+            target: {
+              kind: 'product',
+              id: productId,
+              url: `/shop/${profile.shopSlug}/${existing.slug}`,
+            },
+          })),
+        );
+      }
+    }
+
+    // Back-in-stock: status flipped from sold_out → published while stock
+    // is positive. (The stock-driven path lives in updateProductAction.)
+    const wasUnavailable = existing.status === 'sold_out' || existing.stockOnHand === 0;
+    const isAvailable = parsedStatus.data === 'published' && existing.stockOnHand > 0;
+    if (wasUnavailable && isAvailable) {
+      await emitWishlistBackInStock(tx, {
+        productId,
+        productTitle: existing.title,
+        productSlug: existing.slug,
+        shopName: profile.shopName,
+        shopSlug: profile.shopSlug,
+      });
+    }
+
+    return { ok: true as const };
+  });
+
+  if (!txResult.ok) {
     return err('Product not found or not owned.');
   }
 
@@ -221,4 +322,43 @@ export async function deleteProductImageAction(imageId: string): Promise<Result<
 
   revalidatePath('/dashboard/catalogs');
   return ok(null);
+}
+
+// --- Notification triggers --------------------------------------------------
+
+interface BackInStockContext {
+  productId: string;
+  productTitle: string;
+  productSlug: string;
+  shopName: string;
+  shopSlug: string;
+}
+
+// Bulk-insert wishlist_back_in_stock notifications inside an existing tx.
+// Caller decides WHEN to emit (i.e. detects the transition); this helper
+// just owns the fan-out shape so the two callers don't drift.
+async function emitWishlistBackInStock(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ctx: BackInStockContext,
+): Promise<void> {
+  const wishers = await tx
+    .select({ userId: wishlistItems.userId })
+    .from(wishlistItems)
+    .where(eq(wishlistItems.productId, ctx.productId));
+
+  if (wishers.length === 0) return;
+
+  await tx.insert(notifications).values(
+    wishers.map((w) => ({
+      userId: w.userId,
+      type: 'wishlist_back_in_stock' as const,
+      title: `${ctx.productTitle} is back in stock`,
+      body: `From ${ctx.shopName}`,
+      target: {
+        kind: 'product',
+        id: ctx.productId,
+        url: `/shop/${ctx.shopSlug}/${ctx.productSlug}`,
+      },
+    })),
+  );
 }
