@@ -6,8 +6,11 @@ import { db } from '@/db';
 import { artisanProfiles, catalogs, productImages, products } from '@/db/schema';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CatalogSection } from '@/components/marketplace/catalog-section';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import { getWishlistProductIds } from '@/lib/queries/wishlist';
 
-export const revalidate = 300;
+// Previously cached for 5 min — wishlist hearts are per-user so this
+// becomes dynamic when getCurrentUser() reads request headers.
 
 type Params = Promise<{ artisanSlug: string }>;
 
@@ -105,6 +108,9 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
     productsByCatalog.set(p.catalogId, list);
   }
 
+  const viewer = await getCurrentUser();
+  const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
+
   return (
     <div>
       {/* Banner — gracefully degrades if no banner image */}
@@ -161,6 +167,8 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
               catalog={catalog}
               artisan={profile}
               products={productsByCatalog.get(catalog.id) ?? []}
+              wishlistedIds={wishlistedIds}
+              isSignedIn={viewer !== null}
             />
           ))
         )}
