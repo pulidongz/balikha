@@ -1,33 +1,44 @@
 import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { user } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { ProfileForm } from '@/components/account/profile-form';
+import { AvatarUploader } from '@/components/account/avatar-uploader';
 
 export const metadata = {
   title: 'Profile · Balikha',
 };
 
-// Phase 2 placeholder. Phase 3 of the buyer-accounts plan replaces this with
-// the full profile form (name, avatar, etc.).
 export default async function AccountProfilePage() {
-  const user = await getCurrentUser();
-  if (!user) redirect('/sign-in?next=/account');
+  const current = await getCurrentUser();
+  if (!current) redirect('/sign-in?next=/account');
+
+  // Better Auth's session.user can lag a write to user.image — read the
+  // row directly so the avatar reflects the current state after upload.
+  const [row] = await db
+    .select({ name: user.name, email: user.email, image: user.image })
+    .from(user)
+    .where(eq(user.id, current.id))
+    .limit(1);
+  const profile = row ?? { name: current.name, email: current.email, image: null };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header>
         <h1 className="font-serif text-3xl">Profile</h1>
         <p className="text-muted-foreground mt-1 text-sm">Your account details.</p>
       </header>
 
-      <dl className="bg-card grid grid-cols-1 gap-4 rounded-md border p-6 sm:grid-cols-2">
-        <div>
-          <dt className="text-muted-foreground text-xs tracking-wide uppercase">Name</dt>
-          <dd className="mt-1 text-sm">{user.name}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground text-xs tracking-wide uppercase">Email</dt>
-          <dd className="mt-1 text-sm">{user.email}</dd>
-        </div>
-      </dl>
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium tracking-wide uppercase">Photo</h2>
+        <AvatarUploader currentUrl={profile.image} userName={profile.name} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium tracking-wide uppercase">Details</h2>
+        <ProfileForm defaults={{ name: profile.name, email: profile.email }} />
+      </section>
     </div>
   );
 }
