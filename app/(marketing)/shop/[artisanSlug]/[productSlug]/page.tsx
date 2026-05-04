@@ -14,6 +14,7 @@ import { ProductGrid } from '@/components/marketplace/product-grid';
 import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
 
 // Previously cached for 5 min — now per-user because of wishlist hearts.
 // Calling getCurrentUser() makes this dynamic via headers().
@@ -73,6 +74,11 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
 
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
+
+  // Track this view. Fire-and-forget — the helper swallows its own
+  // errors so a tracking failure can't break the product page render.
+  // No-op for anonymous viewers (helper checks current user).
+  await recordRecentlyViewedAction({ productId: product.id });
 
   const images = await db
     .select({
