@@ -1,0 +1,59 @@
+import { redirect } from 'next/navigation';
+import { desc, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { notifications } from '@/db/schema';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import { NotificationItem } from '@/components/account/notification-item';
+import { MarkAllReadButton } from '@/components/account/mark-all-read-button';
+
+export const metadata = {
+  title: 'Notifications · Balikha',
+};
+
+const PAGE_SIZE = 50;
+
+export default async function NotificationsPage() {
+  const current = await getCurrentUser();
+  if (!current) redirect('/sign-in?next=/account/notifications');
+
+  const items = await db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.userId, current.id))
+    .orderBy(desc(notifications.createdAt))
+    .limit(PAGE_SIZE);
+
+  const unreadCount = items.filter((n) => n.readAt === null).length;
+
+  return (
+    <div className="space-y-6">
+      <header className="flex items-baseline justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl">Notifications</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {items.length === 0
+              ? 'Nothing here yet.'
+              : unreadCount > 0
+                ? `${unreadCount} unread`
+                : 'All caught up.'}
+          </p>
+        </div>
+        {unreadCount > 0 && <MarkAllReadButton />}
+      </header>
+
+      {items.length === 0 ? (
+        <div className="bg-card rounded-md border p-8 text-center">
+          <p className="text-muted-foreground text-sm">
+            Notifications about new listings from artisans you follow will appear here.
+          </p>
+        </div>
+      ) : (
+        <ul className="-ml-4 space-y-1">
+          {items.map((n) => (
+            <NotificationItem key={n.id} notification={n} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
