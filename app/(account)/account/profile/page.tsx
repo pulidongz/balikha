@@ -5,7 +5,6 @@ import { user } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ProfileForm } from '@/components/account/profile-form';
 import { AvatarUploader } from '@/components/account/avatar-uploader';
-import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 
 export const metadata = {
   title: 'Profile · Balikha',
@@ -13,7 +12,7 @@ export const metadata = {
 
 export default async function AccountProfilePage() {
   const current = await getCurrentUser();
-  if (!current) redirect('/sign-in?next=/account');
+  if (!current) redirect('/sign-in?next=/account/profile');
 
   // Better Auth's session.user can lag a write to user.image — read the
   // row directly so the avatar reflects the current state after upload.
@@ -40,10 +39,6 @@ export default async function AccountProfilePage() {
         <h2 className="text-sm font-medium tracking-wide uppercase">Details</h2>
         <ProfileForm defaults={{ name: profile.name, email: profile.email }} />
       </section>
-
-      {/* Show whatever the buyer has viewed — minItems=1 — since this is
-          their personal profile page rather than a public surface. */}
-      <RecentlyViewedStrip userId={current.id} minItems={1} limit={8} />
     </div>
   );
 }

@@ -13,7 +13,7 @@ interface NavItem {
 }
 
 const NAV: readonly NavItem[] = [
-  { href: '/account', label: 'Profile', Icon: User, exact: true },
+  { href: '/account/profile', label: 'Profile', Icon: User, exact: false },
   { href: '/account/addresses', label: 'Addresses', Icon: MapPin, exact: false },
   { href: '/account/wishlist', label: 'Wishlist', Icon: Heart, exact: false },
   { href: '/account/following', label: 'Following', Icon: Users, exact: false },

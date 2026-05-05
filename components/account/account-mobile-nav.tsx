@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 // Plain text strip — no icons here. The horizontal scroll affords more
 // labels in less vertical space than icons-with-text would.
 const ITEMS = [
-  { href: '/account', label: 'Profile', exact: true },
+  { href: '/account/profile', label: 'Profile', exact: false },
   { href: '/account/addresses', label: 'Addresses', exact: false },
   { href: '/account/wishlist', label: 'Wishlist', exact: false },
   { href: '/account/following', label: 'Following', exact: false },
