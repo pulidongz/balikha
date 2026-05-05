@@ -6,14 +6,19 @@ import { cn } from '@/lib/utils';
 
 // Plain text strip — no icons here. The horizontal scroll affords more
 // labels in less vertical space than icons-with-text would.
+// Same editorial order as the desktop sidebar (Home → content surfaces
+// → configuration). No visual separator here — it would create awkward
+// negative space inside a horizontal-scroll strip; the order alone is
+// enough to communicate the grouping at this scale.
 const ITEMS = [
-  { href: '/account/profile', label: 'Profile', exact: false },
-  { href: '/account/addresses', label: 'Addresses', exact: false },
+  { href: '/account', label: 'Home', exact: true },
+  { href: '/account/feed', label: 'New listings', exact: false },
   { href: '/account/wishlist', label: 'Wishlist', exact: false },
   { href: '/account/following', label: 'Following', exact: false },
-  { href: '/account/feed', label: 'New listings', exact: false },
   { href: '/account/notifications', label: 'Notifications', exact: false },
   { href: '/account/orders', label: 'Orders', exact: false },
+  { href: '/account/addresses', label: 'Addresses', exact: false },
+  { href: '/account/profile', label: 'Profile', exact: false },
 ] as const;
 
 export function AccountMobileNav({ unreadCount }: { unreadCount: number }) {
