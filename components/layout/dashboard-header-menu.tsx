@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Menu, Settings } from 'lucide-react';
+import { LogOut, Menu, Settings, User } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -103,6 +103,12 @@ export function DashboardHeaderMenu({
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          {/* Sellers are buyers too — give them a way back to /account
+              from inside the dashboard. Mirrors the marketplace header
+              dropdown's first item, just from the other direction. */}
+          <DropdownMenuItem render={<Link href="/account" />}>
+            <User className="mr-2 h-4 w-4" /> My account
+          </DropdownMenuItem>
           {shopSlug && (
             <DropdownMenuItem
               render={<Link href={`/shop/${shopSlug}`} target="_blank" rel="noreferrer" />}
