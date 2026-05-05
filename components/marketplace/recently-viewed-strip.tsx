@@ -1,30 +1,26 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
+import type { RecentlyViewedItem } from '@/lib/queries/recently-viewed';
 import { PriceTag } from './price-tag';
 
 interface Props {
-  userId: string | null;
+  items: RecentlyViewedItem[];
   // Below this threshold the strip renders nothing — saves a "row of 1"
-  // sad-looking strip on the homepage. Profile page passes 1 to always
-  // show whatever the buyer has if they have anything.
+  // sad-looking strip on the homepage. Pass 1 to always show whatever
+  // the buyer has if they have anything.
   minItems?: number;
-  limit?: number;
   heading?: string;
 }
 
-// Server component — fetches its own data so callers don't have to
-// thread the recently-viewed list through every page that wants it.
+// Pure renderer — caller fetches the items via getRecentlyViewed() and
+// passes them in. Lets the /account landing avoid a duplicate fetch
+// (the page already needs recentItems.length for its first-time-buyer
+// detection) and keeps the strip composable inside other server flows.
+//
 // Does NOT render hearts on the cards: the strip is meant to be a quiet
 // recall surface, not another point of interaction. The buyer can click
 // through to the product page where the heart is reachable.
-export async function RecentlyViewedStrip({
-  userId,
-  minItems = 4,
-  limit = 12,
-  heading = 'Recently viewed',
-}: Props) {
-  const items = await getRecentlyViewed(userId, limit);
+export function RecentlyViewedStrip({ items, minItems = 4, heading = 'Recently viewed' }: Props) {
   if (items.length < minItems) return null;
 
   return (

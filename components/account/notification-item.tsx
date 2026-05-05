@@ -19,7 +19,17 @@ interface Notification {
 // whether the mark-read action lands. The colored left-border on unread
 // items is a quieter signal than a "NEW" badge — easier on the eye when
 // scanning a long list.
-export function NotificationItem({ notification }: { notification: Notification }) {
+//
+// `variant="preview"` is for the /account landing's notifications section.
+// Compact: no left border, no body text, no background — just title +
+// time-ago. The full-list page keeps the default `variant="full"`.
+export function NotificationItem({
+  notification,
+  variant = 'full',
+}: {
+  notification: Notification;
+  variant?: 'full' | 'preview';
+}) {
   const url = notification.target?.url ?? '#';
   const [optimisticallyRead, setOptimisticallyRead] = useState(notification.readAt !== null);
   const [, startTransition] = useTransition();
@@ -30,6 +40,32 @@ export function NotificationItem({ notification }: { notification: Notification 
     startTransition(async () => {
       await markReadAction({ id: notification.id });
     });
+  }
+
+  if (variant === 'preview') {
+    return (
+      <li>
+        <Link
+          href={url}
+          onClick={handleClick}
+          className="hover:bg-secondary/40 -mx-2 block rounded-md px-2 py-2 transition-colors"
+        >
+          <div className="flex items-baseline gap-2">
+            <p
+              className={cn(
+                'flex-1 truncate text-sm',
+                optimisticallyRead ? 'text-foreground' : 'text-foreground font-medium',
+              )}
+            >
+              {notification.title}
+            </p>
+            <p className="text-muted-foreground shrink-0 text-xs">
+              {formatRelativeTime(notification.createdAt)}
+            </p>
+          </div>
+        </Link>
+      </li>
+    );
   }
 
   return (
