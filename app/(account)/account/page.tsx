@@ -10,7 +10,7 @@ import { FirstTimeBuyerWelcome } from '@/components/account/first-time-buyer-wel
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 
 export const metadata = {
-  title: 'Your account · Balikha',
+  title: 'Your account',
 };
 
 function firstName(fullName: string): string {

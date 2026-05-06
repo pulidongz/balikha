@@ -5,7 +5,7 @@ import { SettingsForm } from '@/components/dashboard/settings-form';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 
 export const metadata = {
-  title: 'Shop settings · Balikha',
+  title: 'Shop settings',
 };
 
 export default async function SettingsPage() {

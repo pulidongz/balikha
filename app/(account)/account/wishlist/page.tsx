@@ -10,7 +10,7 @@ import { ProductGrid } from '@/components/marketplace/product-grid';
 import { EmptyState } from '@/components/marketplace/empty-state';
 
 export const metadata = {
-  title: 'Wishlist · Balikha',
+  title: 'Wishlist',
 };
 
 export default async function WishlistPage() {

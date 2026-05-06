@@ -11,7 +11,7 @@ import { ProductGrid } from '@/components/marketplace/product-grid';
 import { EmptyState } from '@/components/marketplace/empty-state';
 
 export const metadata = {
-  title: 'New listings · Balikha',
+  title: 'New listings',
 };
 
 const PAGE_SIZE = 24;

@@ -7,7 +7,7 @@ import { ProfileForm } from '@/components/account/profile-form';
 import { AvatarUploader } from '@/components/account/avatar-uploader';
 
 export const metadata = {
-  title: 'Profile · Balikha',
+  title: 'Profile',
 };
 
 export default async function AccountProfilePage() {

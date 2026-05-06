@@ -10,7 +10,7 @@ import { FollowToggle } from '@/components/marketplace/follow-toggle';
 import { EmptyState } from '@/components/marketplace/empty-state';
 
 export const metadata = {
-  title: 'Following · Balikha',
+  title: 'Following',
 };
 
 export default async function FollowingPage() {

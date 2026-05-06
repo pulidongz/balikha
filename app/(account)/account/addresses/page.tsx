@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { AddressCard } from '@/components/account/address-card';
 
 export const metadata = {
-  title: 'Addresses · Balikha',
+  title: 'Addresses',
 };
 
 export default async function AddressesPage() {
