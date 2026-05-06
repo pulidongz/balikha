@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Menu, Settings, User } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, Shield, User } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -26,14 +26,21 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase();
 }
 
+// Dropdown contents mirror the marketplace SiteHeaderUserMenu so the
+// menu stays consistent across surfaces — switching from /account to
+// /dashboard shouldn't change which destinations the avatar exposes.
+// Settings (catalogs, shop info, etc.) lives in the dashboard sidebar
+// and isn't repeated here.
 export function DashboardHeaderMenu({
   userName,
   userEmail,
   shopSlug,
+  isAdmin,
 }: {
   userName: string;
   userEmail: string;
   shopSlug: string | null;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -103,15 +110,19 @@ export function DashboardHeaderMenu({
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          {/* Sellers are buyers too — give them a way back to /account
-              from inside the dashboard. Mirrors the marketplace header
-              dropdown's first item, just from the other direction. */}
           <DropdownMenuItem render={<Link href="/account" />}>
             <User className="mr-2 h-4 w-4" /> My account
           </DropdownMenuItem>
-          <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
-            <Settings className="mr-2 h-4 w-4" /> Settings
-          </DropdownMenuItem>
+          {shopSlug && (
+            <DropdownMenuItem render={<Link href="/dashboard" />}>
+              <LayoutDashboard className="mr-2 h-4 w-4" /> My shop
+            </DropdownMenuItem>
+          )}
+          {isAdmin && (
+            <DropdownMenuItem render={<Link href="/admin" />}>
+              <Shield className="mr-2 h-4 w-4" /> Admin
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
             <LogOut className="mr-2 h-4 w-4" />

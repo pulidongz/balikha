@@ -1,12 +1,20 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getCurrentArtisanProfile, getCurrentSession } from '@/lib/auth-helpers';
+import {
+  getCurrentArtisanProfile,
+  getCurrentSession,
+  getCurrentUserWithRole,
+} from '@/lib/auth-helpers';
 import { DashboardHeaderMenu } from './dashboard-header-menu';
 
 export async function DashboardHeader() {
   const session = await getCurrentSession();
   if (!session) redirect('/sign-in');
-  const profile = await getCurrentArtisanProfile();
+  // Both PK lookups in parallel — same pattern as SiteHeader.
+  const [profile, userWithRole] = await Promise.all([
+    getCurrentArtisanProfile(),
+    getCurrentUserWithRole(),
+  ]);
 
   return (
     <header className="bg-background sticky top-0 z-30 border-b">
@@ -18,6 +26,7 @@ export async function DashboardHeader() {
           userName={session.user.name}
           userEmail={session.user.email}
           shopSlug={profile?.shopSlug ?? null}
+          isAdmin={userWithRole?.isAdmin ?? false}
         />
       </div>
     </header>
