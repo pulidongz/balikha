@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut, Shield, User } from 'lucide-react';
+import { LayoutDashboard, LogOut, Shield, Store, User } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -25,9 +25,11 @@ function initialsOf(name: string): string {
 }
 
 // Public-pages user menu — visible at md+ in the SiteHeader. "My account"
-// is always present; "My shop" only when the user has an artisan profile;
-// "Admin" only when isAdmin. Keeps the menu honest about which surfaces
-// the current user actually has access to.
+// is always present. The next slot is mutually exclusive: "My shop" if the
+// user has an artisan profile, otherwise "Sell on Balikha" pointing at the
+// become-seller flow. "Admin" only shows when isAdmin. Keeps the menu
+// honest about which surfaces the current user actually has access to,
+// and gives buyers a discoverable path to start selling.
 export function SiteHeaderUserMenu({
   userName,
   userEmail,
@@ -75,9 +77,13 @@ export function SiteHeaderUserMenu({
         <DropdownMenuItem render={<Link href="/account" />}>
           <User className="mr-2 h-4 w-4" /> My account
         </DropdownMenuItem>
-        {hasShop && (
+        {hasShop ? (
           <DropdownMenuItem render={<Link href="/dashboard" />}>
             <LayoutDashboard className="mr-2 h-4 w-4" /> My shop
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem render={<Link href="/dashboard/become-seller" />}>
+            <Store className="mr-2 h-4 w-4" /> Sell on Balikha
           </DropdownMenuItem>
         )}
         {isAdmin && (

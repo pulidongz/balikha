@@ -109,13 +109,6 @@ export function DashboardHeaderMenu({
           <DropdownMenuItem render={<Link href="/account" />}>
             <User className="mr-2 h-4 w-4" /> My account
           </DropdownMenuItem>
-          {shopSlug && (
-            <DropdownMenuItem
-              render={<Link href={`/shop/${shopSlug}`} target="_blank" rel="noreferrer" />}
-            >
-              View public shop
-            </DropdownMenuItem>
-          )}
           <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
             <Settings className="mr-2 h-4 w-4" /> Settings
           </DropdownMenuItem>

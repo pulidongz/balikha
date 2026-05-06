@@ -60,13 +60,21 @@ export function SiteHeaderMobileMenu(props: Props) {
               >
                 My account
               </Link>
-              {props.hasShop && (
+              {props.hasShop ? (
                 <Link
                   href="/dashboard"
                   onClick={() => setOpen(false)}
                   className="hover:bg-secondary rounded-md px-3 py-2"
                 >
                   My shop
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard/become-seller"
+                  onClick={() => setOpen(false)}
+                  className="hover:bg-secondary rounded-md px-3 py-2"
+                >
+                  Sell on Balikha
                 </Link>
               )}
               {props.isAdmin && (
