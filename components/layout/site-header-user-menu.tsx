@@ -56,10 +56,14 @@ export function SiteHeaderUserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Account menu"
+        // size:icon-sm gives a strict 28×28 square — matches the avatar's
+        // h-7 w-7 exactly, so the rounded-full hover halo is a true circle
+        // (rather than a stretched pill, which is what 'sm' + px-1 produced).
+        // Same pattern as DashboardHeaderMenu's icon-sized trigger.
         className={buttonVariants({
           variant: 'ghost',
-          size: 'sm',
-          className: 'rounded-full px-1',
+          size: 'icon-sm',
+          className: 'rounded-full',
         })}
       >
         <Avatar className="h-7 w-7">
