@@ -92,14 +92,21 @@ export function DashboardHeaderMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Account menu"
+          // See site-header-user-menu.tsx for the rationale: ghost's
+          // hover bg merges with the AvatarFallback's bg, leaving the
+          // avatar's after:border visible as a "weird outline." We
+          // drive the hover state from the AvatarFallback instead.
           className={buttonVariants({
             variant: 'ghost',
             size: 'icon',
-            className: 'rounded-full',
+            className:
+              'cursor-pointer rounded-full hover:bg-transparent aria-expanded:bg-transparent',
           })}
         >
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs">{initialsOf(userName)}</AvatarFallback>
+          <Avatar className="h-8 w-8 after:hidden">
+            <AvatarFallback className="group-hover/button:bg-foreground group-hover/button:text-background group-aria-expanded/button:bg-foreground group-aria-expanded/button:text-background text-xs transition-colors">
+              {initialsOf(userName)}
+            </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">

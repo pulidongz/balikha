@@ -56,18 +56,23 @@ export function SiteHeaderUserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Account menu"
-        // size:icon-sm gives a strict 28×28 square — matches the avatar's
-        // h-7 w-7 exactly, so the rounded-full hover halo is a true circle
-        // (rather than a stretched pill, which is what 'sm' + px-1 produced).
-        // Same pattern as DashboardHeaderMenu's icon-sized trigger.
+        // size:icon-sm gives a strict 28×28 square so rounded-full produces
+        // a true circle. We turn OFF the ghost variant's bg-muted hover
+        // (it just merges with the AvatarFallback's matching bg-muted and
+        // leaves only the avatar's after:border showing — the "weird
+        // outline" effect). Hover state is instead driven by the
+        // AvatarFallback below via group-hover/button:.
         className={buttonVariants({
           variant: 'ghost',
           size: 'icon-sm',
-          className: 'rounded-full',
+          className:
+            'cursor-pointer rounded-full hover:bg-transparent aria-expanded:bg-transparent',
         })}
       >
-        <Avatar className="h-7 w-7">
-          <AvatarFallback className="text-xs">{initialsOf(userName)}</AvatarFallback>
+        <Avatar className="h-7 w-7 after:hidden">
+          <AvatarFallback className="group-hover/button:bg-foreground group-hover/button:text-background group-aria-expanded/button:bg-foreground group-aria-expanded/button:text-background text-xs transition-colors">
+            {initialsOf(userName)}
+          </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
