@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { sql } from 'drizzle-orm';
+import { count, gte } from 'drizzle-orm';
 import { db } from '@/db';
+import { searchEvents } from '@/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // The remaining placeholder panels intentionally name the three most-likely
@@ -95,14 +96,18 @@ function PlaceholderPanel({ title, description }: { title: string; description: 
   );
 }
 
-type CountRow = { count: string } & Record<string, unknown>;
-
 // Hoisted out of the component body so the impure `Date.now()` doesn't
 // trip the react-hooks/purity rule.
+//
+// Uses Drizzle's typed builder — the previous raw `sql` template passed
+// a Date object straight into postgres-js, which only accepts strings
+// for timestamp params and threw "Received an instance of Date". The
+// typed builder serializes via the column's data type metadata.
 async function loadSearchCount7d(): Promise<number> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const result = await db.execute<CountRow>(sql`
-    SELECT COUNT(*) AS count FROM search_events WHERE created_at >= ${sevenDaysAgo}
-  `);
-  return Number(result[0]?.count ?? 0);
+  const [row] = await db
+    .select({ value: count() })
+    .from(searchEvents)
+    .where(gte(searchEvents.createdAt, sevenDaysAgo));
+  return row?.value ?? 0;
 }

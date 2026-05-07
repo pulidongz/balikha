@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { AddressForm } from '@/components/account/address-form';
 
 export const metadata = {
-  title: 'Edit address · Balikha',
+  title: 'Edit address',
 };
 
 export default async function EditAddressPage({ params }: { params: Promise<{ id: string }> }) {

@@ -9,7 +9,7 @@ import { CatalogForm } from '@/components/dashboard/catalog-form';
 import { EmptyState } from '@/components/marketplace/empty-state';
 
 export const metadata = {
-  title: 'Catalogs · Balikha',
+  title: 'Catalogs',
 };
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {

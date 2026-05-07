@@ -7,7 +7,7 @@ import { NotificationItem } from '@/components/account/notification-item';
 import { MarkAllReadButton } from '@/components/account/mark-all-read-button';
 
 export const metadata = {
-  title: 'Notifications · Balikha',
+  title: 'Notifications',
 };
 
 const PAGE_SIZE = 50;

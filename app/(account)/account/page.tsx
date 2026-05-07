@@ -1,49 +1,64 @@
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
-import { db } from '@/db';
-import { user } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
-import { ProfileForm } from '@/components/account/profile-form';
-import { AvatarUploader } from '@/components/account/avatar-uploader';
+import { getFeedPreview, getNotificationsPreview, getWishlistPreview } from '@/lib/queries/account';
+import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
+import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { FeedPreview } from '@/components/account/feed-preview';
+import { WishlistPreview } from '@/components/account/wishlist-preview';
+import { NotificationsPreview } from '@/components/account/notifications-preview';
+import { FirstTimeBuyerWelcome } from '@/components/account/first-time-buyer-welcome';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 
 export const metadata = {
-  title: 'Profile · Balikha',
+  title: 'Your account',
 };
 
-export default async function AccountProfilePage() {
+function firstName(fullName: string): string {
+  return fullName.split(' ')[0] ?? fullName;
+}
+
+export default async function AccountHome() {
   const current = await getCurrentUser();
   if (!current) redirect('/sign-in?next=/account');
 
-  // Better Auth's session.user can lag a write to user.image — read the
-  // row directly so the avatar reflects the current state after upload.
-  const [row] = await db
-    .select({ name: user.name, email: user.email, image: user.image })
-    .from(user)
-    .where(eq(user.id, current.id))
-    .limit(1);
-  const profile = row ?? { name: current.name, email: current.email, image: null };
+  // All five preview-data fetches fan out in parallel — total wall time
+  // is dominated by the slowest single query rather than summing them.
+  // wishlistedIds is for the feed section's heart hydration; the
+  // wishlist preview itself doesn't need it (every shown item is
+  // wishlisted by definition).
+  const [feedItems, wishlistItems, recentItems, notificationItems, wishlistedIds] =
+    await Promise.all([
+      getFeedPreview(current.id),
+      getWishlistPreview(current.id),
+      getRecentlyViewed(current.id, 12),
+      getNotificationsPreview(current.id),
+      getWishlistProductIds(current.id),
+    ]);
+
+  // First-time buyer state: zero activity in any section. Showing four
+  // empty sections stacked would feel barren and pushy ("you should do
+  // this... and this... and this..."). Replace the whole page with a
+  // calmer welcome.
+  const isFirstTime =
+    feedItems.length === 0 &&
+    wishlistItems.length === 0 &&
+    recentItems.length === 0 &&
+    notificationItems.length === 0;
+
+  if (isFirstTime) {
+    return <FirstTimeBuyerWelcome name={current.name} />;
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-12">
       <header>
-        <h1 className="font-serif text-3xl">Profile</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Your account details.</p>
+        <h1 className="font-serif text-3xl">Hi, {firstName(current.name)}</h1>
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Photo</h2>
-        <AvatarUploader currentUrl={profile.image} userName={profile.name} />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Details</h2>
-        <ProfileForm defaults={{ name: profile.name, email: profile.email }} />
-      </section>
-
-      {/* Show whatever the buyer has viewed — minItems=1 — since this is
-          their personal profile page rather than a public surface. */}
-      <RecentlyViewedStrip userId={current.id} minItems={1} limit={8} />
+      <FeedPreview items={feedItems} wishlistedIds={wishlistedIds} />
+      <WishlistPreview items={wishlistItems} />
+      <RecentlyViewedStrip items={recentItems} minItems={1} />
+      <NotificationsPreview items={notificationItems} />
     </div>
   );
 }

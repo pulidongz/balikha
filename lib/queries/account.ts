@@ -1,0 +1,149 @@
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '@/db';
+import {
+  artisanFollows,
+  artisanProfiles,
+  notifications,
+  productImages,
+  products,
+  wishlistItems,
+} from '@/db/schema';
+
+// Helpers powering the new content-rich /account landing. Each one is a
+// SLICE of the dedicated page's data, not a separate query path — the
+// dedicated pages stay the source of truth. Convention from the buyer-
+// dashboard plan §4: "Preview sections defer to dedicated pages."
+//
+// Each helper is idempotent + cheap (small LIMITs, indexed predicates).
+// They're meant to fan out via Promise.all from the landing page so the
+// total wall-time is dominated by the slowest single query.
+
+export interface PreviewProductItem {
+  id: string;
+  slug: string;
+  title: string;
+  price: string;
+  currency: string;
+  artisanShopSlug: string;
+  artisanShopName: string;
+  primaryImage: { url: string; altText: string | null } | null;
+}
+
+// Internal: attach first product image via a separate IN-list query.
+// Keeps the helpers' join shape simple and matches the rest of the
+// codebase (e.g. /account/wishlist, /account/feed both do this).
+async function attachPrimaryImages<T extends { id: string }>(
+  rows: T[],
+): Promise<Array<T & { primaryImage: { url: string; altText: string | null } | null }>> {
+  if (rows.length === 0) return [];
+  const imageRows = await db
+    .select({
+      productId: productImages.productId,
+      url: productImages.url,
+      altText: productImages.altText,
+    })
+    .from(productImages)
+    .where(
+      inArray(
+        productImages.productId,
+        rows.map((r) => r.id),
+      ),
+    )
+    .orderBy(asc(productImages.position));
+
+  const primaryById = new Map<string, { url: string; altText: string | null }>();
+  for (const img of imageRows) {
+    if (!primaryById.has(img.productId)) {
+      primaryById.set(img.productId, { url: img.url, altText: img.altText });
+    }
+  }
+  return rows.map((r) => ({ ...r, primaryImage: primaryById.get(r.id) ?? null }));
+}
+
+// Most-recent published products from artisans the buyer follows. Cap at
+// 6 — enough to fill a 3-up grid on tablet/desktop without dominating
+// the landing.
+export async function getFeedPreview(userId: string): Promise<PreviewProductItem[]> {
+  const rows = await db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      price: products.price,
+      currency: products.currency,
+      artisanShopSlug: artisanProfiles.shopSlug,
+      artisanShopName: artisanProfiles.shopName,
+    })
+    .from(products)
+    .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
+    .innerJoin(artisanFollows, eq(artisanFollows.artisanProfileId, artisanProfiles.id))
+    .where(and(eq(artisanFollows.userId, userId), eq(products.status, 'published')))
+    .orderBy(desc(products.createdAt))
+    .limit(6);
+
+  return attachPrimaryImages(rows);
+}
+
+// Most-recently saved wishlist items. Same shape as the dedicated
+// /account/wishlist page query, but limited to 4. Doesn't filter on
+// product status — if a buyer wishlisted something that's now archived
+// they should still see it (consistent with the dedicated page).
+export async function getWishlistPreview(userId: string): Promise<PreviewProductItem[]> {
+  const rows = await db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      price: products.price,
+      currency: products.currency,
+      artisanShopSlug: artisanProfiles.shopSlug,
+      artisanShopName: artisanProfiles.shopName,
+    })
+    .from(wishlistItems)
+    .innerJoin(products, eq(wishlistItems.productId, products.id))
+    .innerJoin(artisanProfiles, eq(products.artisanProfileId, artisanProfiles.id))
+    .where(eq(wishlistItems.userId, userId))
+    .orderBy(desc(wishlistItems.createdAt))
+    .limit(4);
+
+  return attachPrimaryImages(rows);
+}
+
+export interface NotificationPreviewItem {
+  id: string;
+  title: string;
+  body: string | null;
+  target: { kind: string; id: string; url?: string } | null;
+  readAt: Date | null;
+  createdAt: Date;
+}
+
+// 3 most-recent notifications, preferring unread. If unread count >= 3
+// we just return the unread ones. If not, we backfill with the most
+// recent read notifications so the section is never half-empty when
+// activity exists.
+//
+// Strategy: order by (read_at IS NULL DESC, created_at DESC), limit 3.
+// `read_at IS NULL` evaluates to true for unread → sorted ahead of read
+// when DESC. Single index-friendly query, no UNION.
+export async function getNotificationsPreview(userId: string): Promise<NotificationPreviewItem[]> {
+  const rows = await db
+    .select({
+      id: notifications.id,
+      title: notifications.title,
+      body: notifications.body,
+      target: notifications.target,
+      readAt: notifications.readAt,
+      createdAt: notifications.createdAt,
+    })
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(
+      // Unread first, then newest first within each group.
+      sql`${notifications.readAt} IS NULL DESC`,
+      desc(notifications.createdAt),
+    )
+    .limit(3);
+
+  return rows;
+}

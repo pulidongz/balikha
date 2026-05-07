@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/marketplace/empty-state';
 import { PriceTag } from '@/components/marketplace/price-tag';
 
 export const metadata = {
-  title: 'Catalog · Balikha',
+  title: 'Catalog',
 };
 
 const PRODUCT_STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {

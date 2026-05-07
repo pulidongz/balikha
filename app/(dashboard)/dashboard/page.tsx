@@ -12,7 +12,7 @@ import { PriceTag } from '@/components/marketplace/price-tag';
 import { getCurrentArtisanProfile, getCurrentSession } from '@/lib/auth-helpers';
 
 export const metadata = {
-  title: 'Dashboard · Balikha',
+  title: 'Dashboard',
 };
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {

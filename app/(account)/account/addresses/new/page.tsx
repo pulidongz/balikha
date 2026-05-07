@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { AddressForm } from '@/components/account/address-form';
 
 export const metadata = {
-  title: 'New address · Balikha',
+  title: 'New address',
 };
 
 export default async function NewAddressPage() {

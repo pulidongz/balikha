@@ -4,7 +4,7 @@ import { BecomeSellerForm } from '@/components/dashboard/become-seller-form';
 import { getCurrentArtisanProfile, getCurrentSession } from '@/lib/auth-helpers';
 
 export const metadata = {
-  title: 'Become a seller · Balikha',
+  title: 'Become a seller',
 };
 
 export default async function BecomeSellerPage() {

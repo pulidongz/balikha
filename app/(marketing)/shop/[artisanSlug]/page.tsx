@@ -146,8 +146,14 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
         )}
       </section>
 
-      {/* Artisan info row */}
-      <section className="mx-auto -mt-12 max-w-5xl px-4 sm:px-6 md:-mt-16">
+      {/* Artisan info row.
+          The negative top-margin overlaps the banner so the avatar
+          appears to float over its bottom edge. On md+ we keep the
+          overlap modest (-mt-10 ≈ 40px) — large banners on wide
+          displays were leaving the shop name visually crowded against
+          the banner; the smaller overlap gives the name breathing room
+          while still letting the avatar protrude. */}
+      <section className="mx-auto -mt-12 max-w-5xl px-4 sm:px-6 md:-mt-10">
         <div className="bg-card flex flex-col items-center gap-4 rounded-lg border p-6 text-center md:flex-row md:items-end md:gap-6 md:text-left">
           <Avatar className="border-card ring-border h-24 w-24 border-4 ring-1">
             <AvatarImage src={profile.bannerImageUrl ?? undefined} alt={profile.shopName} />

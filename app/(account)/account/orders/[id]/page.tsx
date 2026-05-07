@@ -10,7 +10,7 @@ import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { ReorderButton } from '@/components/account/reorder-button';
 
 export const metadata = {
-  title: 'Order · Balikha',
+  title: 'Order',
 };
 
 const DATE_FMT = new Intl.DateTimeFormat('en-PH', {

@@ -11,7 +11,7 @@ import {
 import { SignUpForm } from '@/components/auth/sign-up-form';
 
 export const metadata = {
-  title: 'Create account · Balikha',
+  title: 'Create account',
 };
 
 // SignUpForm reads the `next` query param via useSearchParams() — same

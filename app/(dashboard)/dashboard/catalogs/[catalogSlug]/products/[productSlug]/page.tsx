@@ -11,7 +11,7 @@ import { ProductImageUploader } from '@/components/dashboard/product-image-uploa
 import { ProductImageList } from '@/components/dashboard/product-image-list';
 
 export const metadata = {
-  title: 'Edit product · Balikha',
+  title: 'Edit product',
 };
 
 export default async function ProductDetailPage({

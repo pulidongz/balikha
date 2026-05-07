@@ -10,6 +10,7 @@ import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-st
 import { getRecentProducts } from '@/lib/queries/products';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
 
 // Previously cached for 5 min, but personalized wishlist hearts make this
 // per-user. Calling getCurrentUser() opts the page into dynamic rendering
@@ -31,6 +32,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
+  const recentlyViewed = await getRecentlyViewed(viewer?.id ?? null, 12);
 
   // Featured artisans — those with at least one published product, plus a count.
   // Not paginated; this is a "homepage hero" slot.
@@ -173,7 +175,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* Recently viewed — only renders for signed-in viewers with 4+
           tracked views. Component returns null below the threshold. */}
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-        <RecentlyViewedStrip userId={viewer?.id ?? null} minItems={4} />
+        <RecentlyViewedStrip items={recentlyViewed} minItems={4} />
       </section>
     </div>
   );

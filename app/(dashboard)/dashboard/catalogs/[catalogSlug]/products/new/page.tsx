@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ProductForm } from '@/components/dashboard/product-form';
 
 export const metadata = {
-  title: 'New product · Balikha',
+  title: 'New product',
 };
 
 export default async function NewProductPage({

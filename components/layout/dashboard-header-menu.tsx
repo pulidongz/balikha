@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Menu, Settings } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, Shield, User } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -26,14 +26,21 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase();
 }
 
+// Dropdown contents mirror the marketplace SiteHeaderUserMenu so the
+// menu stays consistent across surfaces — switching from /account to
+// /dashboard shouldn't change which destinations the avatar exposes.
+// Settings (catalogs, shop info, etc.) lives in the dashboard sidebar
+// and isn't repeated here.
 export function DashboardHeaderMenu({
   userName,
   userEmail,
   shopSlug,
+  isAdmin,
 }: {
   userName: string;
   userEmail: string;
   shopSlug: string | null;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -85,14 +92,21 @@ export function DashboardHeaderMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Account menu"
+          // See site-header-user-menu.tsx for the rationale: ghost's
+          // hover bg merges with the AvatarFallback's bg, leaving the
+          // avatar's after:border visible as a "weird outline." We
+          // drive the hover state from the AvatarFallback instead.
           className={buttonVariants({
             variant: 'ghost',
             size: 'icon',
-            className: 'rounded-full',
+            className:
+              'cursor-pointer rounded-full hover:bg-transparent aria-expanded:bg-transparent',
           })}
         >
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs">{initialsOf(userName)}</AvatarFallback>
+          <Avatar className="h-8 w-8 after:hidden">
+            <AvatarFallback className="group-hover/button:bg-foreground group-hover/button:text-background group-aria-expanded/button:bg-foreground group-aria-expanded/button:text-background text-xs transition-colors">
+              {initialsOf(userName)}
+            </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
@@ -103,16 +117,19 @@ export function DashboardHeaderMenu({
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href="/account" />}>
+            <User className="mr-2 h-4 w-4" /> My account
+          </DropdownMenuItem>
           {shopSlug && (
-            <DropdownMenuItem
-              render={<Link href={`/shop/${shopSlug}`} target="_blank" rel="noreferrer" />}
-            >
-              View public shop
+            <DropdownMenuItem render={<Link href="/dashboard" />}>
+              <LayoutDashboard className="mr-2 h-4 w-4" /> My shop
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
-            <Settings className="mr-2 h-4 w-4" /> Settings
-          </DropdownMenuItem>
+          {isAdmin && (
+            <DropdownMenuItem render={<Link href="/admin" />}>
+              <Shield className="mr-2 h-4 w-4" /> Admin
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
             <LogOut className="mr-2 h-4 w-4" />

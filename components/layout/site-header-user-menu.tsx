@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut, Shield, User } from 'lucide-react';
+import { LayoutDashboard, LogOut, Shield, Store, User } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -25,9 +25,11 @@ function initialsOf(name: string): string {
 }
 
 // Public-pages user menu — visible at md+ in the SiteHeader. "My account"
-// is always present; "My shop" only when the user has an artisan profile;
-// "Admin" only when isAdmin. Keeps the menu honest about which surfaces
-// the current user actually has access to.
+// is always present. The next slot is mutually exclusive: "My shop" if the
+// user has an artisan profile, otherwise "Sell on Balikha" pointing at the
+// become-seller flow. "Admin" only shows when isAdmin. Keeps the menu
+// honest about which surfaces the current user actually has access to,
+// and gives buyers a discoverable path to start selling.
 export function SiteHeaderUserMenu({
   userName,
   userEmail,
@@ -54,14 +56,23 @@ export function SiteHeaderUserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Account menu"
+        // size:icon-sm gives a strict 28×28 square so rounded-full produces
+        // a true circle. We turn OFF the ghost variant's bg-muted hover
+        // (it just merges with the AvatarFallback's matching bg-muted and
+        // leaves only the avatar's after:border showing — the "weird
+        // outline" effect). Hover state is instead driven by the
+        // AvatarFallback below via group-hover/button:.
         className={buttonVariants({
           variant: 'ghost',
-          size: 'sm',
-          className: 'rounded-full px-1',
+          size: 'icon-sm',
+          className:
+            'cursor-pointer rounded-full hover:bg-transparent aria-expanded:bg-transparent',
         })}
       >
-        <Avatar className="h-7 w-7">
-          <AvatarFallback className="text-xs">{initialsOf(userName)}</AvatarFallback>
+        <Avatar className="h-7 w-7 after:hidden">
+          <AvatarFallback className="group-hover/button:bg-foreground group-hover/button:text-background group-aria-expanded/button:bg-foreground group-aria-expanded/button:text-background text-xs transition-colors">
+            {initialsOf(userName)}
+          </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -75,9 +86,13 @@ export function SiteHeaderUserMenu({
         <DropdownMenuItem render={<Link href="/account" />}>
           <User className="mr-2 h-4 w-4" /> My account
         </DropdownMenuItem>
-        {hasShop && (
+        {hasShop ? (
           <DropdownMenuItem render={<Link href="/dashboard" />}>
             <LayoutDashboard className="mr-2 h-4 w-4" /> My shop
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem render={<Link href="/dashboard/become-seller" />}>
+            <Store className="mr-2 h-4 w-4" /> Sell on Balikha
           </DropdownMenuItem>
         )}
         {isAdmin && (

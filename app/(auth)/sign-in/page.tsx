@@ -11,7 +11,7 @@ import {
 import { SignInForm } from '@/components/auth/sign-in-form';
 
 export const metadata = {
-  title: 'Sign in · Balikha',
+  title: 'Sign in',
 };
 
 // SignInForm reads the `next` query param via useSearchParams(), which

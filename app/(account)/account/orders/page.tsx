@@ -9,7 +9,7 @@ import { OrderRow } from '@/components/account/order-row';
 import { EmptyState } from '@/components/marketplace/empty-state';
 
 export const metadata = {
-  title: 'Orders · Balikha',
+  title: 'Orders',
 };
 
 const PAGE_SIZE = 50;
