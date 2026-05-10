@@ -1,9 +1,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { orderItems, orders } from '@/db/schema';
+import { orders } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
@@ -20,8 +20,7 @@ const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
 });
 
 // Shape of the snapshot JSON stored on `orders.shipping_address_json`.
-// Mirrors user_addresses + countryCode at order time. Future checkout
-// writes this; for now the type is what readers should expect.
+// Mirrors user_addresses + countryCode at order time.
 interface ShippingAddressSnapshot {
   recipientName: string;
   phone?: string | null;
@@ -48,13 +47,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     .limit(1);
   if (!order) notFound();
 
-  const items = await db
-    .select()
-    .from(orderItems)
-    .where(eq(orderItems.orderId, order.id))
-    .orderBy(asc(orderItems.id));
-
   const shipping = order.shippingAddressJson as ShippingAddressSnapshot;
+  // Snapshot slugs persist forever even if the underlying product/artisan
+  // is renamed or deleted (FKs SET NULL). The link target is always
+  // derivable from snapshot fields.
+  const productLink = `/shop/${order.artisanSlugSnapshot}/${order.productSlugSnapshot}`;
 
   return (
     <div className="space-y-8">
@@ -72,74 +69,35 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
       </header>
 
-      {/* Line items — snapshot data, NOT joined to current product state.
-          Product/artisan slugs are snapshot too so links remain valid even
-          if a piece is later renamed; if the underlying product/artisan
-          row was deleted, the foreign keys are SET NULL and the snapshot
-          still tells the truthful purchase history. */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Items</h2>
-        <ul className="bg-card divide-y rounded-md border">
-          {items.map((it) => {
-            // The product/artisan FKs are SET NULL on delete, but the
-            // snapshot slugs persist forever — so the link target is
-            // always derivable. Render as a plain span only if both the
-            // FK and snapshot were already null at order time (shouldn't
-            // happen given snapshots are NOT NULL in the schema, but
-            // defensively typed here).
-            const productLink = `/shop/${it.artisanSlugSnapshot}/${it.productSlugSnapshot}`;
-            const titleClass =
-              'text-foreground hover:text-accent block truncate text-sm font-medium transition-colors';
-            return (
-              <li key={it.id} className="flex items-center gap-4 p-4">
-                <div className="bg-secondary relative h-16 w-16 shrink-0 overflow-hidden rounded">
-                  {it.imageUrlSnapshot ? (
-                    <Image
-                      src={it.imageUrlSnapshot}
-                      alt={it.titleSnapshot}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0 flex-1 space-y-1">
-                  <Link href={productLink} className={titleClass}>
-                    {it.titleSnapshot}
-                  </Link>
-                  <p className="text-muted-foreground text-xs">
-                    {it.artisanNameSnapshot} · qty {it.quantity}
-                  </p>
-                </div>
-                <p className="shrink-0 text-sm tabular-nums">
-                  {formatPrice(it.lineTotal, order.currency)}
-                </p>
-              </li>
-            );
-          })}
-        </ul>
+        <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
+        <div className="bg-card flex items-center gap-4 rounded-md border p-4">
+          <div className="bg-secondary relative h-16 w-16 shrink-0 overflow-hidden rounded">
+            {order.productImageUrlSnapshot ? (
+              <Image
+                src={order.productImageUrlSnapshot}
+                alt={order.productTitleSnapshot}
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
+            ) : null}
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <Link
+              href={productLink}
+              className="text-foreground hover:text-accent block truncate text-sm font-medium transition-colors"
+            >
+              {order.productTitleSnapshot}
+            </Link>
+            <p className="text-muted-foreground text-xs">{order.artisanNameSnapshot}</p>
+          </div>
+          <p className="shrink-0 text-sm tabular-nums">
+            {formatPrice(order.priceSnapshot, order.currency)}
+          </p>
+        </div>
       </section>
 
-      {/* Totals */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Totals</h2>
-        <dl className="bg-card space-y-2 rounded-md border p-4 text-sm tabular-nums">
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Subtotal</dt>
-            <dd>{formatPrice(order.subtotal, order.currency)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Shipping</dt>
-            <dd>{formatPrice(order.shippingFee, order.currency)}</dd>
-          </div>
-          <div className="flex justify-between border-t pt-2 font-medium">
-            <dt>Total</dt>
-            <dd>{formatPrice(order.total, order.currency)}</dd>
-          </div>
-        </dl>
-      </section>
-
-      {/* Shipping address snapshot */}
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Ship to</h2>
         <address className="bg-card text-muted-foreground rounded-md border p-4 text-sm not-italic">
