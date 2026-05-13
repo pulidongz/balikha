@@ -2,7 +2,7 @@
 
 import { revalidateTag } from 'next/cache';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { db } from '@/db';
+import { db, type Tx } from '@/db';
 import {
   artisanProfiles,
   idempotencyKeys,
@@ -12,12 +12,17 @@ import {
   products,
   userAddresses,
 } from '@/db/schema';
-import { requireUser } from '@/lib/auth-helpers';
+import { requireArtisan, requireUser } from '@/lib/auth-helpers';
 import { withIdempotency } from '@/lib/idempotency';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { generateOrderReference } from '@/lib/orders/reference';
-import { orderPlaceSchema } from '@/lib/validators/order';
+import type { ActorRole, Order, OrderEventType, OrderStatus } from '@/lib/orders/types';
+import {
+  orderCancelInputSchema,
+  orderPlaceSchema,
+  orderTransitionInputSchema,
+} from '@/lib/validators/order';
 
 // Reorder stub. The signature stays stable so `ReorderButton` keeps
 // compiling against this file; Phase 5 of the order-flow plan replaces
@@ -291,5 +296,352 @@ export async function placeOrder(
         return err(message);
       }
     },
+  });
+}
+
+// =============================================================================
+// Status transitions
+// =============================================================================
+
+// Closed set of fields callers can mutate via transitionOrder. The helper
+// owns the `status` write (toStatus param); the rest are timestamps and
+// notes that go along with specific transitions. id, buyerUserId,
+// artisanProfileId, and the snapshot fields are intentionally absent —
+// loose typing here would invite callers to smuggle in mutations that
+// bypass the helper's discipline.
+type TransitionFieldUpdates = Partial<
+  Pick<
+    Order,
+    | 'acceptedAt'
+    | 'declinedAt'
+    | 'paymentReceivedAt'
+    | 'shippedAt'
+    | 'completedAt'
+    | 'cancelledAt'
+    | 'cancellationReason'
+    | 'cancellationNotes'
+    | 'disputedAt'
+    | 'disputeResolvedAt'
+  >
+>;
+
+interface TransitionOrderOpts {
+  orderId: string;
+  expectedFrom: readonly OrderStatus[];
+  toStatus: OrderStatus;
+  // null when actorRole === 'system' (Phase 6 tick). The DB column is
+  // also nullable so the audit log can record un-actored events.
+  actorUserId: string | null;
+  actorRole: ActorRole;
+  // Skipped when actorRole === 'system' (the tick has already filtered
+  // to the orders it intends to act on). Returning false from the check
+  // causes the transition to fail with 'Not authorized'.
+  authorizationCheck?: (order: Order) => boolean;
+  eventType: OrderEventType;
+  notes?: string;
+  metadataJson?: Record<string, unknown>;
+  fieldUpdates?: TransitionFieldUpdates;
+  // Hook for side-effects that must be atomic with the status flip
+  // (e.g. stock return, dispute-row insert). Runs inside the same
+  // transaction, after the status update and audit event are written.
+  onTransition?: (tx: Tx, order: Order) => Promise<void>;
+}
+
+/**
+ * Canonical chokepoint for every order-status mutation. Every accept,
+ * decline, ship, cancel, dispute filing, admin force-action, and system
+ * tick goes through here. Writing `db.update(orders).set({ status })`
+ * anywhere else bypasses audit logging + reputation cache invalidation
+ * and is forbidden (§12 Conventions in the plan).
+ *
+ * INSIDE db.transaction:
+ *   1. Load order with FOR UPDATE
+ *   2. Verify status is in expectedFrom
+ *   3. If actorRole !== 'system', run authorizationCheck
+ *   4. UPDATE order: status + lifecycle timestamps + fieldUpdates
+ *   5. INSERT order_events row (actor_user_id may be null)
+ *   6. Run onTransition for additional atomic writes
+ *
+ * AFTER db.transaction(...) resolves:
+ *   7. revalidateTag(`reputation:${artisanId}`, 'max')
+ *
+ * The post-commit invalidation runs for ALL transitions, including
+ * system events — a backlog of auto-cancellations should drop the
+ * artisan's fulfillment rate immediately, not wait for the 5-minute
+ * TTL. The notification-fan-out gate (Phase 4.5) is asymmetric to this
+ * (notifications skip system events; cache invalidation does not).
+ */
+export async function transitionOrder(
+  opts: TransitionOrderOpts,
+): Promise<Result<{ orderId: string }>> {
+  let artisanProfileId: string | null = null;
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Load with FOR UPDATE — serializes concurrent attempts on the
+      //    same order so the expectedFrom check is meaningful.
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, opts.orderId))
+        .for('update')
+        .limit(1);
+      if (!order) throw new Error('Order not found');
+
+      // 2. State-machine guard. Hits if a concurrent retry or stale
+      //    client click tries to act on an already-progressed order.
+      if (!opts.expectedFrom.includes(order.status)) {
+        throw new Error(`Invalid state: order is ${order.status}`);
+      }
+
+      // 3. Authorization. System callers (Phase 6 tick) have already
+      //    pre-filtered, so skip the check for them.
+      if (opts.actorRole !== 'system' && opts.authorizationCheck) {
+        if (!opts.authorizationCheck(order)) {
+          throw new Error('Not authorized for this order');
+        }
+      }
+
+      // 4. UPDATE: status + caller-supplied lifecycle fields.
+      await tx
+        .update(orders)
+        .set({
+          status: opts.toStatus,
+          ...(opts.fieldUpdates ?? {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id));
+
+      // 5. Audit event. metadataJson shape is contractual per Phase 1.
+      await tx.insert(orderEvents).values({
+        orderId: order.id,
+        type: opts.eventType,
+        actorUserId: opts.actorUserId,
+        actorRole: opts.actorRole,
+        notes: opts.notes ?? null,
+        metadataJson: opts.metadataJson ?? null,
+      });
+
+      // 6. Side-effect hook (stock return, etc.).
+      if (opts.onTransition) {
+        await opts.onTransition(tx, order);
+      }
+
+      artisanProfileId = order.artisanProfileId;
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Transition failed';
+    return err(message);
+  }
+
+  // 7. Post-commit reputation cache invalidation. Outside the tx so the
+  //    cache invalidates after the new data has committed, not before.
+  if (artisanProfileId) {
+    revalidateTag(`reputation:${artisanProfileId}`, 'max');
+  }
+  return ok({ orderId: opts.orderId });
+}
+
+// -----------------------------------------------------------------------------
+// Stock return — shared onTransition for pre-shipment cancellations.
+// -----------------------------------------------------------------------------
+
+// The check `order.shippedAt === null` is the durable signal of "did
+// this item physically leave the seller's possession." Stock-handling
+// matrix per Phase 8: shipped → don't return (creates a phantom
+// inventory); pre-shipment → return (the item never moved).
+async function returnStockIfPreShipment(tx: Tx, order: Order): Promise<void> {
+  if (order.shippedAt !== null) return;
+  if (!order.productId) return;
+
+  const [product] = await tx
+    .select()
+    .from(products)
+    .where(eq(products.id, order.productId))
+    .for('update')
+    .limit(1);
+  if (!product) return;
+
+  await tx
+    .update(products)
+    .set({
+      stockOnHand: product.stockOnHand + 1,
+      // If the product was flipped to sold_out by the placement that
+      // we're now reversing, bring it back to published. Other statuses
+      // (draft, archived) stay as the seller left them.
+      status: product.status === 'sold_out' ? 'published' : product.status,
+      updatedAt: new Date(),
+    })
+    .where(eq(products.id, product.id));
+}
+
+// -----------------------------------------------------------------------------
+// Seller actions
+// -----------------------------------------------------------------------------
+
+export async function acceptOrder(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderTransitionInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const seller = await requireArtisan().catch(() => null);
+  if (!seller) return err('Artisan profile required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    expectedFrom: ['pending_seller_response'],
+    toStatus: 'pending_payment_arrangement',
+    actorUserId: seller.userId,
+    actorRole: 'seller',
+    authorizationCheck: (o) => o.artisanProfileId === seller.id,
+    eventType: 'accepted',
+    notes: parsed.data.notes,
+    fieldUpdates: { acceptedAt: new Date() },
+  });
+}
+
+export async function declineOrder(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderCancelInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const seller = await requireArtisan().catch(() => null);
+  if (!seller) return err('Artisan profile required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    expectedFrom: ['pending_seller_response'],
+    toStatus: 'cancelled_by_seller',
+    actorUserId: seller.userId,
+    actorRole: 'seller',
+    authorizationCheck: (o) => o.artisanProfileId === seller.id,
+    eventType: 'declined',
+    notes: parsed.data.notes,
+    metadataJson: { reason: parsed.data.reason, notes: parsed.data.notes },
+    fieldUpdates: {
+      declinedAt: new Date(),
+      cancelledAt: new Date(),
+      cancellationReason: parsed.data.reason,
+      cancellationNotes: parsed.data.notes ?? null,
+    },
+    onTransition: returnStockIfPreShipment,
+  });
+}
+
+export async function markPaymentReceived(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderTransitionInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const seller = await requireArtisan().catch(() => null);
+  if (!seller) return err('Artisan profile required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    expectedFrom: ['pending_payment_arrangement'],
+    toStatus: 'payment_received',
+    actorUserId: seller.userId,
+    actorRole: 'seller',
+    authorizationCheck: (o) => o.artisanProfileId === seller.id,
+    eventType: 'payment_received',
+    notes: parsed.data.notes,
+    fieldUpdates: { paymentReceivedAt: new Date() },
+  });
+}
+
+export async function markShipped(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderTransitionInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const seller = await requireArtisan().catch(() => null);
+  if (!seller) return err('Artisan profile required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    expectedFrom: ['payment_received'],
+    toStatus: 'shipped',
+    actorUserId: seller.userId,
+    actorRole: 'seller',
+    authorizationCheck: (o) => o.artisanProfileId === seller.id,
+    eventType: 'shipped',
+    notes: parsed.data.notes,
+    fieldUpdates: { shippedAt: new Date() },
+  });
+}
+
+export async function cancelAsSeller(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderCancelInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const seller = await requireArtisan().catch(() => null);
+  if (!seller) return err('Artisan profile required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    expectedFrom: ['pending_payment_arrangement', 'payment_received'],
+    toStatus: 'cancelled_by_seller',
+    actorUserId: seller.userId,
+    actorRole: 'seller',
+    authorizationCheck: (o) => o.artisanProfileId === seller.id,
+    eventType: 'cancelled_by_seller',
+    notes: parsed.data.notes,
+    metadataJson: { reason: parsed.data.reason, notes: parsed.data.notes },
+    fieldUpdates: {
+      cancelledAt: new Date(),
+      cancellationReason: parsed.data.reason,
+      cancellationNotes: parsed.data.notes ?? null,
+    },
+    onTransition: returnStockIfPreShipment,
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Buyer actions
+// -----------------------------------------------------------------------------
+
+export async function cancelAsBuyer(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderCancelInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const buyer = await requireUser().catch(() => null);
+  if (!buyer) return err('Not authenticated');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    // Buyer can self-cancel up to payment_received (per the transition
+    // matrix). After payment_received the seller may already be packing
+    // — buyer cancellation at that point requires a dispute, not a
+    // unilateral cancel.
+    expectedFrom: ['pending_seller_response', 'pending_payment_arrangement'],
+    toStatus: 'cancelled_by_buyer',
+    actorUserId: buyer.id,
+    actorRole: 'buyer',
+    authorizationCheck: (o) => o.buyerUserId === buyer.id,
+    eventType: 'cancelled_by_buyer',
+    notes: parsed.data.notes,
+    metadataJson: { reason: parsed.data.reason, notes: parsed.data.notes },
+    fieldUpdates: {
+      cancelledAt: new Date(),
+      cancellationReason: parsed.data.reason,
+      cancellationNotes: parsed.data.notes ?? null,
+    },
+    onTransition: returnStockIfPreShipment,
+  });
+}
+
+export async function markReceived(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = orderTransitionInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const buyer = await requireUser().catch(() => null);
+  if (!buyer) return err('Not authenticated');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    expectedFrom: ['shipped'],
+    toStatus: 'completed',
+    actorUserId: buyer.id,
+    actorRole: 'buyer',
+    authorizationCheck: (o) => o.buyerUserId === buyer.id,
+    eventType: 'completed',
+    notes: parsed.data.notes,
+    fieldUpdates: { completedAt: new Date() },
   });
 }

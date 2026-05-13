@@ -15,3 +15,43 @@ export const orderPlaceSchema = z.object({
 });
 
 export type OrderPlaceInput = z.infer<typeof orderPlaceSchema>;
+
+// Transition actions (accept, mark shipped, etc.) are naturally idempotent
+// at the state-machine level: `expectedFrom` + FOR UPDATE in the helper
+// guarantees a duplicate retry hits an "Invalid state" error rather than
+// re-running the transition. A buyer who clicks "Mark received" twice
+// gets a clear error message — that's better UX than silent dedup. So
+// these schemas deliberately do NOT include an idempotencyKey field.
+//
+// Only `placeOrder` uses the idempotency wrapper + advisory lock, because
+// creating an order is non-idempotent (every call would create a new row
+// and decrement stock).
+
+// Used by acceptOrder, markPaymentReceived, markShipped, markReceived.
+// Notes are an artisan/buyer comment that lands on the order_event.
+export const orderTransitionInputSchema = z.object({
+  orderId: z.string().uuid(),
+  notes: z.string().max(1000).optional(),
+});
+
+export type OrderTransitionInput = z.infer<typeof orderTransitionInputSchema>;
+
+// Cancellation requires a reason — drives analytics and the seller's
+// reputation context.
+export const cancellationReasonSchema = z.enum([
+  'seller_no_response',
+  'buyer_changed_mind',
+  'seller_unable_to_fulfill',
+  'item_unavailable',
+  'payment_disagreement',
+  'shipping_disagreement',
+  'other',
+]);
+
+export const orderCancelInputSchema = z.object({
+  orderId: z.string().uuid(),
+  reason: cancellationReasonSchema,
+  notes: z.string().max(1000).optional(),
+});
+
+export type OrderCancelInput = z.infer<typeof orderCancelInputSchema>;

@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { orders } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
+import { BuyerOrderActionButtons } from '@/components/account/buyer-order-action-buttons';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { ReorderButton } from '@/components/account/reorder-button';
 
@@ -68,6 +69,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
       </header>
+
+      <BuyerOrderActionButtons orderId={order.id} status={order.status} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>

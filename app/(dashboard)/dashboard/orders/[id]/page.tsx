@@ -7,7 +7,7 @@ import { orderEvents, orders, user } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
-import { OrderActionsPlaceholder } from '@/components/dashboard/order-actions-placeholder';
+import { OrderActionButtons } from '@/components/dashboard/order-action-buttons';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
 
 export const metadata = {
@@ -85,7 +85,11 @@ export default async function SellerOrderDetailPage({
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
       </header>
 
-      <OrderActionsPlaceholder status={order.status} />
+      {/* Action buttons appropriate to the current status. Render
+          nothing for terminal states (completed, cancelled, disputed). */}
+      <section className="space-y-3">
+        <OrderActionButtons orderId={order.id} status={order.status} />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
