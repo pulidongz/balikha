@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { orderEvents, orders } from '@/db/schema';
+import { env } from '@/env';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
 import { BuyerOrderActionButtons } from '@/components/account/buyer-order-action-buttons';
@@ -84,6 +85,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </header>
 
       <BuyerOrderActionButtons orderId={order.id} status={order.status} />
+
+      {order.status === 'shipped' && (
+        // Dispute-window advisory. The auto-confirm timeout and the
+        // dispute-eligible window both terminate on the same day, so a
+        // late dispute on a non-delivered package gets locked out by
+        // the auto-complete. Per Issue 20 (Phase 6 §8 / plan resolution
+        // option c), we accept the trade-off and surface the deadline
+        // explicitly to buyers rather than extending the window.
+        <aside className="bg-muted text-muted-foreground rounded-md border-l-4 border-l-[var(--gold)] p-3 text-sm">
+          If you don&rsquo;t receive your order, please file a dispute within{' '}
+          <strong className="text-foreground">{env.ORDER_BUYER_AUTO_CONFIRM_DAYS} days</strong> of
+          shipment. After that, this order will be auto-confirmed and dispute filing is no longer
+          available.
+        </aside>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>

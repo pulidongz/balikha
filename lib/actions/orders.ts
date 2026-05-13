@@ -18,6 +18,7 @@ import { withIdempotency } from '@/lib/idempotency';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { generateOrderReference } from '@/lib/orders/reference';
+import { returnStockIfPreShipment } from '@/lib/orders/stock';
 import type { ActorRole, Order, OrderEventType, OrderStatus } from '@/lib/orders/types';
 import {
   orderCancelInputSchema,
@@ -484,45 +485,24 @@ export async function transitionOrder(
     return err(message);
   }
 
-  // 7. Post-commit reputation cache invalidation. Outside the tx so the
+  // 8. Post-commit reputation cache invalidation. Outside the tx so the
   //    cache invalidates after the new data has committed, not before.
+  //    revalidateTag requires Next's static-generation-store, which
+  //    isn't available from CLI scripts (orders-tick). Catch that one
+  //    specific error and skip — the 5-minute cache TTL covers the gap.
+  //    Any other revalidate error rethrows as a transition failure
+  //    (no general error swallowing).
   if (artisanProfileId) {
-    revalidateTag(`reputation:${artisanProfileId}`, 'max');
+    try {
+      revalidateTag(`reputation:${artisanProfileId}`, 'max');
+    } catch (e) {
+      if (!(e instanceof Error && e.message.includes('static generation store missing'))) {
+        throw e;
+      }
+      // Tick-script branch: readers will re-derive on TTL expiry.
+    }
   }
   return ok({ orderId: opts.orderId });
-}
-
-// -----------------------------------------------------------------------------
-// Stock return — shared onTransition for pre-shipment cancellations.
-// -----------------------------------------------------------------------------
-
-// The check `order.shippedAt === null` is the durable signal of "did
-// this item physically leave the seller's possession." Stock-handling
-// matrix per Phase 8: shipped → don't return (creates a phantom
-// inventory); pre-shipment → return (the item never moved).
-async function returnStockIfPreShipment(tx: Tx, order: Order): Promise<void> {
-  if (order.shippedAt !== null) return;
-  if (!order.productId) return;
-
-  const [product] = await tx
-    .select()
-    .from(products)
-    .where(eq(products.id, order.productId))
-    .for('update')
-    .limit(1);
-  if (!product) return;
-
-  await tx
-    .update(products)
-    .set({
-      stockOnHand: product.stockOnHand + 1,
-      // If the product was flipped to sold_out by the placement that
-      // we're now reversing, bring it back to published. Other statuses
-      // (draft, archived) stay as the seller left them.
-      status: product.status === 'sold_out' ? 'published' : product.status,
-      updatedAt: new Date(),
-    })
-    .where(eq(products.id, product.id));
 }
 
 // -----------------------------------------------------------------------------
