@@ -11,6 +11,8 @@ import { BuyerOrderActionButtons } from '@/components/account/buyer-order-action
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { ReorderButton } from '@/components/account/reorder-button';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
+import { FileDisputeButton } from '@/components/orders/dispute-buttons';
+import { DisputePanel } from '@/components/orders/dispute-panel';
 
 export const metadata = {
   title: 'Order',
@@ -86,6 +88,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <BuyerOrderActionButtons orderId={order.id} status={order.status} />
 
+      {order.status === 'disputed' && <DisputePanel orderId={order.id} viewerRole="buyer" />}
+
       {order.status === 'shipped' && (
         // Dispute-window advisory. The auto-confirm timeout and the
         // dispute-eligible window both terminate on the same day, so a
@@ -159,7 +163,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <OrderEventTimeline events={events} viewerRole="buyer" />
       </section>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <FileDisputeButton orderId={order.id} status={order.status} />
         <ReorderButton
           orderId={order.id}
           // ReorderButton only fires when the product is potentially

@@ -9,6 +9,8 @@ import { formatPrice } from '@/lib/format';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { OrderActionButtons } from '@/components/dashboard/order-action-buttons';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
+import { FileDisputeButton } from '@/components/orders/dispute-buttons';
+import { DisputePanel } from '@/components/orders/dispute-panel';
 
 export const metadata = {
   title: 'Order',
@@ -91,6 +93,8 @@ export default async function SellerOrderDetailPage({
         <OrderActionButtons orderId={order.id} status={order.status} />
       </section>
 
+      {order.status === 'disputed' && <DisputePanel orderId={order.id} viewerRole="seller" />}
+
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
         <div className="bg-card flex items-center gap-4 rounded-md border p-4">
@@ -156,6 +160,12 @@ export default async function SellerOrderDetailPage({
         <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
         <OrderEventTimeline events={events} viewerRole="seller" />
       </section>
+
+      {/* Either party can file a dispute on a non-terminal order. The
+          button hides itself for terminal/already-disputed orders. */}
+      <div className="text-right">
+        <FileDisputeButton orderId={order.id} status={order.status} />
+      </div>
     </div>
   );
 }

@@ -55,3 +55,22 @@ export const orderCancelInputSchema = z.object({
 });
 
 export type OrderCancelInput = z.infer<typeof orderCancelInputSchema>;
+
+// fileDispute requires a substantive reason. The min length keeps
+// drive-by "doesn't fit my vibe" disputes out of the admin queue;
+// max keeps the textarea finite and the column reasonably indexed.
+export const fileDisputeInputSchema = z.object({
+  orderId: z.string().uuid(),
+  reason: z.string().min(30).max(2000),
+});
+
+export type FileDisputeInput = z.infer<typeof fileDisputeInputSchema>;
+
+// Either party can add a statement after the dispute is filed (the
+// non-filer responds; the filer can also add follow-up context).
+export const disputeRespondInputSchema = z.object({
+  orderId: z.string().uuid(),
+  statement: z.string().min(30).max(2000),
+});
+
+export type DisputeRespondInput = z.infer<typeof disputeRespondInputSchema>;

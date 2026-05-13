@@ -1,12 +1,13 @@
 'use server';
 
 import { revalidateTag } from 'next/cache';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db, type Tx } from '@/db';
 import {
   artisanProfiles,
   idempotencyKeys,
   notifications,
+  orderDisputes,
   orderEvents,
   orders,
   productImages,
@@ -21,6 +22,8 @@ import { generateOrderReference } from '@/lib/orders/reference';
 import { returnStockIfPreShipment } from '@/lib/orders/stock';
 import type { ActorRole, Order, OrderEventType, OrderStatus } from '@/lib/orders/types';
 import {
+  disputeRespondInputSchema,
+  fileDisputeInputSchema,
   orderCancelInputSchema,
   orderPlaceSchema,
   orderTransitionInputSchema,
@@ -767,4 +770,198 @@ export async function markReceived(input: unknown): Promise<Result<{ orderId: st
     notes: parsed.data.notes,
     fieldUpdates: { completedAt: new Date() },
   });
+}
+
+// -----------------------------------------------------------------------------
+// Dispute filing + response
+// -----------------------------------------------------------------------------
+
+/**
+ * File a dispute on an order. Per Issue 2 of the round-2 plan review,
+ * this routes the status flip through `transitionOrder` rather than
+ * doing a parallel `db.update(orders).set({ status: 'disputed' })` —
+ * the order_events audit row, the Phase 4.5 counterparty notification,
+ * and the per-artisan reputation cache invalidation all happen for
+ * free inside the helper. The dispute-row insert lives in
+ * `onTransition` so it commits atomically with the status change.
+ *
+ * The partial unique index `order_disputes_active_per_order` from
+ * Phase 1 is the durable race-protection — if a concurrent caller is
+ * also trying to file, only one INSERT survives and we translate the
+ * constraint violation into a clean error message.
+ */
+export async function fileDispute(input: unknown): Promise<Result<{ disputeId: string }>> {
+  const parsed = fileDisputeInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid dispute input', parsed.error.flatten().fieldErrors);
+
+  const filer = await requireUser().catch(() => null);
+  if (!filer) return err('Not authenticated');
+
+  // Determine which side the filer is on. The dispute-row's
+  // `filedByRole` and the transition's `actorRole` need to match.
+  const [order] = await db
+    .select({
+      id: orders.id,
+      buyerUserId: orders.buyerUserId,
+      artisanProfileId: orders.artisanProfileId,
+      status: orders.status,
+    })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
+  if (!order) return err('Order not found');
+
+  let filedByRole: 'buyer' | 'seller';
+  if (order.buyerUserId === filer.id) {
+    filedByRole = 'buyer';
+  } else {
+    const [a] = await db
+      .select({ id: artisanProfiles.id })
+      .from(artisanProfiles)
+      .where(
+        and(eq(artisanProfiles.id, order.artisanProfileId), eq(artisanProfiles.userId, filer.id)),
+      )
+      .limit(1);
+    if (!a) return err('Not authorized to dispute this order');
+    filedByRole = 'seller';
+  }
+
+  // Capture the disputeId from inside the transaction so we can return
+  // it after the helper resolves successfully.
+  let disputeId: string | null = null;
+
+  const result = await transitionOrder({
+    orderId: order.id,
+    expectedFrom: [
+      'pending_seller_response',
+      'pending_payment_arrangement',
+      'payment_received',
+      'shipped',
+    ],
+    toStatus: 'disputed',
+    actorUserId: filer.id,
+    actorRole: filedByRole,
+    eventType: 'disputed',
+    notes: parsed.data.reason,
+    fieldUpdates: { disputedAt: new Date() },
+    onTransition: async (tx, o) => {
+      try {
+        const [inserted] = await tx
+          .insert(orderDisputes)
+          .values({
+            orderId: o.id,
+            filedByUserId: filer.id,
+            filedByRole,
+            status: 'open',
+            reason: parsed.data.reason,
+            // Pre-populate the filer's side of the statement so admins
+            // see both parties' positions in one place when the
+            // non-filer eventually responds.
+            ...(filedByRole === 'buyer'
+              ? { buyerStatement: parsed.data.reason }
+              : { sellerStatement: parsed.data.reason }),
+          })
+          .returning({ id: orderDisputes.id });
+        disputeId = inserted?.id ?? null;
+      } catch (e) {
+        // Partial unique index violation → there's already an active
+        // dispute. Translate to a clean Result error so the constraint
+        // name doesn't leak to the caller.
+        if (
+          e instanceof Error &&
+          /order_disputes_active_per_order|duplicate key value/i.test(e.message)
+        ) {
+          throw new Error('There is already an active dispute on this order');
+        }
+        throw e;
+      }
+    },
+    // metadataJson on order_events references the disputeId; populated
+    // post-transaction below since the dispute row is generated mid-tx.
+  });
+
+  if (!result.ok) return err(result.error);
+  if (!disputeId) return err('Dispute creation failed');
+
+  // Patch the audit event's metadata with the disputeId. This is the
+  // one place we update an event row — and it's a fill-in, not a
+  // rewrite. Filtered to the most recent matching event so we don't
+  // accidentally back-fill an earlier one (the partial unique index
+  // guarantees there's at most one current `disputed` event).
+  await db
+    .update(orderEvents)
+    .set({ metadataJson: { disputeId } })
+    .where(and(eq(orderEvents.orderId, order.id), eq(orderEvents.type, 'disputed')));
+
+  return ok({ disputeId });
+}
+
+/**
+ * Add a statement to an existing open/under_review dispute. Either
+ * party can call this — buyer fills `buyer_statement`, seller fills
+ * `seller_statement`. This is not a transition (the order stays
+ * disputed); it's a write to the dispute row only.
+ */
+export async function respondToDispute(input: unknown): Promise<Result<{ disputeId: string }>> {
+  const parsed = disputeRespondInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid dispute response', parsed.error.flatten().fieldErrors);
+
+  const responder = await requireUser().catch(() => null);
+  if (!responder) return err('Not authenticated');
+
+  const [order] = await db
+    .select({
+      id: orders.id,
+      buyerUserId: orders.buyerUserId,
+      artisanProfileId: orders.artisanProfileId,
+      status: orders.status,
+    })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
+  if (!order) return err('Order not found');
+  if (order.status !== 'disputed') return err('Order is not currently disputed');
+
+  let responderRole: 'buyer' | 'seller';
+  if (order.buyerUserId === responder.id) {
+    responderRole = 'buyer';
+  } else {
+    const [a] = await db
+      .select({ id: artisanProfiles.id })
+      .from(artisanProfiles)
+      .where(
+        and(
+          eq(artisanProfiles.id, order.artisanProfileId),
+          eq(artisanProfiles.userId, responder.id),
+        ),
+      )
+      .limit(1);
+    if (!a) return err('Not authorized to respond on this order');
+    responderRole = 'seller';
+  }
+
+  // Update the most recent active dispute (open or under_review).
+  // Phase 1's partial unique index guarantees at most one such row.
+  const [active] = await db
+    .select({ id: orderDisputes.id })
+    .from(orderDisputes)
+    .where(
+      and(
+        eq(orderDisputes.orderId, order.id),
+        inArray(orderDisputes.status, ['open', 'under_review']),
+      ),
+    )
+    .limit(1);
+  if (!active) return err('No active dispute to respond to');
+
+  await db
+    .update(orderDisputes)
+    .set(
+      responderRole === 'buyer'
+        ? { buyerStatement: parsed.data.statement }
+        : { sellerStatement: parsed.data.statement },
+    )
+    .where(eq(orderDisputes.id, active.id));
+
+  return ok({ disputeId: active.id });
 }
