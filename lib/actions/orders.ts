@@ -25,18 +25,58 @@ import {
   orderTransitionInputSchema,
 } from '@/lib/validators/order';
 
-// Reorder stub. The signature stays stable so `ReorderButton` keeps
-// compiling against this file; Phase 5 of the order-flow plan replaces
-// BOTH the body AND the return type (will become
-// `Result<{ productId, productSlug, artisanSlug }>` and route the user
-// to the product page with `?reorder=1` for a fresh address selection).
-//
-// Until then, the button is rendered as `disabled` and this action just
-// refuses on the off chance someone routes around the UI.
-export async function reorderAction(_input: {
+/**
+ * Reorder: from a past order, send the buyer back to the product page
+ * with a pre-opened order modal so they can place a new order against
+ * a fresh address. Returns LIVE slugs (looked up via productId), not
+ * the order's snapshot slugs — the product or artisan may have been
+ * renamed since the original order and the snapshots would 404.
+ *
+ * Fails cleanly when:
+ *   - the order doesn't belong to the buyer
+ *   - the product was deleted (productId is null after ON DELETE SET NULL)
+ *   - the product exists but the artisan profile was removed
+ *
+ * The button's UX path: `success → router.push('/shop/[artisan]/[product]?reorder=1')`
+ * → OrderButton on that page detects ?reorder=1 and auto-opens the
+ * dialog with a fresh address selection.
+ */
+export async function reorderAction(input: {
   orderId: string;
-}): Promise<Result<{ cartId: string }>> {
-  return err('Not yet implemented');
+}): Promise<Result<{ productId: string; productSlug: string; artisanSlug: string }>> {
+  const buyer = await requireUser().catch(() => null);
+  if (!buyer) return err('Not authenticated');
+
+  const [order] = await db
+    .select({
+      id: orders.id,
+      productId: orders.productId,
+    })
+    .from(orders)
+    .where(and(eq(orders.id, input.orderId), eq(orders.buyerUserId, buyer.id)))
+    .limit(1);
+  if (!order) return err('Order not found');
+
+  if (!order.productId) {
+    return err('That piece is no longer available.');
+  }
+
+  const [row] = await db
+    .select({
+      productSlug: products.slug,
+      artisanSlug: artisanProfiles.shopSlug,
+    })
+    .from(products)
+    .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
+    .where(eq(products.id, order.productId))
+    .limit(1);
+  if (!row) return err('That piece is no longer available.');
+
+  return ok({
+    productId: order.productId,
+    productSlug: row.productSlug,
+    artisanSlug: row.artisanSlug,
+  });
 }
 
 /**

@@ -35,12 +35,16 @@ const LABEL: Record<TimelineEvent['type'], string> = {
   admin_intervention: 'Admin intervention',
 };
 
-function actorLabel(role: string): string {
+// "by you" is keyed to the viewer's role so the same timeline reads
+// correctly from both surfaces — a buyer sees "by you" for their own
+// actions; a seller sees "by you" for theirs.
+function actorLabel(role: string, viewerRole: 'buyer' | 'seller'): string {
+  if (role === viewerRole) return 'by you';
   switch (role) {
     case 'buyer':
       return 'by buyer';
     case 'seller':
-      return 'by you';
+      return 'by seller';
     case 'admin':
       return 'by Balikha support';
     case 'system':
@@ -50,7 +54,13 @@ function actorLabel(role: string): string {
   }
 }
 
-export function OrderEventTimeline({ events }: { events: readonly TimelineEvent[] }) {
+export function OrderEventTimeline({
+  events,
+  viewerRole,
+}: {
+  events: readonly TimelineEvent[];
+  viewerRole: 'buyer' | 'seller';
+}) {
   if (events.length === 0) {
     return null;
   }
@@ -65,7 +75,7 @@ export function OrderEventTimeline({ events }: { events: readonly TimelineEvent[
           <div className="min-w-0 flex-1 space-y-0.5">
             <p className="text-sm">
               <span className="font-medium">{LABEL[e.type]}</span>{' '}
-              <span className="text-muted-foreground">{actorLabel(e.actorRole)}</span>
+              <span className="text-muted-foreground">{actorLabel(e.actorRole, viewerRole)}</span>
             </p>
             <p className="text-muted-foreground text-xs">{formatRelativeTime(e.createdAt)}</p>
             {e.notes && (

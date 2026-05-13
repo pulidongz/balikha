@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, useTransition } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog,
@@ -78,8 +78,24 @@ function DisabledStateButton({ label, title }: { label: string; title: string })
 
 function OrderDialog(props: OrderButtonProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Reorder flow: ReorderButton routes here with ?reorder=1. We open
+  // the dialog by deriving the INITIAL state from the URL via lazy
+  // useState init (computed once at mount). The follow-up effect just
+  // strips the param so a refresh doesn't reopen — no setState inside
+  // an effect (react-hooks/set-state-in-effect).
+  const [open, setOpen] = useState<boolean>(() => searchParams.get('reorder') === '1');
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (searchParams.get('reorder') === '1') {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete('reorder');
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  }, [searchParams, pathname, router]);
 
   // Form state. Default address pre-selected so the common case is one click.
   const [addressId, setAddressId] = useState<string>(

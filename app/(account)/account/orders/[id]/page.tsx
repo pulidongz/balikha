@@ -1,14 +1,15 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { orders } from '@/db/schema';
+import { orderEvents, orders } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
 import { BuyerOrderActionButtons } from '@/components/account/buyer-order-action-buttons';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { ReorderButton } from '@/components/account/reorder-button';
+import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
 
 export const metadata = {
   title: 'Order',
@@ -47,6 +48,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     .where(and(eq(orders.id, id), eq(orders.buyerUserId, current.id)))
     .limit(1);
   if (!order) notFound();
+
+  const events = await db
+    .select({
+      id: orderEvents.id,
+      type: orderEvents.type,
+      actorRole: orderEvents.actorRole,
+      notes: orderEvents.notes,
+      createdAt: orderEvents.createdAt,
+    })
+    .from(orderEvents)
+    .where(eq(orderEvents.orderId, order.id))
+    .orderBy(asc(orderEvents.createdAt));
 
   const shipping = order.shippingAddressJson as ShippingAddressSnapshot;
   // Snapshot slugs persist forever even if the underlying product/artisan
@@ -125,8 +138,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </section>
       )}
 
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
+        <OrderEventTimeline events={events} viewerRole="buyer" />
+      </section>
+
       <div className="flex justify-end">
-        <ReorderButton orderId={order.id} />
+        <ReorderButton
+          orderId={order.id}
+          // ReorderButton only fires when the product is potentially
+          // re-orderable. Phase 5 wires the action; if the product was
+          // deleted (productId is null) the server will refuse and the
+          // button shows that as inline error.
+          disabled={order.productId === null}
+        />
       </div>
     </div>
   );

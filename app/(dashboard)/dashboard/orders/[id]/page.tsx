@@ -154,7 +154,7 @@ export default async function SellerOrderDetailPage({
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
-        <OrderEventTimeline events={events} />
+        <OrderEventTimeline events={events} viewerRole="seller" />
       </section>
     </div>
   );
