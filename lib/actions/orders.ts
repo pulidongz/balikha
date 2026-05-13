@@ -6,6 +6,7 @@ import { db, type Tx } from '@/db';
 import {
   artisanProfiles,
   idempotencyKeys,
+  notifications,
   orderEvents,
   orders,
   productImages,
@@ -360,10 +361,11 @@ interface TransitionOrderOpts {
  *   3. If actorRole !== 'system', run authorizationCheck
  *   4. UPDATE order: status + lifecycle timestamps + fieldUpdates
  *   5. INSERT order_events row (actor_user_id may be null)
- *   6. Run onTransition for additional atomic writes
+ *   6. Fan out one notification per the Phase 4.5 matrix (skip system)
+ *   7. Run onTransition for additional atomic writes
  *
  * AFTER db.transaction(...) resolves:
- *   7. revalidateTag(`reputation:${artisanId}`, 'max')
+ *   8. revalidateTag(`reputation:${artisanId}`, 'max')
  *
  * The post-commit invalidation runs for ALL transitions, including
  * system events — a backlog of auto-cancellations should drop the
@@ -422,7 +424,15 @@ export async function transitionOrder(
         metadataJson: opts.metadataJson ?? null,
       });
 
-      // 6. Side-effect hook (stock return, etc.).
+      // 6. Notifications fan-out. Inside the same transaction so a
+      //    notification insert failure rolls back the status change +
+      //    audit event together — atomicity per Phase 4.5 / Issue 7.
+      //    System events are skipped here (notifications gate ≠ cache
+      //    gate); buyer/seller paths only for now, admin handling lands
+      //    with Phase 9.
+      await fanOutTransitionNotification(tx, order, opts.toStatus, opts.actorRole);
+
+      // 7. Side-effect hook (stock return, dispute-row insert, etc.).
       if (opts.onTransition) {
         await opts.onTransition(tx, order);
       }
@@ -473,6 +483,99 @@ async function returnStockIfPreShipment(tx: Tx, order: Order): Promise<void> {
       updatedAt: new Date(),
     })
     .where(eq(products.id, product.id));
+}
+
+// -----------------------------------------------------------------------------
+// Notification fan-out — Phase 4.5
+// -----------------------------------------------------------------------------
+
+// (toStatus, actorRole) → 0 or 1 notification(s) inside the transition's
+// transaction. The matrix per the plan:
+//
+//   accepted (toStatus=pending_payment_arrangement, actorRole=seller)
+//     → notify buyer: "Your order was accepted"
+//   shipped (toStatus=shipped, actorRole=seller)
+//     → notify buyer: "Your order is on the way"
+//   completed (toStatus=completed, actorRole=buyer)  [manual mark-received]
+//     → notify seller: "Order completed"
+//   disputed (toStatus=disputed, actorRole=buyer)
+//     → notify seller: "Dispute filed on your order"
+//   disputed (toStatus=disputed, actorRole=seller)
+//     → notify buyer: "Dispute filed on your order"
+//
+// System actor: skipped this phase — the messaging plan revisits
+// timing/quiet-hours/digesting for auto-cancellation and auto-completion.
+// Admin actor: deferred to Phase 9 (admin force-actions will notify both
+// parties with admin-aware copy).
+//
+// Atomicity: this insert is inside the same transaction as the order
+// UPDATE + audit event. A FK violation against a deleted user (or any
+// other notification-insert failure) rolls the whole transition back —
+// status stays put, no audit row written, the action surfaces an error
+// to the caller. Trade-off documented in plan §6.5.
+async function fanOutTransitionNotification(
+  tx: Tx,
+  order: Order,
+  toStatus: OrderStatus,
+  actorRole: ActorRole,
+): Promise<void> {
+  // System events skipped in this phase; admin notifications land with
+  // Phase 9. Buyer/seller paths only.
+  if (actorRole === 'system' || actorRole === 'admin') return;
+
+  // Decide recipient + copy from the (toStatus, actorRole) pair.
+  type Recipient = { userId: string; url: string };
+
+  async function sellerRecipient(): Promise<Recipient | null> {
+    const [row] = await tx
+      .select({ userId: artisanProfiles.userId })
+      .from(artisanProfiles)
+      .where(eq(artisanProfiles.id, order.artisanProfileId))
+      .limit(1);
+    if (!row) return null;
+    return { userId: row.userId, url: `/dashboard/orders/${order.id}` };
+  }
+  function buyerRecipient(): Recipient {
+    return { userId: order.buyerUserId, url: `/account/orders/${order.id}` };
+  }
+
+  let recipient: Recipient | null = null;
+  let title = '';
+
+  if (toStatus === 'pending_payment_arrangement' && actorRole === 'seller') {
+    recipient = buyerRecipient();
+    title = 'Your order was accepted';
+  } else if (toStatus === 'shipped' && actorRole === 'seller') {
+    recipient = buyerRecipient();
+    title = 'Your order is on the way';
+  } else if (toStatus === 'completed' && actorRole === 'buyer') {
+    recipient = await sellerRecipient();
+    title = 'Order completed';
+  } else if (toStatus === 'disputed' && actorRole === 'buyer') {
+    recipient = await sellerRecipient();
+    title = 'Dispute filed on your order';
+  } else if (toStatus === 'disputed' && actorRole === 'seller') {
+    recipient = buyerRecipient();
+    title = 'Dispute filed on your order';
+  } else {
+    // Not in the matrix — silently skip. Cancellation notifications and
+    // other states deferred to the messaging plan.
+    return;
+  }
+
+  if (!recipient) return; // seller lookup failed; bail out without an error.
+
+  await tx.insert(notifications).values({
+    userId: recipient.userId,
+    type: 'order_status_changed',
+    title,
+    body: `Order ${order.reference}`,
+    target: {
+      kind: 'order',
+      id: order.id,
+      url: recipient.url,
+    },
+  });
 }
 
 // -----------------------------------------------------------------------------
