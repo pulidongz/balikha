@@ -14,7 +14,7 @@ import {
   products,
   userAddresses,
 } from '@/db/schema';
-import { requireArtisan, requireUser } from '@/lib/auth-helpers';
+import { requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
 import { withIdempotency } from '@/lib/idempotency';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -22,6 +22,8 @@ import { generateOrderReference } from '@/lib/orders/reference';
 import { returnStockIfPreShipment } from '@/lib/orders/stock';
 import type { ActorRole, Order, OrderEventType, OrderStatus } from '@/lib/orders/types';
 import {
+  adminForceActionInputSchema,
+  disputeResolveInputSchema,
   disputeRespondInputSchema,
   fileDisputeInputSchema,
   orderCancelInputSchema,
@@ -964,4 +966,177 @@ export async function respondToDispute(input: unknown): Promise<Result<{ dispute
     .where(eq(orderDisputes.id, active.id));
 
   return ok({ disputeId: active.id });
+}
+
+// -----------------------------------------------------------------------------
+// Admin actions — Phase 9
+// -----------------------------------------------------------------------------
+
+// Stock-handling per Issue 10 (Phase 8 matrix): the question is always
+// "did the item physically leave the seller's possession." If shippedAt
+// is set, the item is gone — returning stock creates a phantom inventory.
+// If shippedAt is null, the item never moved — return stock cleanly.
+// This is the same check returnStockIfPreShipment uses, but we make the
+// call site explicit on the admin paths so the matrix's "for_buyer +
+// shipped → don't return" rule is visible in the action body.
+
+/**
+ * Admin resolves a dispute. Maps:
+ *
+ *   resolution            order_status_at_resolve_time   final_status        stock_return
+ *   resolved_for_buyer    pre-shipment                   cancelled_by_seller yes (item never moved)
+ *   resolved_for_buyer    shipped (or post-shipment)     cancelled_by_seller NO  (phantom risk)
+ *   resolved_for_seller   any                            completed           NO  (counts as sale)
+ *   resolved_neutral      pre-shipment                   cancelled_by_seller yes
+ *   resolved_neutral      shipped (or post-shipment)     completed           NO
+ *
+ * The dispute row gets its status flipped to one of the three resolved_*
+ * values, plus the admin's resolution text. The order_events row records
+ * the resolution with `admin_intervention` event type.
+ */
+export async function resolveDispute(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = disputeResolveInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const admin = await requireAdmin().catch(() => null);
+  if (!admin) return err('Admin required');
+
+  // Load the order to determine pre/post shipment for the stock matrix.
+  const [order] = await db
+    .select({
+      id: orders.id,
+      status: orders.status,
+      shippedAt: orders.shippedAt,
+    })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
+  if (!order) return err('Order not found');
+  if (order.status !== 'disputed') return err('Order is not currently disputed');
+
+  // Map resolution → final order status + whether to return stock.
+  const wasShipped = order.shippedAt !== null;
+  let toStatus: OrderStatus;
+  let returnStock: boolean;
+  switch (parsed.data.resolution) {
+    case 'resolved_for_buyer':
+      toStatus = 'cancelled_by_seller';
+      // Don't return shipped stock — phantom inventory.
+      returnStock = !wasShipped;
+      break;
+    case 'resolved_for_seller':
+      toStatus = 'completed';
+      returnStock = false;
+      break;
+    case 'resolved_neutral':
+      // Neutral resolution: if the item ever shipped, treat as
+      // completed; otherwise treat as a no-fault cancellation.
+      toStatus = wasShipped ? 'completed' : 'cancelled_by_seller';
+      returnStock = !wasShipped;
+      break;
+  }
+
+  const result = await transitionOrder({
+    orderId: order.id,
+    expectedFrom: ['disputed'],
+    toStatus,
+    actorUserId: admin.id,
+    actorRole: 'admin',
+    eventType: 'dispute_resolved',
+    notes: parsed.data.adminResolution,
+    metadataJson: { resolution: parsed.data.resolution },
+    fieldUpdates: {
+      disputeResolvedAt: new Date(),
+      ...(toStatus === 'completed' ? { completedAt: new Date() } : { cancelledAt: new Date() }),
+    },
+    onTransition: async (tx, o) => {
+      // Update the dispute row to the resolved status. Limited to the
+      // currently-active dispute (open or under_review) per the partial
+      // unique index.
+      await tx
+        .update(orderDisputes)
+        .set({
+          status: parsed.data.resolution,
+          adminResolution: parsed.data.adminResolution,
+          resolvedByAdminUserId: admin.id,
+          resolvedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(orderDisputes.orderId, o.id),
+            inArray(orderDisputes.status, ['open', 'under_review']),
+          ),
+        );
+
+      if (returnStock) {
+        await returnStockIfPreShipment(tx, o);
+      }
+    },
+  });
+
+  return result;
+}
+
+/**
+ * Admin force-cancels a non-disputed order. Use case: seller account
+ * terminated, fraud confirmed, an order is stuck and parties have
+ * dropped contact. Stock returns iff pre-shipment.
+ */
+export async function adminForceCancel(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = adminForceActionInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const admin = await requireAdmin().catch(() => null);
+  if (!admin) return err('Admin required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    // Any non-terminal state. Disputed has its own path (resolveDispute).
+    expectedFrom: [
+      'pending_seller_response',
+      'pending_payment_arrangement',
+      'payment_received',
+      'shipped',
+    ],
+    toStatus: 'cancelled_by_seller',
+    actorUserId: admin.id,
+    actorRole: 'admin',
+    eventType: 'admin_intervention',
+    notes: parsed.data.reason,
+    metadataJson: { action: 'force_cancel', reason: parsed.data.reason },
+    fieldUpdates: {
+      cancelledAt: new Date(),
+      cancellationReason: 'other',
+      cancellationNotes: parsed.data.reason,
+    },
+    onTransition: returnStockIfPreShipment,
+  });
+}
+
+/**
+ * Admin force-completes a non-disputed order. Use case: edge cases
+ * where the seller shipped, buyer confirmed verbally but never marked
+ * received, and the order is stuck in `shipped` past the auto-confirm.
+ * Doesn't return stock (the item has presumably been delivered).
+ */
+export async function adminForceComplete(input: unknown): Promise<Result<{ orderId: string }>> {
+  const parsed = adminForceActionInputSchema.safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const admin = await requireAdmin().catch(() => null);
+  if (!admin) return err('Admin required');
+
+  return transitionOrder({
+    orderId: parsed.data.orderId,
+    // Only meaningful from shipped; admin shouldn't bypass earlier
+    // states by force-completing prematurely.
+    expectedFrom: ['shipped'],
+    toStatus: 'completed',
+    actorUserId: admin.id,
+    actorRole: 'admin',
+    eventType: 'admin_intervention',
+    notes: parsed.data.reason,
+    metadataJson: { action: 'force_complete', reason: parsed.data.reason },
+    fieldUpdates: { completedAt: new Date() },
+  });
 }

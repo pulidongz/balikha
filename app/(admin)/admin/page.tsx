@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { count, gte } from 'drizzle-orm';
+import { count, eq, gte } from 'drizzle-orm';
 import { db } from '@/db';
-import { searchEvents } from '@/db/schema';
+import { orders, searchEvents } from '@/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // The remaining placeholder panels intentionally name the three most-likely
@@ -11,7 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 // the search plan, so its placeholder is now a real summary linking to the
 // dedicated page.
 export default async function AdminOverview() {
-  const searchCount7d = await loadSearchCount7d();
+  const [searchCount7d, disputedCountRow] = await Promise.all([
+    loadSearchCount7d(),
+    db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
+  ]);
+  const disputedCount = disputedCountRow[0]?.value ?? 0;
 
   return (
     <div className="space-y-8">
@@ -34,10 +38,7 @@ export default async function AdminOverview() {
           title="Recent activity"
           description="An audit log of meaningful marketplace events will appear here once event logging is wired in."
         />
-        <PlaceholderPanel
-          title="Reported content"
-          description="Listings flagged by buyers and items needing moderation will appear here once reporting ships."
-        />
+        <DisputesNeedingAttention count={disputedCount} />
         <PlaceholderPanel
           title="Sales overview"
           description="Order volume, revenue, and conversion data will appear here once payments ship."
@@ -110,4 +111,33 @@ async function loadSearchCount7d(): Promise<number> {
     .from(searchEvents)
     .where(gte(searchEvents.createdAt, sevenDaysAgo));
   return row?.value ?? 0;
+}
+
+// Replaces the "Reported content" roadmap placeholder. Surfaces the
+// count of disputed orders + a link into the filtered admin orders
+// list. Even at zero, the panel signals "this is the moderation
+// surface" rather than disappearing.
+function DisputesNeedingAttention({ count }: { count: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Disputes needing attention</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className={count > 0 ? 'text-destructive text-3xl font-medium' : 'text-3xl font-medium'}>
+          {count}
+        </p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          {count === 0
+            ? 'No active disputes — quiet day.'
+            : count === 1
+              ? 'order awaiting admin resolution'
+              : 'orders awaiting admin resolution'}
+        </p>
+        <Link href="/admin/orders" className="text-foreground mt-3 inline-block text-sm underline">
+          View queue →
+        </Link>
+      </CardContent>
+    </Card>
+  );
 }

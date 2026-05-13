@@ -74,3 +74,24 @@ export const disputeRespondInputSchema = z.object({
 });
 
 export type DisputeRespondInput = z.infer<typeof disputeRespondInputSchema>;
+
+// Admin dispute resolution. Maps a resolution outcome onto a final
+// order status and (per Issue 10 stock-handling matrix) a stock-return
+// decision keyed on whether the order ever shipped.
+export const disputeResolveInputSchema = z.object({
+  orderId: z.string().uuid(),
+  resolution: z.enum(['resolved_for_buyer', 'resolved_for_seller', 'resolved_neutral']),
+  adminResolution: z.string().min(20).max(2000),
+});
+
+export type DisputeResolveInput = z.infer<typeof disputeResolveInputSchema>;
+
+// Admin force-cancel / force-complete on non-disputed orders. Used
+// when a seller account is terminated, a fraud signal is confirmed,
+// or an order is stuck in a state nobody can clear without admin help.
+export const adminForceActionInputSchema = z.object({
+  orderId: z.string().uuid(),
+  reason: z.string().min(20).max(2000),
+});
+
+export type AdminForceActionInput = z.infer<typeof adminForceActionInputSchema>;
