@@ -65,6 +65,12 @@ export function bucketLabel(bucket: ResponseTimeBucket): string {
   }
 }
 
+// Reputation window. WINDOW_DAYS is applied in SQL as
+// `LOCALTIMESTAMP - make_interval(days => …)` rather than via a JS Date
+// parameter: orders.placed_at is `timestamp without time zone`, and
+// postgres-js cannot bind a raw Date param on a raw db.execute() query
+// (it throws ERR_INVALID_ARG_TYPE). Computing the cutoff in SQL avoids
+// the bound-Date entirely.
 const WINDOW_DAYS = 90;
 const WINDOW_ORDER_LIMIT = 30;
 
@@ -106,14 +112,12 @@ function rowToReputation(row: ReputationRow): SellerReputation {
 }
 
 async function loadSellerReputation(artisanProfileId: string): Promise<SellerReputation> {
-  const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
-
   const rows = await db.execute<ReputationRow & Record<string, unknown>>(sql`
     WITH recent_orders AS (
       SELECT id, artisan_profile_id, status, placed_at, accepted_at, declined_at, completed_at, disputed_at
       FROM orders
       WHERE artisan_profile_id = ${artisanProfileId}
-        AND placed_at >= ${windowStart}
+        AND placed_at >= LOCALTIMESTAMP - make_interval(days => ${WINDOW_DAYS})
       ORDER BY placed_at DESC
       LIMIT ${WINDOW_ORDER_LIMIT}
     )
@@ -167,8 +171,6 @@ async function loadSellerReputations(
   const result = new Map<string, SellerReputation>();
   if (artisanProfileIds.length === 0) return result;
 
-  const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
-
   // Each id is bound as its own parameter via sql.join — never string-
   // concatenated — so the IN list is injection-safe regardless of length.
   const idList = sql.join(
@@ -185,7 +187,7 @@ async function loadSellerReputations(
         ) AS rn
       FROM orders
       WHERE artisan_profile_id IN (${idList})
-        AND placed_at >= ${windowStart}
+        AND placed_at >= LOCALTIMESTAMP - make_interval(days => ${WINDOW_DAYS})
     ),
     recent_orders AS (
       SELECT * FROM ranked_orders WHERE rn <= ${WINDOW_ORDER_LIMIT}
