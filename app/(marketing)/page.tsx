@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
 import { buttonVariants } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { getRecentProducts } from '@/lib/queries/products';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
+import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
 
 // Previously cached for 5 min, but personalized wishlist hearts make this
 // per-user. Calling getCurrentUser() opts the page into dynamic rendering
@@ -33,6 +34,22 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const recentlyViewed = await getRecentlyViewed(viewer?.id ?? null, 12);
+
+  // Seller reputation for the recent-listings grid. getRecentProducts
+  // carries shop slug, not profile id, so resolve slugs → ids in one
+  // query, then batch-fetch reputations in one more — no N+1 per card.
+  const recentShopSlugs = Array.from(new Set(recent.items.map((p) => p.artisanShopSlug)));
+  const profileIdBySlug = new Map<string, string>();
+  if (recentShopSlugs.length > 0) {
+    const profileRows = await db
+      .select({ id: artisanProfiles.id, shopSlug: artisanProfiles.shopSlug })
+      .from(artisanProfiles)
+      .where(inArray(artisanProfiles.shopSlug, recentShopSlugs));
+    for (const r of profileRows) profileIdBySlug.set(r.shopSlug, r.id);
+  }
+  const reputationByProfileId = await getSellerReputationsForArtisans(
+    Array.from(profileIdBySlug.values()),
+  );
 
   // Featured artisans — those with at least one published product, plus a count.
   // Not paginated; this is a "homepage hero" slot.
@@ -135,26 +152,33 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           ) : (
             <>
               <ProductGrid cols={4}>
-                {recent.items.map((p) => (
-                  <li key={p.id}>
-                    <ProductCard
-                      product={{
-                        id: p.id,
-                        slug: p.slug,
-                        title: p.title,
-                        price: p.price,
-                        currency: p.currency,
-                      }}
-                      artisan={{
-                        shopSlug: p.artisanShopSlug,
-                        shopName: p.artisanShopName,
-                      }}
-                      primaryImage={p.primaryImage ?? undefined}
-                      inWishlist={wishlistedIds.has(p.id)}
-                      isSignedIn={viewer !== null}
-                    />
-                  </li>
-                ))}
+                {recent.items.map((p) => {
+                  const profileId = profileIdBySlug.get(p.artisanShopSlug);
+                  const bucket = profileId
+                    ? reputationByProfileId.get(profileId)?.responseTimeBucket
+                    : null;
+                  return (
+                    <li key={p.id}>
+                      <ProductCard
+                        product={{
+                          id: p.id,
+                          slug: p.slug,
+                          title: p.title,
+                          price: p.price,
+                          currency: p.currency,
+                        }}
+                        artisan={{
+                          shopSlug: p.artisanShopSlug,
+                          shopName: p.artisanShopName,
+                        }}
+                        primaryImage={p.primaryImage ?? undefined}
+                        inWishlist={wishlistedIds.has(p.id)}
+                        isSignedIn={viewer !== null}
+                        responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
+                      />
+                    </li>
+                  );
+                })}
               </ProductGrid>
 
               {recent.nextCursor && (

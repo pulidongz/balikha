@@ -82,6 +82,7 @@ export function ProductSearchGrid({
             }}
             artisan={{ shopSlug: p.artisanSlug, shopName: p.artisanName }}
             primaryImage={p.imageUrl ? { url: p.imageUrl, altText: p.title } : null}
+            responseTimeLabel={p.responseTimeLabel ?? undefined}
             inWishlist={wishlistedSet.has(p.id)}
             isSignedIn={isSignedIn}
           />

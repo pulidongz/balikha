@@ -26,12 +26,14 @@ export interface SellerReputation {
 // number arithmetic, not string concatenation (the classic '5'/'10'=NaN
 // trap documented in app/(dashboard)/dashboard/page.tsx). PERCENTILE_CONT
 // gets ::numeric so parseFloat at the boundary works on a clean string.
-// `db.execute<T>` requires T extend Record<string, unknown> (Drizzle's
-// generic constraint). Closed-shape fields are the meaningful API; the
-// trailing index signature satisfies the constraint without weakening
-// callers — they read these specific keys, the index just acknowledges
-// "yes, additional unknown keys could exist."
+//
+// `ReputationRow` is the closed shape — a typo'd field access is a
+// compile error, not silent `unknown`. `db.execute<T>` requires
+// T extend Record<string, unknown> (Drizzle's generic constraint), so
+// the open index signature is applied ONLY at the call site below as
+// `ReputationRow & Record<string, unknown>`, never on the type itself.
 type ReputationRow = {
+  artisan_profile_id: string;
   total: number;
   responded: number;
   accepted: number;
@@ -39,7 +41,7 @@ type ReputationRow = {
   cancelled: number;
   disputed: number;
   response_time_median_ms: string | null;
-} & Record<string, unknown>;
+};
 
 function bucketFor(medianMs: number | null): ResponseTimeBucket | null {
   if (medianMs === null) return null;
@@ -66,42 +68,26 @@ export function bucketLabel(bucket: ResponseTimeBucket): string {
 const WINDOW_DAYS = 90;
 const WINDOW_ORDER_LIMIT = 30;
 
-async function loadSellerReputation(artisanProfileId: string): Promise<SellerReputation> {
-  const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+const EMPTY_REPUTATION: SellerReputation = {
+  totalOrdersInWindow: 0,
+  responseTimeMedianMs: null,
+  responseTimeBucket: null,
+  responseRate: 0,
+  fulfillmentRate: null,
+  disputeRate: 0,
+};
 
-  const rows = await db.execute<ReputationRow>(sql`
-    WITH recent_orders AS (
-      SELECT id, status, placed_at, accepted_at, declined_at, completed_at, disputed_at
-      FROM orders
-      WHERE artisan_profile_id = ${artisanProfileId}
-        AND placed_at >= ${windowStart}
-      ORDER BY placed_at DESC
-      LIMIT ${WINDOW_ORDER_LIMIT}
-    )
-    SELECT
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE accepted_at IS NOT NULL OR declined_at IS NOT NULL)::int AS responded,
-      COUNT(*) FILTER (WHERE accepted_at IS NOT NULL)::int AS accepted,
-      COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
-      COUNT(*) FILTER (WHERE status IN ('cancelled_by_buyer', 'cancelled_by_seller', 'auto_cancelled'))::int AS cancelled,
-      COUNT(*) FILTER (WHERE disputed_at IS NOT NULL)::int AS disputed,
-      (PERCENTILE_CONT(0.5) WITHIN GROUP (
-        ORDER BY EXTRACT(EPOCH FROM (COALESCE(accepted_at, declined_at) - placed_at)) * 1000
-      ) FILTER (WHERE accepted_at IS NOT NULL OR declined_at IS NOT NULL))::numeric AS response_time_median_ms
-    FROM recent_orders
-  `);
-
-  const row = rows[0];
-  if (!row || row.total === 0) {
-    return {
-      totalOrdersInWindow: 0,
-      responseTimeMedianMs: null,
-      responseTimeBucket: null,
-      responseRate: 0,
-      fulfillmentRate: null,
-      disputeRate: 0,
-    };
-  }
+// Maps one aggregate SQL row to the public SellerReputation shape.
+// Shared by the single-artisan and batch loaders so the rate math has
+// exactly one definition.
+//
+// `accepted` counts only accepted orders that have CONCLUDED (terminal
+// or disputed) — an order still in flight (`shipped`, `payment_received`,
+// …) is neither fulfilled nor failed yet, so it must not sit in the
+// fulfillment-rate denominator. Including it makes a seller with one
+// in-progress order read as "0% fulfilled" until that order completes.
+function rowToReputation(row: ReputationRow): SellerReputation {
+  if (row.total === 0) return EMPTY_REPUTATION;
 
   const medianMs =
     row.response_time_median_ms === null ? null : parseFloat(row.response_time_median_ms);
@@ -117,6 +103,37 @@ async function loadSellerReputation(artisanProfileId: string): Promise<SellerRep
     fulfillmentRate,
     disputeRate,
   };
+}
+
+async function loadSellerReputation(artisanProfileId: string): Promise<SellerReputation> {
+  const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  const rows = await db.execute<ReputationRow & Record<string, unknown>>(sql`
+    WITH recent_orders AS (
+      SELECT id, artisan_profile_id, status, placed_at, accepted_at, declined_at, completed_at, disputed_at
+      FROM orders
+      WHERE artisan_profile_id = ${artisanProfileId}
+        AND placed_at >= ${windowStart}
+      ORDER BY placed_at DESC
+      LIMIT ${WINDOW_ORDER_LIMIT}
+    )
+    SELECT
+      ${artisanProfileId}::uuid AS artisan_profile_id,
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE accepted_at IS NOT NULL OR declined_at IS NOT NULL)::int AS responded,
+      COUNT(*) FILTER (WHERE accepted_at IS NOT NULL AND status IN ('completed', 'cancelled_by_buyer', 'cancelled_by_seller', 'auto_cancelled', 'disputed'))::int AS accepted,
+      COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+      COUNT(*) FILTER (WHERE status IN ('cancelled_by_buyer', 'cancelled_by_seller', 'auto_cancelled'))::int AS cancelled,
+      COUNT(*) FILTER (WHERE disputed_at IS NOT NULL)::int AS disputed,
+      (PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (COALESCE(accepted_at, declined_at) - placed_at)) * 1000
+      ) FILTER (WHERE accepted_at IS NOT NULL OR declined_at IS NOT NULL))::numeric AS response_time_median_ms
+    FROM recent_orders
+  `);
+
+  const row = rows[0];
+  if (!row) return EMPTY_REPUTATION;
+  return rowToReputation(row);
 }
 
 // Per-artisan cache key + tag so transitionOrder's
@@ -135,6 +152,95 @@ export function getSellerReputationCached(artisanProfileId: string): Promise<Sel
     ['seller-reputation', artisanProfileId],
     { revalidate: 300, tags: [`reputation:${artisanProfileId}`] },
   )();
+}
+
+// Batch loader for product-card grids — one SQL query for every artisan
+// in a listing instead of N round-trips. The per-artisan `LIMIT 30`
+// window (last 30 orders OR last 90 days, the same rule as the single
+// loader) is reproduced with ROW_NUMBER() PARTITION BY artisan_profile_id;
+// the outer aggregate then GROUPs BY artisan. Artisans with zero orders
+// in the window simply don't appear in the result — the caller defaults
+// them to EMPTY_REPUTATION via getSellerReputationsForArtisans.
+async function loadSellerReputations(
+  artisanProfileIds: string[],
+): Promise<Map<string, SellerReputation>> {
+  const result = new Map<string, SellerReputation>();
+  if (artisanProfileIds.length === 0) return result;
+
+  const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  // Each id is bound as its own parameter via sql.join — never string-
+  // concatenated — so the IN list is injection-safe regardless of length.
+  const idList = sql.join(
+    artisanProfileIds.map((id) => sql`${id}`),
+    sql`, `,
+  );
+
+  const rows = await db.execute<ReputationRow & Record<string, unknown>>(sql`
+    WITH ranked_orders AS (
+      SELECT
+        artisan_profile_id, status, placed_at, accepted_at, declined_at, completed_at, disputed_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY artisan_profile_id ORDER BY placed_at DESC
+        ) AS rn
+      FROM orders
+      WHERE artisan_profile_id IN (${idList})
+        AND placed_at >= ${windowStart}
+    ),
+    recent_orders AS (
+      SELECT * FROM ranked_orders WHERE rn <= ${WINDOW_ORDER_LIMIT}
+    )
+    SELECT
+      artisan_profile_id,
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE accepted_at IS NOT NULL OR declined_at IS NOT NULL)::int AS responded,
+      COUNT(*) FILTER (WHERE accepted_at IS NOT NULL AND status IN ('completed', 'cancelled_by_buyer', 'cancelled_by_seller', 'auto_cancelled', 'disputed'))::int AS accepted,
+      COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+      COUNT(*) FILTER (WHERE status IN ('cancelled_by_buyer', 'cancelled_by_seller', 'auto_cancelled'))::int AS cancelled,
+      COUNT(*) FILTER (WHERE disputed_at IS NOT NULL)::int AS disputed,
+      (PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (COALESCE(accepted_at, declined_at) - placed_at)) * 1000
+      ) FILTER (WHERE accepted_at IS NOT NULL OR declined_at IS NOT NULL))::numeric AS response_time_median_ms
+    FROM recent_orders
+    GROUP BY artisan_profile_id
+  `);
+
+  for (const row of rows) {
+    result.set(row.artisan_profile_id, rowToReputation(row));
+  }
+  return result;
+}
+
+// Cached batch reputation lookup for product-card grids. Keyed on the
+// sorted id list so the same listing reuses one cache entry; tagged with
+// every artisan's `reputation:${id}` so transitionOrder's per-artisan
+// revalidateTag still busts this entry when any seller in the batch has
+// an order transition. Returns a Map covering EVERY requested id —
+// artisans with no orders in the window get EMPTY_REPUTATION.
+//
+// The cached function returns a plain Record, not a Map: unstable_cache
+// persists results via JSON serialization, and a Map round-trips to {}.
+// The Map is rebuilt from the Record after the cache boundary.
+export async function getSellerReputationsForArtisans(
+  artisanProfileIds: string[],
+): Promise<Map<string, SellerReputation>> {
+  const uniqueIds = Array.from(new Set(artisanProfileIds)).sort();
+  if (uniqueIds.length === 0) return new Map<string, SellerReputation>();
+
+  const record = await unstable_cache(
+    async () => {
+      const loaded = await loadSellerReputations(uniqueIds);
+      const complete: Record<string, SellerReputation> = {};
+      for (const id of uniqueIds) {
+        complete[id] = loaded.get(id) ?? EMPTY_REPUTATION;
+      }
+      return complete;
+    },
+    ['seller-reputations-batch', uniqueIds.join(',')],
+    { revalidate: 300, tags: uniqueIds.map((id) => `reputation:${id}`) },
+  )();
+
+  return new Map(Object.entries(record));
 }
 
 // Privacy stance: aggregate counts and rates over the 90-day window are
