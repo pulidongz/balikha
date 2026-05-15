@@ -150,19 +150,16 @@ function QueryTable({
 
 // --- Data loader ----------------------------------------------------------
 //
-// Hoisted out of the component body because server components are
-// considered render-pure under the React purity rules (react-hooks/purity
-// flags `Date.now()` directly in the component). A regular helper function
-// is allowed to be impure; the page just awaits it.
+// Plain async helper the page awaits — keeps the three aggregate queries
+// grouped and out of the component body. Each query's time window is
+// computed in SQL (LOCALTIMESTAMP - INTERVAL), so there's no Date.now()
+// for react-hooks/purity to flag and no Date parameter to bind.
 
 async function loadAnalytics() {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
   const [stats, topQueries, noResultQueries] = await Promise.all([
-    getStats(sevenDaysAgo, thirtyDaysAgo),
-    getTopQueries(thirtyDaysAgo),
-    getNoResultQueries(thirtyDaysAgo),
+    getStats(),
+    getTopQueries(),
+    getNoResultQueries(),
   ]);
 
   return { stats, topQueries, noResultQueries };
@@ -187,15 +184,15 @@ type StatsRow = {
 
 // One query, conditional aggregates via FILTER (WHERE ...). Cheaper than
 // four separate round trips for the same scan.
-async function getStats(sevenDaysAgo: Date, thirtyDaysAgo: Date): Promise<Stats> {
+async function getStats(): Promise<Stats> {
   const result = await db.execute<StatsRow>(sql`
     SELECT
-      COUNT(*) FILTER (WHERE created_at >= ${sevenDaysAgo}) AS searches_7d,
-      COUNT(*) FILTER (WHERE created_at >= ${thirtyDaysAgo}) AS searches_30d,
-      COUNT(DISTINCT normalized_query) FILTER (WHERE created_at >= ${thirtyDaysAgo}) AS unique_queries_30d,
+      COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '7 days') AS searches_7d,
+      COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days') AS searches_30d,
+      COUNT(DISTINCT normalized_query) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days') AS unique_queries_30d,
       COALESCE(
-        100.0 * COUNT(*) FILTER (WHERE created_at >= ${thirtyDaysAgo} AND product_result_count = 0)
-        / NULLIF(COUNT(*) FILTER (WHERE created_at >= ${thirtyDaysAgo}), 0),
+        100.0 * COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days' AND product_result_count = 0)
+        / NULLIF(COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days'), 0),
         0
       ) AS no_result_rate
     FROM search_events
@@ -219,14 +216,14 @@ type GroupedRow = {
   avg_results: string | null;
 } & Record<string, unknown>;
 
-async function getTopQueries(thirtyDaysAgo: Date) {
+async function getTopQueries() {
   const result = await db.execute<GroupedRow>(sql`
     SELECT
       normalized_query AS query,
       COUNT(*) AS count,
       AVG(product_result_count)::numeric AS avg_results
     FROM search_events
-    WHERE created_at >= ${thirtyDaysAgo}
+    WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days'
     GROUP BY normalized_query
     ORDER BY count DESC, normalized_query ASC
     LIMIT 25
@@ -238,13 +235,13 @@ async function getTopQueries(thirtyDaysAgo: Date) {
   }));
 }
 
-async function getNoResultQueries(thirtyDaysAgo: Date) {
+async function getNoResultQueries() {
   const result = await db.execute<GroupedRow>(sql`
     SELECT
       normalized_query AS query,
       COUNT(*) AS count
     FROM search_events
-    WHERE created_at >= ${thirtyDaysAgo}
+    WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days'
       AND product_result_count = 0
     GROUP BY normalized_query
     ORDER BY count DESC, normalized_query ASC
