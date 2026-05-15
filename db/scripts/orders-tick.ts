@@ -27,7 +27,7 @@
 // Run via: `npm run orders:tick`
 
 import 'dotenv/config';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, asc, eq, lt } from 'drizzle-orm';
 import { db } from '@/db';
 import { orders } from '@/db/schema';
 import { transitionOrder } from '@/lib/actions/orders';
@@ -55,6 +55,9 @@ async function autoCancelStaleResponses(now: Date): Promise<number> {
     .select({ id: orders.id })
     .from(orders)
     .where(and(eq(orders.status, 'pending_seller_response'), lt(orders.placedAt, cutoff)))
+    // Oldest-first so a backlog (skipped cron run) drains FIFO — the
+    // longest-overdue orders are auto-cancelled before newer ones.
+    .orderBy(asc(orders.placedAt))
     .limit(BATCH_SIZE);
 
   let processed = 0;
@@ -100,6 +103,9 @@ async function autoCompleteStaleShipments(now: Date): Promise<number> {
     .select({ id: orders.id })
     .from(orders)
     .where(and(eq(orders.status, 'shipped'), lt(orders.shippedAt, cutoff)))
+    // Oldest-first so a backlog drains FIFO — the longest-shipped
+    // orders are auto-completed before newer ones.
+    .orderBy(asc(orders.shippedAt))
     .limit(BATCH_SIZE);
 
   let processed = 0;

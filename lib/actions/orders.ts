@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidateTag } from 'next/cache';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db, type Tx } from '@/db';
@@ -904,9 +905,11 @@ export async function fileDispute(input: unknown): Promise<Result<{ disputeId: s
     filedByRole = 'seller';
   }
 
-  // Capture the disputeId from inside the transaction so we can return
-  // it after the helper resolves successfully.
-  let disputeId: string | null = null;
+  // Pre-generate the dispute id so the order_events row written by
+  // transitionOrder carries it in metadataJson at insert time — no
+  // post-transaction back-fill, so the append-only audit log is never
+  // updated. The orderDisputes row below is inserted with this exact id.
+  const disputeId = randomUUID();
 
   const result = await transitionOrder({
     orderId: order.id,
@@ -921,26 +924,24 @@ export async function fileDispute(input: unknown): Promise<Result<{ disputeId: s
     actorRole: filedByRole,
     eventType: 'disputed',
     notes: parsed.data.reason,
+    metadataJson: { disputeId },
     fieldUpdates: { disputedAt: new Date() },
     onTransition: async (tx, o) => {
       try {
-        const [inserted] = await tx
-          .insert(orderDisputes)
-          .values({
-            orderId: o.id,
-            filedByUserId: filer.id,
-            filedByRole,
-            status: 'open',
-            reason: parsed.data.reason,
-            // Pre-populate the filer's side of the statement so admins
-            // see both parties' positions in one place when the
-            // non-filer eventually responds.
-            ...(filedByRole === 'buyer'
-              ? { buyerStatement: parsed.data.reason }
-              : { sellerStatement: parsed.data.reason }),
-          })
-          .returning({ id: orderDisputes.id });
-        disputeId = inserted?.id ?? null;
+        await tx.insert(orderDisputes).values({
+          id: disputeId,
+          orderId: o.id,
+          filedByUserId: filer.id,
+          filedByRole,
+          status: 'open',
+          reason: parsed.data.reason,
+          // Pre-populate the filer's side of the statement so admins
+          // see both parties' positions in one place when the
+          // non-filer eventually responds.
+          ...(filedByRole === 'buyer'
+            ? { buyerStatement: parsed.data.reason }
+            : { sellerStatement: parsed.data.reason }),
+        });
       } catch (e) {
         // Partial unique index violation → there's already an active
         // dispute. Translate to a clean Result error so the constraint
@@ -954,22 +955,9 @@ export async function fileDispute(input: unknown): Promise<Result<{ disputeId: s
         throw e;
       }
     },
-    // metadataJson on order_events references the disputeId; populated
-    // post-transaction below since the dispute row is generated mid-tx.
   });
 
   if (!result.ok) return err(result.error);
-  if (!disputeId) return err('Dispute creation failed');
-
-  // Patch the audit event's metadata with the disputeId. This is the
-  // one place we update an event row — and it's a fill-in, not a
-  // rewrite. Filtered to the most recent matching event so we don't
-  // accidentally back-fill an earlier one (the partial unique index
-  // guarantees there's at most one current `disputed` event).
-  await db
-    .update(orderEvents)
-    .set({ metadataJson: { disputeId } })
-    .where(and(eq(orderEvents.orderId, order.id), eq(orderEvents.type, 'disputed')));
 
   return ok({ disputeId });
 }
@@ -987,61 +975,73 @@ export async function respondToDispute(input: unknown): Promise<Result<{ dispute
   const responder = await requireUser().catch(() => null);
   if (!responder) return err('Not authenticated');
 
-  const [order] = await db
-    .select({
-      id: orders.id,
-      buyerUserId: orders.buyerUserId,
-      artisanProfileId: orders.artisanProfileId,
-      status: orders.status,
-    })
-    .from(orders)
-    .where(eq(orders.id, parsed.data.orderId))
-    .limit(1);
-  if (!order) return err('Order not found');
-  if (order.status !== 'disputed') return err('Order is not currently disputed');
+  // The read-check-update runs in one transaction with the active
+  // dispute row locked FOR UPDATE. A concurrent resolveDispute that
+  // flips the dispute to a resolved status either blocks here, or —
+  // once it commits — causes the locked re-read to no longer match the
+  // open/under_review filter, so a statement can't land on a dispute an
+  // admin has already resolved.
+  return db.transaction(async (tx) => {
+    const [order] = await tx
+      .select({
+        id: orders.id,
+        buyerUserId: orders.buyerUserId,
+        artisanProfileId: orders.artisanProfileId,
+        status: orders.status,
+      })
+      .from(orders)
+      .where(eq(orders.id, parsed.data.orderId))
+      .limit(1);
+    if (!order) return err('Order not found');
+    if (order.status !== 'disputed') return err('Order is not currently disputed');
 
-  let responderRole: 'buyer' | 'seller';
-  if (order.buyerUserId === responder.id) {
-    responderRole = 'buyer';
-  } else {
-    const [a] = await db
-      .select({ id: artisanProfiles.id })
-      .from(artisanProfiles)
+    let responderRole: 'buyer' | 'seller';
+    if (order.buyerUserId === responder.id) {
+      responderRole = 'buyer';
+    } else {
+      const [a] = await tx
+        .select({ id: artisanProfiles.id })
+        .from(artisanProfiles)
+        .where(
+          and(
+            eq(artisanProfiles.id, order.artisanProfileId),
+            eq(artisanProfiles.userId, responder.id),
+          ),
+        )
+        .limit(1);
+      if (!a) return err('Not authorized to respond on this order');
+      responderRole = 'seller';
+    }
+
+    // Lock the active dispute (open or under_review) FOR UPDATE. The
+    // status predicate doubles as the re-check: if a concurrent
+    // resolveDispute committed first, the locked row no longer matches
+    // and this returns empty. Phase 1's partial unique index guarantees
+    // at most one such row.
+    const [active] = await tx
+      .select({ id: orderDisputes.id })
+      .from(orderDisputes)
       .where(
         and(
-          eq(artisanProfiles.id, order.artisanProfileId),
-          eq(artisanProfiles.userId, responder.id),
+          eq(orderDisputes.orderId, order.id),
+          inArray(orderDisputes.status, ['open', 'under_review']),
         ),
       )
+      .for('update')
       .limit(1);
-    if (!a) return err('Not authorized to respond on this order');
-    responderRole = 'seller';
-  }
+    if (!active) return err('No active dispute to respond to');
 
-  // Update the most recent active dispute (open or under_review).
-  // Phase 1's partial unique index guarantees at most one such row.
-  const [active] = await db
-    .select({ id: orderDisputes.id })
-    .from(orderDisputes)
-    .where(
-      and(
-        eq(orderDisputes.orderId, order.id),
-        inArray(orderDisputes.status, ['open', 'under_review']),
-      ),
-    )
-    .limit(1);
-  if (!active) return err('No active dispute to respond to');
+    await tx
+      .update(orderDisputes)
+      .set(
+        responderRole === 'buyer'
+          ? { buyerStatement: parsed.data.statement }
+          : { sellerStatement: parsed.data.statement },
+      )
+      .where(eq(orderDisputes.id, active.id));
 
-  await db
-    .update(orderDisputes)
-    .set(
-      responderRole === 'buyer'
-        ? { buyerStatement: parsed.data.statement }
-        : { sellerStatement: parsed.data.statement },
-    )
-    .where(eq(orderDisputes.id, active.id));
-
-  return ok({ disputeId: active.id });
+    return ok({ disputeId: active.id });
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -1110,6 +1110,12 @@ export async function resolveDispute(input: unknown): Promise<Result<{ orderId: 
       toStatus = wasShipped ? 'completed' : 'cancelled_by_seller';
       returnStock = !wasShipped;
       break;
+    default: {
+      // Exhaustiveness guard: a new resolution value added to the Zod
+      // enum without a matching case trips this at compile time.
+      const _exhaustive: never = parsed.data.resolution;
+      throw new Error(`Unhandled dispute resolution: ${String(_exhaustive)}`);
+    }
   }
 
   const result = await transitionOrder({
