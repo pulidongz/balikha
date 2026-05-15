@@ -7,7 +7,9 @@ import { artisanFollows, artisanProfiles, catalogs, productImages, products } fr
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CatalogSection } from '@/components/marketplace/catalog-section';
 import { FollowToggle } from '@/components/marketplace/follow-toggle';
+import { SellerReputationSummary } from '@/components/marketplace/seller-reputation-summary';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 
 // Previously cached for 5 min — wishlist hearts are per-user so this
@@ -111,6 +113,7 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
 
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
+  const reputation = await getSellerReputationCached(profile.id);
 
   // Cheap PK lookup — only run for signed-in viewers.
   let initiallyFollowing = false;
@@ -166,6 +169,10 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
             {profile.location && (
               <p className="text-muted-foreground text-sm">{profile.location}</p>
             )}
+            <SellerReputationSummary
+              reputation={reputation}
+              className="mt-1 justify-center md:justify-start"
+            />
           </div>
           <FollowToggle
             artisanProfileId={profile.id}

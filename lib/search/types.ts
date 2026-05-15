@@ -12,6 +12,9 @@ export interface ProductHit {
   imageUrl: string | null;
   artisanSlug: string;
   artisanName: string;
+  /** Pre-formatted seller response-time label for the product card
+   *  ("a day"), or null when the seller has no response history. */
+  responseTimeLabel: string | null;
   rank: number;
 }
 

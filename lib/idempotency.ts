@@ -4,7 +4,12 @@ import { idempotencyKeys } from '@/db/schema';
 import { logger } from '@/lib/logger';
 import { err, type Result } from '@/lib/result';
 
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+/**
+ * Idempotency cache entry lifetime. Exported so an action that writes
+ * its own cache row inside a transaction (e.g. placeOrder) uses the
+ * same TTL as this wrapper's post-fn() insert.
+ */
+export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface IdempotencyOptions<T> {
   /** Caller-supplied UUID. If absent or empty, fn() runs without dedup. */
@@ -71,7 +76,7 @@ export async function withIdempotency<T>(opts: IdempotencyOptions<T>): Promise<R
       userId: userId ?? null,
       scope,
       responseJson: JSON.stringify(result),
-      expiresAt: new Date(Date.now() + TWENTY_FOUR_HOURS_MS),
+      expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
     })
     .onConflictDoNothing();
 

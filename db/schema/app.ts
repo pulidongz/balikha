@@ -362,16 +362,39 @@ export const notifications = pgTable(
   ],
 );
 
-// Orders. Schema lands now; rows arrive when checkout ships. The buyer
-// foreign key uses ON DELETE RESTRICT — deleting a user with order
-// history is a deliberate operation, not a cascade.
+// Orders — off-platform-payment lifecycle. The buyer foreign key uses ON
+// DELETE RESTRICT (deleting a user with order history is a deliberate
+// operation, not a cascade). Single-item orders for now: the product is
+// snapshotted directly onto the order. Multi-item carts are deferred.
+//
+// Stock is reserved on placement and released on cancellation pre-shipment
+// (see lib/actions/orders.ts). Disputes record signal — money never moves
+// on this platform, so dispute resolution is reputation/admin-mediated.
 export const orderStatus = pgEnum('order_status', [
-  'pending_payment',
-  'paid',
-  'shipped',
-  'delivered',
-  'cancelled',
-  'refunded',
+  'pending_seller_response', // buyer placed, awaiting seller accept/decline
+  'pending_payment_arrangement', // seller accepted, parties coordinating payment
+  'payment_received', // seller marked payment as received
+  'shipped', // seller marked as shipped
+  'completed', // buyer marked as received (or auto-completed)
+  'cancelled_by_buyer',
+  'cancelled_by_seller',
+  'auto_cancelled', // timeout
+  'disputed', // either party flagged
+]);
+
+// cancellationReason is denormalized onto the order row so analytics
+// queries ("how often does seller_no_response cause cancellations?") don't
+// have to crack open order_events.metadataJson. Deliberate exception to
+// the "events are source of truth" rule — events still carry the same
+// value, but the order row is the indexed surface for aggregate queries.
+export const cancellationReason = pgEnum('cancellation_reason', [
+  'seller_no_response',
+  'buyer_changed_mind',
+  'seller_unable_to_fulfill',
+  'item_unavailable',
+  'payment_disagreement',
+  'shipping_disagreement',
+  'other',
 ]);
 
 export const orders = pgTable(
@@ -381,62 +404,156 @@ export const orders = pgTable(
     buyerUserId: text('buyer_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'restrict' }),
+    artisanProfileId: uuid('artisan_profile_id')
+      .notNull()
+      .references(() => artisanProfiles.id, { onDelete: 'restrict' }),
     reference: text('reference').notNull().unique(),
-    status: orderStatus('status').notNull().default('pending_payment'),
-    subtotal: numeric('subtotal', { precision: 10, scale: 2 }).notNull(),
-    shippingFee: numeric('shipping_fee', { precision: 10, scale: 2 }).notNull().default('0'),
-    total: numeric('total', { precision: 10, scale: 2 }).notNull(),
+
+    status: orderStatus('status').notNull().default('pending_seller_response'),
+
+    // Single-item snapshot. The product FK SET NULLs on delete; the
+    // snapshot text columns persist forever so order history remains
+    // accurate even if a piece is later renamed or the listing is removed.
+    productId: uuid('product_id').references(() => products.id, { onDelete: 'set null' }),
+    productTitleSnapshot: text('product_title_snapshot').notNull(),
+    productSlugSnapshot: text('product_slug_snapshot').notNull(),
+    productImageUrlSnapshot: text('product_image_url_snapshot'),
+    artisanNameSnapshot: text('artisan_name_snapshot').notNull(),
+    artisanSlugSnapshot: text('artisan_slug_snapshot').notNull(),
+
+    // Money snapshot. No payment happens on platform; this records the
+    // listed price at order time. numeric(10,2) is string-typed in
+    // postgres-js — never Number() this for arithmetic, use formatPrice
+    // and parseFloat at the boundary.
+    priceSnapshot: numeric('price_snapshot', { precision: 10, scale: 2 }).notNull(),
     currency: text('currency').notNull().default('PHP'),
-    // Snapshot of the shipping address at order time. Address rows can
-    // change; orders don't.
+
+    // Shipping address snapshot at order time.
     shippingAddressJson: jsonb('shipping_address_json').notNull(),
     notesFromBuyer: text('notes_from_buyer'),
+
+    // Lifecycle timestamps. Slightly redundant with order_events but
+    // materially faster for "when was this shipped?" queries.
     placedAt: timestamp('placed_at').notNull().defaultNow(),
-    paidAt: timestamp('paid_at'),
+    acceptedAt: timestamp('accepted_at'),
+    declinedAt: timestamp('declined_at'),
+    paymentReceivedAt: timestamp('payment_received_at'),
     shippedAt: timestamp('shipped_at'),
-    deliveredAt: timestamp('delivered_at'),
+    completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),
+    cancellationReason: cancellationReason('cancellation_reason'),
+    cancellationNotes: text('cancellation_notes'),
+
+    // Dispute fields reflect the MOST RECENT dispute on the order.
+    // Disputes-over-time live in `order_disputes` (each filing is a
+    // separate row). If a buyer files dispute A, admin resolves, buyer
+    // files dispute B, these fields track B's timestamps; A's history
+    // is preserved in `order_disputes`. Don't read these for "did this
+    // order ever have a dispute?" — read order_disputes for that.
+    disputedAt: timestamp('disputed_at'),
+    disputeResolvedAt: timestamp('dispute_resolved_at'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
     index('orders_buyer_idx').on(t.buyerUserId),
+    index('orders_artisan_idx').on(t.artisanProfileId),
     index('orders_status_idx').on(t.status),
     index('orders_placed_at_idx').on(t.placedAt),
+    // Composite for "show me pending orders for this seller" — the most
+    // common seller-dashboard query.
+    index('orders_artisan_status_idx').on(t.artisanProfileId, t.status),
   ],
 );
 
-// Order line items. Snapshot columns make these immutable records of the
-// purchase, decoupled from current product state. ON DELETE SET NULL on
-// productId/artisanProfileId means deleting a product severs the live
-// link without destroying order history.
-export const orderItems = pgTable(
-  'order_items',
+// Append-only audit log for orders. Every status transition, dispute
+// flag, and admin intervention writes a row here. Never updated, never
+// deleted (except via order cascade). The structured `metadataJson` shape
+// per event type is contractual — see plan §3 for the table.
+//
+// `actorUserId` is nullable because system events (auto-cancel,
+// auto-complete) have no user actor. The `actorRole` text column carries
+// the discriminator: 'buyer' | 'seller' | 'admin' | 'system'.
+export const orderEventType = pgEnum('order_event_type', [
+  'placed',
+  'accepted',
+  'declined',
+  'payment_received',
+  'shipped',
+  'completed',
+  'cancelled_by_buyer',
+  'cancelled_by_seller',
+  'auto_cancelled',
+  'disputed',
+  'dispute_resolved',
+  'admin_intervention',
+]);
+
+export const orderEvents = pgTable(
+  'order_events',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     orderId: uuid('order_id')
       .notNull()
       .references(() => orders.id, { onDelete: 'cascade' }),
-    productId: uuid('product_id').references(() => products.id, {
-      onDelete: 'set null',
-    }),
-    artisanProfileId: uuid('artisan_profile_id').references(() => artisanProfiles.id, {
-      onDelete: 'set null',
-    }),
-    titleSnapshot: text('title_snapshot').notNull(),
-    priceSnapshot: numeric('price_snapshot', {
-      precision: 10,
-      scale: 2,
-    }).notNull(),
-    imageUrlSnapshot: text('image_url_snapshot'),
-    artisanNameSnapshot: text('artisan_name_snapshot').notNull(),
-    artisanSlugSnapshot: text('artisan_slug_snapshot').notNull(),
-    productSlugSnapshot: text('product_slug_snapshot').notNull(),
-    quantity: integer('quantity').notNull().default(1),
-    lineTotal: numeric('line_total', { precision: 10, scale: 2 }).notNull(),
+    type: orderEventType('type').notNull(),
+    actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+    actorRole: text('actor_role').notNull(),
+    notes: text('notes'),
+    metadataJson: jsonb('metadata_json'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [
-    index('order_items_order_idx').on(t.orderId),
-    index('order_items_product_idx').on(t.productId),
+    index('order_events_order_idx').on(t.orderId),
+    index('order_events_created_at_idx').on(t.createdAt),
+  ],
+);
+
+// Disputes. One ACTIVE dispute per order is enforced by the partial
+// unique index below; after admin resolution, a new dispute can be filed.
+// Self-service withdrawal is intentionally not modeled — the enum has no
+// 'withdrawn' state. Filers who change their mind contact admin, who can
+// resolve as 'resolved_neutral'. Keeps disputes admin-mediated and
+// preserves their value as a trust signal.
+export const disputeStatus = pgEnum('dispute_status', [
+  'open',
+  'under_review', // admin acknowledged, working on it
+  'resolved_for_buyer',
+  'resolved_for_seller',
+  'resolved_neutral', // no clear fault
+]);
+
+export const orderDisputes = pgTable(
+  'order_disputes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    filedByUserId: text('filed_by_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    filedByRole: text('filed_by_role').notNull(), // 'buyer' | 'seller'
+    status: disputeStatus('status').notNull().default('open'),
+    reason: text('reason').notNull(), // filer's initial statement
+    buyerStatement: text('buyer_statement'), // populated when other party responds
+    sellerStatement: text('seller_statement'),
+    adminResolution: text('admin_resolution'), // admin's written resolution
+    resolvedByAdminUserId: text('resolved_by_admin_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    filedAt: timestamp('filed_at').notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at'),
+  },
+  (t) => [
+    index('order_disputes_order_idx').on(t.orderId),
+    index('order_disputes_status_idx').on(t.status),
+    // Partial unique index: at most one ACTIVE dispute per order. After
+    // admin resolution, a new dispute can be filed. Closes the
+    // select-then-insert race in fileDispute.
+    uniqueIndex('order_disputes_active_per_order')
+      .on(t.orderId)
+      .where(sql`status IN ('open', 'under_review')`),
   ],
 );

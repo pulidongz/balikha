@@ -1,15 +1,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { orderEvents, orders } from '@/db/schema';
-import { env } from '@/env';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { orderEvents, orders, user } from '@/db/schema';
+import { requireSellerProfile } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
-import { BuyerOrderActionButtons } from '@/components/account/buyer-order-action-buttons';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
-import { ReorderButton } from '@/components/account/reorder-button';
+import { OrderActionButtons } from '@/components/dashboard/order-action-buttons';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
 import { FileDisputeButton } from '@/components/orders/dispute-buttons';
 import { DisputePanel } from '@/components/orders/dispute-panel';
@@ -24,8 +22,6 @@ const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
   day: 'numeric',
 });
 
-// Shape of the snapshot JSON stored on `orders.shipping_address_json`.
-// Mirrors user_addresses + countryCode at order time.
 interface ShippingAddressSnapshot {
   recipientName: string;
   phone?: string | null;
@@ -38,19 +34,28 @@ interface ShippingAddressSnapshot {
   countryCode: string;
 }
 
-export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SellerOrderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
-  const current = await getCurrentUser();
-  if (!current) redirect(`/sign-in?next=/account/orders/${id}`);
+  const profile = await requireSellerProfile();
 
-  // Single read constrained by id + buyerUserId — IDOR-safe. Another
-  // buyer's order ID returns 404, not 403 (privacy over pedantic 403).
-  const [order] = await db
-    .select()
+  // Ownership baked into the WHERE — IDOR-safe. Another seller's order
+  // ID returns 404, not 403 (privacy over pedantic 403).
+  const [row] = await db
+    .select({
+      order: orders,
+      buyerName: user.name,
+      buyerEmail: user.email,
+    })
     .from(orders)
-    .where(and(eq(orders.id, id), eq(orders.buyerUserId, current.id)))
+    .innerJoin(user, eq(user.id, orders.buyerUserId))
+    .where(and(eq(orders.id, id), eq(orders.artisanProfileId, profile.id)))
     .limit(1);
-  if (!order) notFound();
+  if (!row) notFound();
+  const { order, buyerName, buyerEmail } = row;
 
   const events = await db
     .select({
@@ -65,20 +70,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     .orderBy(asc(orderEvents.createdAt));
 
   const shipping = order.shippingAddressJson as ShippingAddressSnapshot;
-  // Snapshot slugs persist forever even if the underlying product/artisan
-  // is renamed or deleted (FKs SET NULL). The link target is always
-  // derivable from snapshot fields.
   const productLink = `/shop/${order.artisanSlugSnapshot}/${order.productSlugSnapshot}`;
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-3xl space-y-8 px-4 py-10 sm:px-6">
       <header className="space-y-2">
-        <Link
-          href="/account/orders"
-          className="text-muted-foreground hover:text-foreground text-sm"
-        >
-          ← All orders
-        </Link>
+        <p className="text-muted-foreground text-sm">
+          <Link href="/dashboard/orders" className="hover:underline">
+            ← Orders
+          </Link>
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-mono text-2xl">{order.reference}</h1>
           <OrderStatusBadge status={order.status} />
@@ -86,24 +87,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
       </header>
 
-      <BuyerOrderActionButtons orderId={order.id} status={order.status} />
+      {/* Action buttons appropriate to the current status. Render
+          nothing for terminal states (completed, cancelled, disputed). */}
+      <section className="space-y-3">
+        <OrderActionButtons orderId={order.id} status={order.status} />
+      </section>
 
-      {order.status === 'disputed' && <DisputePanel orderId={order.id} viewerRole="buyer" />}
-
-      {order.status === 'shipped' && (
-        // Dispute-window advisory. The auto-confirm timeout and the
-        // dispute-eligible window both terminate on the same day, so a
-        // late dispute on a non-delivered package gets locked out by
-        // the auto-complete. Per Issue 20 (Phase 6 §8 / plan resolution
-        // option c), we accept the trade-off and surface the deadline
-        // explicitly to buyers rather than extending the window.
-        <aside className="bg-muted text-muted-foreground rounded-md border-l-4 border-l-[var(--gold)] p-3 text-sm">
-          If you don&rsquo;t receive your order, please file a dispute within{' '}
-          <strong className="text-foreground">{env.ORDER_BUYER_AUTO_CONFIRM_DAYS} days</strong> of
-          shipment. After that, this order will be auto-confirmed and dispute filing is no longer
-          available.
-        </aside>
-      )}
+      {order.status === 'disputed' && <DisputePanel orderId={order.id} viewerRole="seller" />}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
@@ -135,6 +125,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-sm font-medium tracking-wide uppercase">Buyer</h2>
+        <div className="bg-card text-muted-foreground rounded-md border p-4 text-sm">
+          <p className="text-foreground font-medium">{buyerName}</p>
+          <p>{buyerEmail}</p>
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Ship to</h2>
         <address className="bg-card text-muted-foreground rounded-md border p-4 text-sm not-italic">
           <p className="text-foreground font-medium">{shipping.recipientName}</p>
@@ -151,7 +149,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       {order.notesFromBuyer && (
         <section className="space-y-3">
-          <h2 className="text-sm font-medium tracking-wide uppercase">Notes</h2>
+          <h2 className="text-sm font-medium tracking-wide uppercase">Note from buyer</h2>
           <p className="bg-card text-foreground rounded-md border p-4 text-sm whitespace-pre-line">
             {order.notesFromBuyer}
           </p>
@@ -160,19 +158,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
-        <OrderEventTimeline events={events} viewerRole="buyer" />
+        <OrderEventTimeline events={events} viewerRole="seller" />
       </section>
 
-      <div className="flex items-center justify-between">
+      {/* Either party can file a dispute on a non-terminal order. The
+          button hides itself for terminal/already-disputed orders. */}
+      <div className="text-right">
         <FileDisputeButton orderId={order.id} status={order.status} />
-        <ReorderButton
-          orderId={order.id}
-          // ReorderButton only fires when the product is potentially
-          // re-orderable. Phase 5 wires the action; if the product was
-          // deleted (productId is null) the server will refuse and the
-          // button shows that as inline error.
-          disabled={order.productId === null}
-        />
       </div>
     </div>
   );

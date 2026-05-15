@@ -35,3 +35,12 @@ const client = postgres(env.DATABASE_URL);
  *     }
  */
 export const db = drizzle(client, { schema });
+
+/**
+ * The transaction handle passed to db.transaction's callback. Useful when
+ * a helper wants to participate in an existing transaction — e.g.
+ * lib/actions/orders.ts:transitionOrder accepts an `onTransition(tx, ...)`
+ * callback so callers can run additional writes (stock returns, dispute
+ * row inserts, etc.) inside the same atomic boundary as the status flip.
+ */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import { clampLimit } from '@/lib/queries/paginate';
+import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
 import type {
   ArtisanHit,
   CatalogHit,
@@ -242,6 +243,7 @@ type ProductRow = {
   price: string;
   currency: string;
   image_url: string | null;
+  artisan_profile_id: string;
   artisan_slug: string;
   artisan_name: string;
   rank: number;
@@ -303,6 +305,7 @@ async function searchProducts(
       p.price,
       p.currency,
       p.created_at,
+      a.id AS artisan_profile_id,
       a.shop_slug AS artisan_slug,
       a.shop_name AS artisan_name,
       ts_rank_cd(p.search_vector, to_tsquery('english', ${tsQuery})) AS rank,
@@ -326,18 +329,29 @@ async function searchProducts(
   const hasMore = result.length > limit;
   const visible = hasMore ? result.slice(0, limit) : Array.from(result);
 
-  const items: ProductHit[] = visible.map((r) => ({
-    type: 'product' as const,
-    id: r.id,
-    slug: r.slug,
-    title: r.title,
-    price: r.price,
-    currency: r.currency,
-    imageUrl: r.image_url,
-    artisanSlug: r.artisan_slug,
-    artisanName: r.artisan_name,
-    rank: r.rank,
-  }));
+  // Batch-fetch seller reputation for every artisan on this page so
+  // product cards can surface "Responds within …" — one aggregate
+  // query for the whole page, not one per card.
+  const reputations = await getSellerReputationsForArtisans(
+    visible.map((r) => r.artisan_profile_id),
+  );
+
+  const items: ProductHit[] = visible.map((r) => {
+    const bucket = reputations.get(r.artisan_profile_id)?.responseTimeBucket ?? null;
+    return {
+      type: 'product' as const,
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      price: r.price,
+      currency: r.currency,
+      imageUrl: r.image_url,
+      artisanSlug: r.artisan_slug,
+      artisanName: r.artisan_name,
+      responseTimeLabel: bucket ? bucketLabel(bucket) : null,
+      rank: r.rank,
+    };
+  });
 
   const last = visible[visible.length - 1];
   const nextCursor =

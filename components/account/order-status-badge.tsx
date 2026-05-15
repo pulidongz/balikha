@@ -1,24 +1,33 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-
-type OrderStatus = 'pending_payment' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+import type { OrderStatus } from '@/lib/orders/types';
 
 const LABEL: Record<OrderStatus, string> = {
-  pending_payment: 'Awaiting payment',
-  paid: 'Paid',
+  pending_seller_response: 'Awaiting seller',
+  pending_payment_arrangement: 'Arranging payment',
+  payment_received: 'Payment received',
   shipped: 'Shipped',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
+  completed: 'Completed',
+  cancelled_by_buyer: 'Cancelled by buyer',
+  cancelled_by_seller: 'Cancelled by seller',
+  auto_cancelled: 'Auto-cancelled',
+  disputed: 'Disputed',
 };
 
 const VARIANT_CLASS: Record<OrderStatus, string> = {
-  pending_payment: 'border-transparent bg-[var(--gold)] text-foreground',
-  paid: 'border-transparent bg-secondary text-foreground',
+  // Active states — neutral/in-progress visuals
+  pending_seller_response: 'border-transparent bg-[var(--gold)] text-foreground',
+  pending_payment_arrangement: 'border-transparent bg-secondary text-foreground',
+  payment_received: 'border-transparent bg-secondary text-foreground',
   shipped: 'border-transparent bg-secondary text-foreground',
-  delivered: 'border-transparent bg-foreground text-background',
-  cancelled: 'border-transparent bg-muted text-muted-foreground',
-  refunded: 'border-transparent bg-muted text-muted-foreground',
+  // Terminal success
+  completed: 'border-transparent bg-foreground text-background',
+  // Terminal cancellations — muted
+  cancelled_by_buyer: 'border-transparent bg-muted text-muted-foreground',
+  cancelled_by_seller: 'border-transparent bg-muted text-muted-foreground',
+  auto_cancelled: 'border-transparent bg-muted text-muted-foreground',
+  // Disputed — destructive emphasis
+  disputed: 'border-transparent bg-destructive text-destructive-foreground',
 };
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {

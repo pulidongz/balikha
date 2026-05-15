@@ -22,6 +22,13 @@ type Props = {
   showArtisan?: boolean;
   inWishlist?: boolean;
   isSignedIn?: boolean;
+  // Pre-formatted seller response-time label (e.g. "a day"), surfaced
+  // subtly below the artisan name. The listing page derives this from
+  // SellerReputation via bucketLabel — kept as a plain string here so
+  // ProductCard, which is also rendered inside the client-side search
+  // grid, never pulls the server-only reputation/db module into the
+  // client bundle. Omitted when the seller has no response history.
+  responseTimeLabel?: string;
 };
 
 const DEFAULT_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw';
@@ -37,6 +44,7 @@ export function ProductCard({
   showArtisan = true,
   inWishlist = false,
   isSignedIn = false,
+  responseTimeLabel,
 }: Props) {
   return (
     <div className="group relative space-y-3">
@@ -64,6 +72,9 @@ export function ProductCard({
             {product.title}
           </h3>
           {showArtisan && <p className="text-muted-foreground text-xs">{artisan.shopName}</p>}
+          {responseTimeLabel && (
+            <p className="text-muted-foreground text-xs">Responds within {responseTimeLabel}</p>
+          )}
           <PriceTag price={product.price} currency={product.currency} size="md" />
         </div>
       </Link>

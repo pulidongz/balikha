@@ -4,15 +4,16 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, productImages, products } from '@/db/schema';
+import { artisanProfiles, productImages, products, userAddresses } from '@/db/schema';
 import { env } from '@/env';
 import { Badge } from '@/components/ui/badge';
-import { buttonVariants } from '@/components/ui/button';
+import { OrderButton } from '@/components/marketplace/order-button';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
 import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { formatPrice } from '@/lib/format';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
 
@@ -135,6 +136,29 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
 
   const inStock = product.status === 'published' && product.stockOnHand > 0;
   const isSoldOut = product.status === 'sold_out';
+  const isOwnProduct = viewer !== null && viewer.id === artisan.userId;
+
+  // Addresses for the order dialog. Only loaded for signed-in viewers
+  // who could plausibly use them (in_stock, not their own product).
+  // Default-shipping flag sorts the user's preferred address first.
+  const orderAddresses =
+    viewer && inStock && !isOwnProduct
+      ? await db
+          .select({
+            id: userAddresses.id,
+            label: userAddresses.label,
+            recipientName: userAddresses.recipientName,
+            line1: userAddresses.line1,
+            city: userAddresses.city,
+            province: userAddresses.province,
+            isDefaultShipping: userAddresses.isDefaultShipping,
+          })
+          .from(userAddresses)
+          .where(eq(userAddresses.userId, viewer.id))
+          .orderBy(desc(userAddresses.isDefaultShipping), desc(userAddresses.createdAt))
+      : [];
+  const defaultAddressId =
+    orderAddresses.find((a) => a.isDefaultShipping)?.id ?? orderAddresses[0]?.id ?? null;
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -252,15 +276,33 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled
-              className={buttonVariants({ size: 'lg', className: 'flex-1 md:flex-none' })}
-              aria-disabled="true"
-              title="Cart and checkout arrive in a later phase"
-            >
-              {isSoldOut ? 'Sold out' : 'Add to cart'}
-            </button>
+            <OrderButton
+              productId={product.id}
+              productTitle={product.title}
+              formattedPrice={formatPrice(product.price, product.currency)}
+              shopName={artisan.shopName}
+              state={
+                isSoldOut
+                  ? 'sold_out'
+                  : !inStock
+                    ? 'sold_out'
+                    : viewer === null
+                      ? 'signed_out'
+                      : isOwnProduct
+                        ? 'own_product'
+                        : 'in_stock'
+              }
+              addresses={orderAddresses.map((a) => ({
+                id: a.id,
+                label: a.label,
+                recipientName: a.recipientName,
+                line1: a.line1,
+                city: a.city,
+                province: a.province,
+              }))}
+              defaultAddressId={defaultAddressId}
+              signInRedirect={`/shop/${artisan.shopSlug}/${product.slug}`}
+            />
             <WishlistToggle
               productId={product.id}
               initiallyInWishlist={wishlistedIds.has(product.id)}

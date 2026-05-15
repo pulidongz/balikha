@@ -29,7 +29,15 @@ import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { account, session, user, verification } from '@/db/schema/auth';
-import { artisanProfiles, catalogs, productImages, products } from '@/db/schema/app';
+import {
+  artisanProfiles,
+  catalogs,
+  orderDisputes,
+  orderEvents,
+  orders,
+  productImages,
+  products,
+} from '@/db/schema/app';
 import { logger } from '@/lib/logger';
 import { slugify, uniqueSlug } from '@/lib/slug';
 import { BUCKET, PUBLIC_URL_BASE, s3 } from '@/lib/storage/client';
@@ -419,7 +427,13 @@ async function clearBucket(): Promise<void> {
 }
 
 async function clearDb(): Promise<void> {
-  // Order matters — children before parents
+  // Order matters — children before parents.
+  // order_events and order_disputes cascade from orders, but we delete
+  // explicitly to keep the order obvious to readers (and resilient if a
+  // future schema change weakens the cascade).
+  await db.delete(orderEvents);
+  await db.delete(orderDisputes);
+  await db.delete(orders);
   await db.delete(productImages);
   await db.delete(products);
   await db.delete(catalogs);

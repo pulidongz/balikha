@@ -16,6 +16,13 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: z.string().min(1),
     S3_BUCKET: z.string().min(1),
     S3_PUBLIC_URL_BASE: z.string().url(),
+    // Order lifecycle timeouts. Hours for seller-response (short window,
+    // tunable to local commerce rhythm); days for buyer-auto-confirm
+    // (long enough that "package arrived later than expected" usually
+    // resolves before the timeout fires). The buyer-facing UI on shipped
+    // orders surfaces the same value so buyers know their dispute deadline.
+    ORDER_SELLER_RESPONSE_TIMEOUT_HOURS: z.coerce.number().int().positive().default(48),
+    ORDER_BUYER_AUTO_CONFIRM_DAYS: z.coerce.number().int().positive().default(14),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -33,6 +40,8 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_BUCKET: process.env.S3_BUCKET,
     S3_PUBLIC_URL_BASE: process.env.S3_PUBLIC_URL_BASE,
+    ORDER_SELLER_RESPONSE_TIMEOUT_HOURS: process.env.ORDER_SELLER_RESPONSE_TIMEOUT_HOURS,
+    ORDER_BUYER_AUTO_CONFIRM_DAYS: process.env.ORDER_BUYER_AUTO_CONFIRM_DAYS,
   },
   emptyStringAsUndefined: true,
 });
