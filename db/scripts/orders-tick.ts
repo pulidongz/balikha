@@ -65,6 +65,9 @@ async function autoCancelStaleResponses(now: Date): Promise<number> {
       toStatus: 'auto_cancelled',
       actorUserId: null,
       actorRole: 'system',
+      // CLI context — no Next request scope for revalidateTag; readers
+      // re-derive reputation on the 5-minute cache TTL.
+      skipRevalidation: true,
       eventType: 'auto_cancelled',
       fieldUpdates: {
         cancelledAt: now,
@@ -107,6 +110,9 @@ async function autoCompleteStaleShipments(now: Date): Promise<number> {
       toStatus: 'completed',
       actorUserId: null,
       actorRole: 'system',
+      // CLI context — no Next request scope for revalidateTag; readers
+      // re-derive reputation on the 5-minute cache TTL.
+      skipRevalidation: true,
       eventType: 'completed',
       fieldUpdates: { completedAt: now },
       metadataJson: {

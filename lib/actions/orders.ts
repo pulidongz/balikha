@@ -440,6 +440,10 @@ interface TransitionOrderOpts {
   // (e.g. stock return, dispute-row insert). Runs inside the same
   // transaction, after the status update and audit event are written.
   onTransition?: (tx: Tx, order: Order) => Promise<void>;
+  // When true, skip the post-commit revalidateTag call. Set by CLI
+  // callers (the orders-tick script) where Next's static-generation
+  // store is absent; those readers fall back to the 5-minute cache TTL.
+  skipRevalidation?: boolean;
 }
 
 /**
@@ -470,10 +474,10 @@ interface TransitionOrderOpts {
 export async function transitionOrder(
   opts: TransitionOrderOpts,
 ): Promise<Result<{ orderId: string }>> {
-  let artisanProfileId: string | null = null;
+  let artisanProfileId: string;
 
   try {
-    await db.transaction(async (tx) => {
+    artisanProfileId = await db.transaction(async (tx) => {
       // 1. Load with FOR UPDATE — serializes concurrent attempts on the
       //    same order so the expectedFrom check is meaningful.
       const [order] = await tx
@@ -522,8 +526,7 @@ export async function transitionOrder(
       //    notification insert failure rolls back the status change +
       //    audit event together — atomicity per Phase 4.5 / Issue 7.
       //    System events are skipped here (notifications gate ≠ cache
-      //    gate); buyer/seller paths only for now, admin handling lands
-      //    with Phase 9.
+      //    gate); buyer, seller, and admin transitions all fan out.
       await fanOutTransitionNotification(tx, order, opts.toStatus, opts.actorRole);
 
       // 7. Side-effect hook (stock return, dispute-row insert, etc.).
@@ -531,7 +534,7 @@ export async function transitionOrder(
         await opts.onTransition(tx, order);
       }
 
-      artisanProfileId = order.artisanProfileId;
+      return order.artisanProfileId;
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Transition failed';
@@ -540,20 +543,11 @@ export async function transitionOrder(
 
   // 8. Post-commit reputation cache invalidation. Outside the tx so the
   //    cache invalidates after the new data has committed, not before.
-  //    revalidateTag requires Next's static-generation-store, which
-  //    isn't available from CLI scripts (orders-tick). Catch that one
-  //    specific error and skip — the 5-minute cache TTL covers the gap.
-  //    Any other revalidate error rethrows as a transition failure
-  //    (no general error swallowing).
-  if (artisanProfileId) {
-    try {
-      revalidateTag(`reputation:${artisanProfileId}`, 'max');
-    } catch (e) {
-      if (!(e instanceof Error && e.message.includes('static generation store missing'))) {
-        throw e;
-      }
-      // Tick-script branch: readers will re-derive on TTL expiry.
-    }
+  //    revalidateTag needs Next's static-generation store, which is
+  //    absent in CLI scripts (orders-tick) — those callers pass
+  //    skipRevalidation and rely on the 5-minute cache TTL instead.
+  if (!opts.skipRevalidation) {
+    revalidateTag(`reputation:${artisanProfileId}`, 'max');
   }
   return ok({ orderId: opts.orderId });
 }
@@ -575,11 +569,13 @@ export async function transitionOrder(
 //     → notify seller: "Dispute filed on your order"
 //   disputed (toStatus=disputed, actorRole=seller)
 //     → notify buyer: "Dispute filed on your order"
+//   admin force-action (actorRole=admin, toStatus=cancelled_by_seller
+//     or completed) → notify BOTH parties with support-team copy
 //
-// System actor: skipped this phase — the messaging plan revisits
-// timing/quiet-hours/digesting for auto-cancellation and auto-completion.
-// Admin actor: deferred to Phase 9 (admin force-actions will notify both
-// parties with admin-aware copy).
+// System actor: skipped — the messaging plan revisits timing / quiet-
+// hours / digesting for auto-cancellation and auto-completion.
+// Admin actor: notifies BOTH parties — force-cancel, force-complete, and
+// dispute resolution all change the order out from under buyer & seller.
 //
 // Atomicity: this insert is inside the same transaction as the order
 // UPDATE + audit event. A FK violation against a deleted user (or any
@@ -592,9 +588,9 @@ async function fanOutTransitionNotification(
   toStatus: OrderStatus,
   actorRole: ActorRole,
 ): Promise<void> {
-  // System events skipped in this phase; admin notifications land with
-  // Phase 9. Buyer/seller paths only.
-  if (actorRole === 'system' || actorRole === 'admin') return;
+  // System events skip notification fan-out (deferred to the messaging
+  // plan); buyer, seller, and admin transitions all notify.
+  if (actorRole === 'system') return;
 
   // Decide recipient + copy from the (toStatus, actorRole) pair.
   type Recipient = { userId: string; url: string };
@@ -610,6 +606,38 @@ async function fanOutTransitionNotification(
   }
   function buyerRecipient(): Recipient {
     return { userId: order.buyerUserId, url: `/account/orders/${order.id}` };
+  }
+
+  // Admin force-actions (force-cancel, force-complete, dispute
+  // resolution) change an order out from under both parties — notify
+  // each. Copy is keyed on the resulting status.
+  if (actorRole === 'admin') {
+    let adminTitle: string;
+    if (toStatus === 'cancelled_by_seller') {
+      adminTitle = 'Your order was cancelled by Balikha support';
+    } else if (toStatus === 'completed') {
+      adminTitle = 'Your order was completed by Balikha support';
+    } else {
+      // No other status is reachable from an admin transition.
+      return;
+    }
+    const buyer = buyerRecipient();
+    const seller = await sellerRecipient();
+    const adminRecipients: Recipient[] = seller ? [buyer, seller] : [buyer];
+    for (const r of adminRecipients) {
+      await tx.insert(notifications).values({
+        userId: r.userId,
+        type: 'order_status_changed',
+        title: adminTitle,
+        body: `Order ${order.reference}`,
+        target: {
+          kind: 'order',
+          id: order.id,
+          url: r.url,
+        },
+      });
+    }
+    return;
   }
 
   let recipient: Recipient | null = null;
