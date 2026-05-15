@@ -15,7 +15,7 @@ import {
   userAddresses,
 } from '@/db/schema';
 import { requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
-import { withIdempotency } from '@/lib/idempotency';
+import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { generateOrderReference } from '@/lib/orders/reference';
@@ -30,6 +30,16 @@ import {
   orderPlaceSchema,
   orderTransitionInputSchema,
 } from '@/lib/validators/order';
+
+/**
+ * Expected, user-facing rejection thrown inside `placeOrder`'s
+ * transaction (out of stock, product gone, address not yours). These
+ * are deterministic outcomes a retry should see again, so
+ * `withIdempotency` is allowed to cache them. Unexpected failures (DB
+ * errors, bugs) stay plain `Error`s — they re-throw uncached so a
+ * transient failure is not permanently pinned to the idempotency key.
+ */
+class OrderBusinessError extends Error {}
 
 /**
  * Reorder: from a past order, send the buyer back to the product page
@@ -100,17 +110,22 @@ export async function reorderAction(input: {
  * For naturally-idempotent actions that's harmless. For placement it
  * isn't — `fn()` decrements stock and inserts a NEW order each call.
  *
- * The fix has TWO parts that must both be present:
+ * The fix has THREE parts that must all be present:
  * 1. Advisory lock at the top of the transaction, keyed on
  *    idempotencyKey, serializes concurrent fn() invocations.
- * 2. Cache re-check INSIDE the lock (after the lock is acquired).
- *    The lock guarantees the prior writer has committed; the re-check
- *    sees their cache row and we return the cached result instead of
- *    running the work again.
+ * 2. The idempotency cache row is written INSIDE this transaction
+ *    (see the idempotencyKeys insert in the callback), so it commits
+ *    while the advisory lock is still held. withIdempotency's own
+ *    post-fn() insert lands AFTER the lock releases — too late for a
+ *    concurrent retry's re-check to observe.
+ * 3. Cache re-check INSIDE the lock (after the lock is acquired).
+ *    Thanks to (2) the lock guarantees a prior writer's cache row is
+ *    already committed; the re-check sees it and returns the cached
+ *    result instead of running the work again.
  *
- * Without the re-check, the lock just delays the second writer — they
- * still create a duplicate order with new stock decrement. Without the
- * lock, the re-check is a TOCTOU race. We need both.
+ * Without (2) the re-check races withIdempotency's late insert and the
+ * second writer still creates a duplicate order. Without the lock the
+ * re-check is a TOCTOU race. We need all three.
  *
  * Reputation cache invalidation runs AFTER the transaction commits.
  * Inside the callback would invalidate before commit; subsequent reads
@@ -138,24 +153,6 @@ export async function placeOrder(
     userId: buyer.id,
     fn: async () => {
       try {
-        // Verify the address belongs to the buyer BEFORE entering the
-        // transaction. Saves the cost of acquiring locks for invalid
-        // input and gives a clean inline error.
-        const [address] = await db
-          .select()
-          .from(userAddresses)
-          .where(
-            and(
-              eq(userAddresses.id, parsed.data.shippingAddressId),
-              eq(userAddresses.userId, buyer.id),
-            ),
-          )
-          .limit(1);
-
-        if (!address) {
-          return err('Shipping address not found or not yours');
-        }
-
         // The transaction returns either a `cached` shape (when a prior
         // writer with the same idempotencyKey already finished) or a
         // `fresh` shape (when this caller did the work). The post-commit
@@ -213,6 +210,26 @@ export async function placeOrder(
             }
           }
 
+          // Verify the shipping address still belongs to the buyer.
+          // Done INSIDE the transaction (and FOR UPDATE-locked) so the
+          // row validated here is exactly the one snapshotted onto the
+          // order below — a concurrent address edit or delete cannot
+          // slip between the ownership check and the snapshot.
+          const [address] = await tx
+            .select()
+            .from(userAddresses)
+            .where(
+              and(
+                eq(userAddresses.id, parsed.data.shippingAddressId),
+                eq(userAddresses.userId, buyer.id),
+              ),
+            )
+            .for('update')
+            .limit(1);
+          if (!address) {
+            throw new OrderBusinessError('Shipping address not found or not yours');
+          }
+
           // 1. Lock the product row, verify availability.
           const [product] = await tx
             .select()
@@ -221,9 +238,13 @@ export async function placeOrder(
             .for('update')
             .limit(1);
 
-          if (!product) throw new Error('Product not found');
-          if (product.status !== 'published') throw new Error('Product is not available');
-          if (product.stockOnHand <= 0) throw new Error('Product is out of stock');
+          if (!product) throw new OrderBusinessError('Product not found');
+          if (product.status !== 'published') {
+            throw new OrderBusinessError('Product is not available');
+          }
+          if (product.stockOnHand <= 0) {
+            throw new OrderBusinessError('Product is out of stock');
+          }
 
           const [artisan] = await tx
             .select()
@@ -237,7 +258,7 @@ export async function placeOrder(
           // when the artisan is suspended/closed. Out of scope here.
 
           if (artisan.userId === buyer.id) {
-            throw new Error('You cannot order your own product');
+            throw new OrderBusinessError('You cannot order your own product');
           }
 
           // 2. Decrement stock; flip status to sold_out at zero so the
@@ -309,6 +330,26 @@ export async function placeOrder(
             },
           });
 
+          // Write the idempotency cache row INSIDE this transaction so
+          // it commits atomically with the order, while the advisory
+          // lock above is still held. A concurrent retry's in-lock
+          // re-check then sees this committed row and returns the
+          // cached result instead of placing a duplicate order.
+          // withIdempotency's post-fn() insert is left as a harmless
+          // no-op by onConflictDoNothing.
+          if (parsed.data.idempotencyKey) {
+            await tx
+              .insert(idempotencyKeys)
+              .values({
+                key: parsed.data.idempotencyKey,
+                userId: buyer.id,
+                scope: 'placeOrder',
+                responseJson: JSON.stringify(ok({ orderId: order.id, reference })),
+                expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+              })
+              .onConflictDoNothing();
+          }
+
           return {
             kind: 'fresh' as const,
             orderId: order.id,
@@ -338,9 +379,16 @@ export async function placeOrder(
 
         return ok({ orderId: result.orderId, reference: result.reference });
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Could not place order';
+        if (e instanceof OrderBusinessError) {
+          // Deterministic, user-facing rejection — safe to surface to
+          // the buyer and safe for withIdempotency to cache.
+          return err(e.message);
+        }
+        // Unexpected failure (DB error, bug). Re-throw so it is NOT
+        // cached against the idempotency key — a later retry runs
+        // fresh instead of seeing a permanently pinned failure.
         log.error({ err: e, productId: parsed.data.productId }, 'placeOrder failed');
-        return err(message);
+        throw e;
       }
     },
   });

@@ -118,21 +118,29 @@ function OrderDialog(props: OrderButtonProps) {
     const idempotencyKey = crypto.randomUUID();
 
     startTransition(async () => {
-      const result = await placeOrder({
-        productId: props.productId,
-        shippingAddressId: addressId,
-        notesFromBuyer: notes.trim() || undefined,
-        idempotencyKey,
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = await placeOrder({
+          productId: props.productId,
+          shippingAddressId: addressId,
+          notesFromBuyer: notes.trim() || undefined,
+          idempotencyKey,
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        // Redirect to the order detail page. router.push is a Next-side
+        // navigation, no full reload — the order list/detail will read
+        // fresh data because we just wrote to it.
+        router.push(`/account/orders/${result.data.orderId}`);
+        setOpen(false);
+      } catch {
+        // placeOrder re-throws unexpected (non-business) failures so a
+        // transient error isn't cached against the idempotency key.
+        // Surface a generic, retryable message — clicking Place order
+        // again generates a fresh key.
+        setError('Something went wrong placing your order. Please try again.');
       }
-      // Redirect to the order detail page. router.push is a Next-side
-      // navigation, no full reload — the order list/detail will read
-      // fresh data because we just wrote to it.
-      router.push(`/account/orders/${result.data.orderId}`);
-      setOpen(false);
     });
   }
 
