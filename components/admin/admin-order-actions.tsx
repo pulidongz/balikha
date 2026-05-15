@@ -14,17 +14,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { adminForceCancel, adminForceComplete, resolveDispute } from '@/lib/actions/orders';
-
-type Status =
-  | 'pending_seller_response'
-  | 'pending_payment_arrangement'
-  | 'payment_received'
-  | 'shipped'
-  | 'completed'
-  | 'cancelled_by_buyer'
-  | 'cancelled_by_seller'
-  | 'auto_cancelled'
-  | 'disputed';
+import type { OrderStatus as Status } from '@/lib/orders/types';
 
 type Resolution = 'resolved_for_buyer' | 'resolved_for_seller' | 'resolved_neutral';
 

@@ -1,20 +1,12 @@
 import Link from 'next/link';
 import { formatPrice } from '@/lib/format';
+import type { OrderStatus } from '@/lib/orders/types';
 import { OrderStatusBadge } from './order-status-badge';
 
 interface Order {
   id: string;
   reference: string;
-  status:
-    | 'pending_seller_response'
-    | 'pending_payment_arrangement'
-    | 'payment_received'
-    | 'shipped'
-    | 'completed'
-    | 'cancelled_by_buyer'
-    | 'cancelled_by_seller'
-    | 'auto_cancelled'
-    | 'disputed';
+  status: OrderStatus;
   productTitleSnapshot: string;
   priceSnapshot: string;
   currency: string;

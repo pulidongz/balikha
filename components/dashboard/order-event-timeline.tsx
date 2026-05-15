@@ -1,20 +1,9 @@
 import { formatRelativeTime } from '@/lib/format';
+import type { OrderEventType } from '@/lib/orders/types';
 
 interface TimelineEvent {
   id: string;
-  type:
-    | 'placed'
-    | 'accepted'
-    | 'declined'
-    | 'payment_received'
-    | 'shipped'
-    | 'completed'
-    | 'cancelled_by_buyer'
-    | 'cancelled_by_seller'
-    | 'auto_cancelled'
-    | 'disputed'
-    | 'dispute_resolved'
-    | 'admin_intervention';
+  type: OrderEventType;
   actorRole: string;
   notes: string | null;
   createdAt: Date;

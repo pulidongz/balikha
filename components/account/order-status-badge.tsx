@@ -1,16 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-
-type OrderStatus =
-  | 'pending_seller_response'
-  | 'pending_payment_arrangement'
-  | 'payment_received'
-  | 'shipped'
-  | 'completed'
-  | 'cancelled_by_buyer'
-  | 'cancelled_by_seller'
-  | 'auto_cancelled'
-  | 'disputed';
+import type { OrderStatus } from '@/lib/orders/types';
 
 const LABEL: Record<OrderStatus, string> = {
   pending_seller_response: 'Awaiting seller',

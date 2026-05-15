@@ -2,20 +2,12 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { formatPrice, formatRelativeTime } from '@/lib/format';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
+import type { OrderStatus } from '@/lib/orders/types';
 
 interface SellerOrderRow {
   id: string;
   reference: string;
-  status:
-    | 'pending_seller_response'
-    | 'pending_payment_arrangement'
-    | 'payment_received'
-    | 'shipped'
-    | 'completed'
-    | 'cancelled_by_buyer'
-    | 'cancelled_by_seller'
-    | 'auto_cancelled'
-    | 'disputed';
+  status: OrderStatus;
   productTitleSnapshot: string;
   priceSnapshot: string;
   currency: string;

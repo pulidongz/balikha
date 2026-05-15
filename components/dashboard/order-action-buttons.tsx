@@ -20,17 +20,7 @@ import {
   markPaymentReceived,
   markShipped,
 } from '@/lib/actions/orders';
-
-type Status =
-  | 'pending_seller_response'
-  | 'pending_payment_arrangement'
-  | 'payment_received'
-  | 'shipped'
-  | 'completed'
-  | 'cancelled_by_buyer'
-  | 'cancelled_by_seller'
-  | 'auto_cancelled'
-  | 'disputed';
+import type { OrderStatus as Status } from '@/lib/orders/types';
 
 // Two flavors of reason picker — declines from pending_seller_response,
 // and cancellations from later in the flow. The set of valid reasons

@@ -13,17 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { fileDispute, respondToDispute } from '@/lib/actions/orders';
-
-type Status =
-  | 'pending_seller_response'
-  | 'pending_payment_arrangement'
-  | 'payment_received'
-  | 'shipped'
-  | 'completed'
-  | 'cancelled_by_buyer'
-  | 'cancelled_by_seller'
-  | 'auto_cancelled'
-  | 'disputed';
+import type { OrderStatus as Status } from '@/lib/orders/types';
 
 // "Report a problem" appears on every non-terminal, non-disputed order
 // for either party. Once an order is `disputed`, the same surface
