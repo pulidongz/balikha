@@ -233,7 +233,7 @@ export default async function AdminOrderDetailPage({
             party on the order. Pass 'seller' arbitrarily; admins should
             read events by their actorRole field rather than the "by you"
             label. Future improvement: a viewerRole: 'admin' variant. */}
-        <OrderEventTimeline events={events} viewerRole="seller" />
+        <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
       </section>
     </div>
   );

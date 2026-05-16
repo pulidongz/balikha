@@ -160,7 +160,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
-        <OrderEventTimeline events={events} viewerRole="buyer" />
+        <OrderEventTimeline events={events} status={order.status} viewerRole="buyer" />
       </section>
 
       <div className="flex items-center justify-between">
