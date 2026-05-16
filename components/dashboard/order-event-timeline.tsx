@@ -1,5 +1,5 @@
 import { formatRelativeTime } from '@/lib/format';
-import type { OrderEventType } from '@/lib/orders/types';
+import type { OrderEventType, OrderStatus } from '@/lib/orders/types';
 
 interface TimelineEvent {
   id: string;
@@ -9,7 +9,7 @@ interface TimelineEvent {
   createdAt: Date;
 }
 
-const LABEL: Record<TimelineEvent['type'], string> = {
+const LABEL: Record<OrderEventType, string> = {
   placed: 'Order placed',
   accepted: 'Order accepted',
   declined: 'Order declined',
@@ -24,9 +24,56 @@ const LABEL: Record<TimelineEvent['type'], string> = {
   admin_intervention: 'Admin intervention',
 };
 
+// The lifecycle's "good" milestones. Any event type NOT in this set is
+// an exception (declined, cancelled, disputed, ...) and its node gets
+// the attention treatment instead of the neutral one.
+const HAPPY_PATH_EVENTS: ReadonlySet<OrderEventType> = new Set([
+  'placed',
+  'accepted',
+  'payment_received',
+  'shipped',
+  'completed',
+]);
+
+// Milestones that can still be AHEAD of the order. `placed` is omitted
+// because an order always has it already. Labels are anticipatory:
+// they read as what the order is waiting on, not as a logged event.
+const UPCOMING_MILESTONES = ['accepted', 'payment_received', 'shipped', 'completed'] as const;
+type UpcomingMilestone = (typeof UPCOMING_MILESTONES)[number];
+
+const UPCOMING_LABEL: Record<UpcomingMilestone, string> = {
+  accepted: 'Awaiting seller response',
+  payment_received: 'Awaiting payment',
+  shipped: 'Awaiting shipment',
+  completed: 'Awaiting delivery',
+};
+
+// How many of UPCOMING_MILESTONES the order has already cleared, given
+// its current status. `null` means the order left the happy path
+// (cancelled / disputed) — no future milestones get projected.
+function clearedMilestones(status: OrderStatus): number | null {
+  switch (status) {
+    case 'pending_seller_response':
+      return 0;
+    case 'pending_payment_arrangement':
+      return 1;
+    case 'payment_received':
+      return 2;
+    case 'shipped':
+      return 3;
+    case 'completed':
+      return 4;
+    case 'cancelled_by_buyer':
+    case 'cancelled_by_seller':
+    case 'auto_cancelled':
+    case 'disputed':
+      return null;
+  }
+}
+
 // "by you" is keyed to the viewer's role so the same timeline reads
-// correctly from both surfaces — a buyer sees "by you" for their own
-// actions; a seller sees "by you" for theirs.
+// correctly from every surface — a buyer sees "by you" for their own
+// actions, a seller sees it for theirs.
 function actorLabel(role: string, viewerRole: 'buyer' | 'seller'): string {
   if (role === viewerRole) return 'by you';
   switch (role) {
@@ -43,36 +90,139 @@ function actorLabel(role: string, viewerRole: 'buyer' | 'seller'): string {
   }
 }
 
+type RailNode =
+  | { kind: 'done' | 'current'; event: TimelineEvent }
+  | { kind: 'upcoming'; milestone: UpcomingMilestone };
+
+// A rail segment is solid only where it joins settled history; any
+// segment touching "now" or the not-yet is dashed.
+const RAIL_SOLID = 'border-border';
+const RAIL_DASHED = 'border-dashed border-muted-foreground/40';
+
+function nodeFillClass(node: RailNode): string {
+  if (node.kind === 'upcoming') {
+    return 'border border-dashed border-muted-foreground/50 bg-card';
+  }
+  const offPath = !HAPPY_PATH_EVENTS.has(node.event.type);
+  if (node.kind === 'current') {
+    return offPath ? 'bg-gold ring-4 ring-gold/15' : 'bg-accent ring-4 ring-accent/15';
+  }
+  return offPath ? 'bg-gold' : 'bg-muted-foreground';
+}
+
+/**
+ * Order activity as a vertical progress rail. Logged events are
+ * connected nodes on a solid rail (history already walked); the latest
+ * event is emphasized as the current state; milestones still ahead
+ * trail off as ghosted nodes on a dashed rail, so the reader sees both
+ * where the order stands and what happens next.
+ *
+ * Shared by the buyer, seller, and admin order pages — `viewerRole`
+ * keys the "by you" copy; `status` drives which milestones are still
+ * upcoming.
+ */
 export function OrderEventTimeline({
   events,
+  status,
   viewerRole,
 }: {
   events: readonly TimelineEvent[];
+  status: OrderStatus;
   viewerRole: 'buyer' | 'seller';
 }) {
-  if (events.length === 0) {
-    return null;
-  }
+  if (events.length === 0) return null;
+
+  // Every logged event is a node; the last one is the order's current
+  // state and gets the emphasized marker.
+  const eventNodes: RailNode[] = events.map((event, i) => ({
+    kind: i === events.length - 1 ? 'current' : 'done',
+    event,
+  }));
+
+  // Project the milestones the order hasn't reached yet — skipped once
+  // the order has left the happy path.
+  const cleared = clearedMilestones(status);
+  const upcomingNodes: RailNode[] =
+    cleared === null
+      ? []
+      : UPCOMING_MILESTONES.slice(cleared).map((milestone) => ({ kind: 'upcoming', milestone }));
+
+  const nodes: RailNode[] = [...eventNodes, ...upcomingNodes];
+
   return (
-    <ol className="space-y-3">
-      {events.map((e) => (
-        <li key={e.id} className="bg-card flex gap-3 rounded-md border p-3">
-          <span
-            className="bg-foreground/10 mt-1 h-2 w-2 shrink-0 rounded-full"
-            aria-hidden="true"
-          />
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <p className="text-sm">
-              <span className="font-medium">{LABEL[e.type]}</span>{' '}
-              <span className="text-muted-foreground">{actorLabel(e.actorRole, viewerRole)}</span>
-            </p>
-            <p className="text-muted-foreground text-xs">{formatRelativeTime(e.createdAt)}</p>
-            {e.notes && (
-              <p className="text-foreground/80 mt-1 text-sm whitespace-pre-line">{e.notes}</p>
-            )}
-          </div>
-        </li>
-      ))}
+    <ol>
+      {nodes.map((node, i) => {
+        const isFirst = i === 0;
+        const isLast = i === nodes.length - 1;
+        // Each rail segment's style is owned by the node above it.
+        const prev = i > 0 ? nodes[i - 1] : undefined;
+        const segmentInto = prev?.kind === 'done' ? RAIL_SOLID : RAIL_DASHED;
+        const segmentOut = node.kind === 'done' ? RAIL_SOLID : RAIL_DASHED;
+        const isFirstUpcoming = node.kind === 'upcoming' && i === eventNodes.length;
+        const actor = node.kind === 'upcoming' ? '' : actorLabel(node.event.actorRole, viewerRole);
+
+        return (
+          <li
+            key={node.kind === 'upcoming' ? node.milestone : node.event.id}
+            className="flex gap-3 pb-6 last:pb-0"
+          >
+            {/* Rail column: two absolute segments meet at the node, so
+                the line is continuous across rows and the node paints
+                cleanly on top of it. */}
+            <div className="relative w-3 shrink-0" aria-hidden="true">
+              {!isFirst && (
+                <span
+                  className={`absolute top-0 left-1/2 h-2.5 w-0 -translate-x-1/2 border-l ${segmentInto}`}
+                />
+              )}
+              {!isLast && (
+                <span
+                  className={`absolute top-2.5 bottom-0 left-1/2 w-0 -translate-x-1/2 border-l ${segmentOut}`}
+                />
+              )}
+              <span
+                className={`relative z-10 mt-1 block size-3 rounded-full ${nodeFillClass(node)}`}
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              {node.kind === 'upcoming' ? (
+                <>
+                  <p className="text-muted-foreground text-sm">{UPCOMING_LABEL[node.milestone]}</p>
+                  {isFirstUpcoming && (
+                    <p className="text-muted-foreground/70 mt-0.5 text-xs tracking-wide uppercase">
+                      Up next
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm">
+                    <span
+                      className={
+                        node.kind === 'current' ? 'text-foreground font-medium' : 'text-foreground'
+                      }
+                    >
+                      {LABEL[node.event.type]}
+                    </span>{' '}
+                    {actor && <span className="text-muted-foreground">{actor}</span>}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    <time dateTime={node.event.createdAt.toISOString()}>
+                      {formatRelativeTime(node.event.createdAt)}
+                    </time>
+                  </p>
+                  {node.event.notes && (
+                    <p className="text-foreground/80 mt-1.5 text-sm whitespace-pre-line">
+                      {node.event.notes}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </li>
+        );
+      })}
     </ol>
   );
 }

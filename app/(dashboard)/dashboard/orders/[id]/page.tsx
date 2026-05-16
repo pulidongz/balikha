@@ -158,7 +158,7 @@ export default async function SellerOrderDetailPage({
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
-        <OrderEventTimeline events={events} viewerRole="seller" />
+        <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
       </section>
 
       {/* Either party can file a dispute on a non-terminal order. The
