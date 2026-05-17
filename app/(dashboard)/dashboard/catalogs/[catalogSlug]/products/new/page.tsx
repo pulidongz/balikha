@@ -13,10 +13,16 @@ export const metadata = {
 
 export default async function NewProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ catalogSlug: string }>;
+  searchParams: Promise<{ onboarding?: string }>;
 }) {
   const { catalogSlug } = await params;
+  const { onboarding } = await searchParams;
+  // Ephemeral marker set by the become-seller flow. Not persisted — the intro
+  // is a one-time "your shop is live" moment, not a recurring banner.
+  const isOnboarding = onboarding === '1';
   const profile = await requireSellerProfile();
 
   const [catalog] = await db
@@ -29,14 +35,26 @@ export default async function NewProductPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-6 py-12">
-      <header>
-        <p className="text-muted-foreground text-sm">
-          <Link href={`/dashboard/catalogs/${catalog.slug}`} className="hover:underline">
-            ← {catalog.title}
-          </Link>
-        </p>
-        <h1 className="mt-2 font-serif text-2xl tracking-tight">New product</h1>
-      </header>
+      {isOnboarding ? (
+        <header className="space-y-2">
+          <h1 className="font-serif text-2xl tracking-tight">{profile.shopName} is live</h1>
+          <p className="text-muted-foreground text-sm">
+            Add your first piece below — you can do this anytime from your dashboard.{' '}
+            <Link href="/dashboard" className="text-foreground hover:underline">
+              Skip for now → your dashboard
+            </Link>
+          </p>
+        </header>
+      ) : (
+        <header>
+          <p className="text-muted-foreground text-sm">
+            <Link href={`/dashboard/catalogs/${catalog.slug}`} className="hover:underline">
+              ← {catalog.title}
+            </Link>
+          </p>
+          <h1 className="mt-2 font-serif text-2xl tracking-tight">New product</h1>
+        </header>
+      )}
 
       <Card>
         <CardHeader>
