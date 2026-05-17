@@ -63,6 +63,24 @@ export default async function SearchPage({
 
   const totalHits = results.totalProductCount + results.artisans.length + results.catalogs.length;
 
+  // Build the "next page" URL: keep every current search param and swap
+  // in the new cursor, so pagination lives in the URL and the browser
+  // Back button returns the buyer to the page they were on.
+  let nextHref: string | null = null;
+  if (results.products.nextCursor) {
+    const nextParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(raw)) {
+      if (key === 'cursor' || value === undefined) continue;
+      if (Array.isArray(value)) {
+        for (const v of value) nextParams.append(key, v);
+      } else {
+        nextParams.set(key, value);
+      }
+    }
+    nextParams.set('cursor', results.products.nextCursor);
+    nextHref = `/search?${nextParams.toString()}`;
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
       <header className="mb-8">
@@ -97,10 +115,8 @@ export default async function SearchPage({
               />
               <ActiveFilterChips query={parsed.q} currentFilters={filters} />
               <ProductSearchGrid
-                initialProducts={results.products.items}
-                initialNextCursor={results.products.nextCursor}
-                query={parsed.q}
-                filters={filters}
+                products={results.products.items}
+                nextHref={nextHref}
                 wishlistedProductIds={Array.from(wishlistedIds)}
                 isSignedIn={user !== null}
               />

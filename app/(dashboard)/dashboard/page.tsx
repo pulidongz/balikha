@@ -182,9 +182,7 @@ export default async function DashboardPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{p.title}</p>
-                      <p className="text-muted-foreground text-xs">
-                        Stock {p.stockOnHand} · /{p.catalogSlug}/{p.slug}
-                      </p>
+                      <p className="text-muted-foreground text-xs">{p.stockOnHand} in stock</p>
                     </div>
                     <div className="hidden text-right sm:block">
                       <PriceTag price={p.price} currency={p.currency} size="sm" />

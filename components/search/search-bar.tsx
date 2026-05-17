@@ -33,7 +33,7 @@ export function SearchBar({ className }: { className?: string }) {
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Search artworks, artisans..."
+          placeholder="Search pieces, artisans..."
           aria-label="Search the marketplace"
           className="h-10 pl-9"
         />

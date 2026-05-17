@@ -22,17 +22,19 @@ const RESOLUTION_OPTIONS: readonly { value: Resolution; label: string; descripti
   {
     value: 'resolved_for_buyer',
     label: 'For buyer',
-    description: 'Order moves to cancelled. Stock returns iff pre-shipment.',
+    description:
+      'The order is cancelled. If it had not shipped yet, the stock returns to the catalog.',
   },
   {
     value: 'resolved_for_seller',
     label: 'For seller',
-    description: 'Order moves to completed. Stock does NOT return.',
+    description: 'The order is marked completed. The stock stays spent, counted as a normal sale.',
   },
   {
     value: 'resolved_neutral',
     label: 'Neutral (no clear fault)',
-    description: 'Pre-shipment → cancelled (stock returns). Shipped → completed.',
+    description:
+      'If the order had shipped, it is marked completed. If not, it is cancelled and the stock returns.',
   },
 ];
 

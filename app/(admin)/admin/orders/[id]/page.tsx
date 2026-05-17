@@ -242,12 +242,10 @@ export default async function AdminOrderDetailPage({
         <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
           Timeline
         </h2>
-        {/* Admin viewer — "by you" doesn't apply since admin isn't a
-            party on the order. Pass 'seller' arbitrarily; admins should
-            read events by their actorRole field rather than the "by you"
-            label. Future improvement: a viewerRole: 'admin' variant. */}
+        {/* Admin viewer: not a party to the order, so the timeline never
+            labels an action "by you" — events read by their actor role. */}
         <div className="mt-3">
-          <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
+          <OrderEventTimeline events={events} status={order.status} viewerRole="admin" />
         </div>
       </section>
     </div>

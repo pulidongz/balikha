@@ -86,8 +86,10 @@ function clearedMilestones(status: OrderStatus): number | null {
 // "by you" is keyed to the viewer's role so the same timeline reads
 // correctly from every surface — a buyer sees "by you" for their own
 // actions, a seller sees it for theirs.
-function actorLabel(role: string, viewerRole: 'buyer' | 'seller'): string {
-  if (role === viewerRole) return 'by you';
+function actorLabel(role: string, viewerRole: 'buyer' | 'seller' | 'admin'): string {
+  // The viewer sees their own party's actions as "by you". An admin is
+  // not a party to the order, so nothing reads as "by you" for them.
+  if (viewerRole !== 'admin' && role === viewerRole) return 'by you';
   switch (role) {
     case 'buyer':
       return 'by buyer';
@@ -149,7 +151,7 @@ export function OrderEventTimeline({
 }: {
   events: readonly TimelineEvent[];
   status: OrderStatus;
-  viewerRole: 'buyer' | 'seller';
+  viewerRole: 'buyer' | 'seller' | 'admin';
 }) {
   if (events.length === 0) return null;
 
