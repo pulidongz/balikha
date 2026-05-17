@@ -26,6 +26,17 @@ interface AddressOption {
   province: string;
 }
 
+// Seller track record, pre-formatted on the server. The product page
+// builds these strings (it can read the reputation/db module); passing
+// them ready-made keeps this client component from pulling the
+// server-only reputation query into the client bundle. Same reasoning
+// as the responseTimeLabel prop on ProductCard.
+export interface SellerTrust {
+  hasHistory: boolean;
+  responseLine: string | null;
+  fulfillmentLine: string | null;
+}
+
 interface OrderButtonProps {
   productId: string;
   productTitle: string;
@@ -36,6 +47,7 @@ interface OrderButtonProps {
   state: 'in_stock' | 'sold_out' | 'own_product' | 'signed_out';
   addresses: AddressOption[];
   defaultAddressId: string | null;
+  sellerTrust: SellerTrust;
   signInRedirect?: string;
 }
 
@@ -73,6 +85,63 @@ function DisabledStateButton({ label, title }: { label: string; title: string })
     >
       {label}
     </button>
+  );
+}
+
+// The four-step explainer, drawn as a quiet numbered rail. It echoes the
+// OrderEventTimeline the buyer will track on their order page after
+// ordering, so the dialog previews the very thing it sets in motion.
+function OrderSteps({ shopName }: { shopName: string }) {
+  const steps = [
+    `You place this order. Nothing is charged; it goes to ${shopName} as a request.`,
+    `${shopName} reviews it, then accepts or declines.`,
+    `You and ${shopName} arrange payment together, directly.`,
+    `${shopName} ships your piece.`,
+  ];
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-medium">How ordering works</h3>
+      <ol>
+        {steps.map((step, i) => {
+          const isLast = i === steps.length - 1;
+          return (
+            <li key={i} className="flex gap-3">
+              <div className="flex flex-col items-center" aria-hidden="true">
+                <span className="border-border text-foreground flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums">
+                  {i + 1}
+                </span>
+                {!isLast && <span className="border-border w-0 flex-1 border-l" />}
+              </div>
+              <p className={`text-muted-foreground text-sm ${isLast ? '' : 'pb-4'}`}>{step}</p>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+// The seller's recent track record, or an honest note for a new seller.
+// Never shows zeroed-out stats: a maker with no order history reads as
+// "early days," not "0% fulfilled".
+function SellerTrustBlock({ trust, shopName }: { trust: SellerTrust; shopName: string }) {
+  return (
+    <section className="space-y-1.5">
+      <h3 className="text-sm font-medium">This seller</h3>
+      {trust.hasHistory ? (
+        <div className="text-muted-foreground space-y-1 text-sm">
+          {trust.responseLine && <p>{trust.responseLine}</p>}
+          {trust.fulfillmentLine && <p>{trust.fulfillmentLine}</p>}
+          {!trust.responseLine && !trust.fulfillmentLine && (
+            <p>{shopName} has handled recent orders on Balikha.</p>
+          )}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          New to Balikha. You would be one of {shopName}&rsquo;s first orders.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -137,9 +206,9 @@ function OrderDialog(props: OrderButtonProps) {
       } catch {
         // placeOrder re-throws unexpected (non-business) failures so a
         // transient error isn't cached against the idempotency key.
-        // Surface a generic, retryable message — clicking Place order
-        // again generates a fresh key.
-        setError('Something went wrong placing your order. Please try again.');
+        // Surface a retryable message — clicking Place order again
+        // generates a fresh key.
+        setError('We could not place your order just now. Please try again in a moment.');
       }
     });
   }
@@ -153,16 +222,31 @@ function OrderDialog(props: OrderButtonProps) {
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100svh-2rem)] flex-col sm:max-w-md">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Order this piece</DialogTitle>
             <DialogDescription>
               {props.productTitle} from {props.shopName} · {props.formattedPrice}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-4">
+          {/* Body scrolls; header and footer stay put so Place order is
+              always reachable on a small screen. */}
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-4">
+            <OrderSteps shopName={props.shopName} />
+
+            <SellerTrustBlock trust={props.sellerTrust} shopName={props.shopName} />
+
+            <div className="bg-secondary/50 rounded-md p-3 text-sm">
+              <p className="text-foreground font-medium">You are not locked in</p>
+              <p className="text-muted-foreground mt-1">
+                Nothing happens until {props.shopName} accepts. If you cannot agree on payment, they
+                decline and you are back where you started. If an accepted order goes wrong, you can
+                open a dispute and Balikha support reviews it.
+              </p>
+            </div>
+
             {noAddresses ? (
               <div className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
                 You need a shipping address before you can order.{' '}
@@ -214,7 +298,7 @@ function OrderDialog(props: OrderButtonProps) {
                 id="notes-from-buyer"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything the seller should know — special handling, delivery preference, etc."
+                placeholder="Anything the seller should know: special handling, a delivery preference, a question."
                 maxLength={2000}
                 rows={3}
               />
@@ -225,13 +309,9 @@ function OrderDialog(props: OrderButtonProps) {
                 type="checkbox"
                 checked={understood}
                 onChange={(e) => setUnderstood(e.target.checked)}
-                className="mt-0.5"
+                className="mt-0.5 size-4 shrink-0"
               />
-              <span>
-                I understand I&rsquo;ll arrange payment with the seller directly. Balikha
-                doesn&rsquo;t hold payment, and the seller may decline if payment can&rsquo;t be
-                worked out.
-              </span>
+              <span>I understand I&rsquo;ll arrange payment with {props.shopName} directly.</span>
             </label>
 
             {error && (
@@ -241,7 +321,7 @@ function OrderDialog(props: OrderButtonProps) {
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               type="button"
               variant="outline"

@@ -15,6 +15,7 @@ import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
 
 // Previously cached for 5 min — now per-user because of wishlist hearts.
@@ -160,6 +161,23 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
   const defaultAddressId =
     orderAddresses.find((a) => a.isDefaultShipping)?.id ?? orderAddresses[0]?.id ?? null;
 
+  // Seller track record, surfaced in the order dialog as a trust signal
+  // (Balikha has no escrow). Strings are formatted here so OrderButton,
+  // a client component, never imports the server-only reputation module.
+  const reputation = await getSellerReputationCached(artisan.id);
+  const sellerTrust = {
+    hasHistory: reputation.totalOrdersInWindow > 0,
+    responseLine: reputation.responseTimeBucket
+      ? reputation.responseRate < 1
+        ? `Responds to ${Math.round(reputation.responseRate * 100)}% of orders, usually within ${bucketLabel(reputation.responseTimeBucket)}`
+        : `Usually responds within ${bucketLabel(reputation.responseTimeBucket)}`
+      : null,
+    fulfillmentLine:
+      reputation.fulfillmentRate !== null
+        ? `${Math.round(reputation.fulfillmentRate * 100)}% of accepted orders fulfilled`
+        : null,
+  };
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -268,11 +286,6 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
                 Sold out
               </Badge>
             )}
-            {inStock && product.stockOnHand <= 3 && (
-              <Badge className="text-foreground border-transparent bg-[var(--gold)] tracking-wide uppercase">
-                Only {product.stockOnHand} left
-              </Badge>
-            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -301,6 +314,7 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
                 province: a.province,
               }))}
               defaultAddressId={defaultAddressId}
+              sellerTrust={sellerTrust}
               signInRedirect={`/shop/${artisan.shopSlug}/${product.slug}`}
             />
             <WishlistToggle
@@ -319,6 +333,12 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
           )}
 
           <dl className="space-y-3 border-t pt-6 text-sm">
+            {inStock && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Availability</dt>
+                <dd className="text-right">{product.stockOnHand} available</dd>
+              </div>
+            )}
             {product.materials && product.materials.length > 0 && (
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Materials</dt>
