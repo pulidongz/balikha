@@ -149,14 +149,11 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
         )}
       </section>
 
-      {/* Artisan info row.
-          The negative top-margin overlaps the banner so the avatar
-          appears to float over its bottom edge. On md+ we keep the
-          overlap modest (-mt-10 ≈ 40px) — large banners on wide
-          displays were leaving the shop name visually crowded against
-          the banner; the smaller overlap gives the name breathing room
-          while still letting the avatar protrude. */}
-      <section className="mx-auto -mt-12 max-w-5xl px-4 sm:px-6 md:-mt-10">
+      {/* Artisan identity row: avatar, shop name, reputation, follow.
+          It sits below the banner. The storefront is card-free, so there
+          is no opaque panel to carry an overlap, and bare text over the
+          banner image would be unreadable. */}
+      <section className="mx-auto mt-6 max-w-5xl px-4 sm:px-6 md:mt-8">
         <div className="flex flex-col items-center gap-4 text-center md:flex-row md:items-end md:gap-6 md:text-left">
           <Avatar className="border-background ring-border h-24 w-24 border-4 ring-1">
             <AvatarImage src={profile.bannerImageUrl ?? undefined} alt={profile.shopName} />
