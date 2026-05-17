@@ -44,6 +44,16 @@ export function FirstTimeBuyerWelcome({ name }: { name: string }) {
           </li>
         </ul>
       </div>
+
+      <p className="text-muted-foreground text-sm">
+        Make work of your own?{' '}
+        <Link
+          href="/dashboard/become-seller"
+          className="text-foreground font-medium underline-offset-4 hover:underline"
+        >
+          Open a shop on Balikha
+        </Link>
+      </p>
     </div>
   );
 }
