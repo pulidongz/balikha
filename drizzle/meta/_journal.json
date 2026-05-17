@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1777653279190,
-      "tag": "0000_illegal_steve_rogers",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1777713908607,
-      "tag": "0001_goofy_groot",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1777736956561,
-      "tag": "0002_sweet_iceman",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1777799729673,
-      "tag": "0003_stale_garia",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1777805526255,
-      "tag": "0004_sharp_nick_fury",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1777807333468,
-      "tag": "0005_superb_supreme_intelligence",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1777808294260,
-      "tag": "0006_flippant_trish_tilby",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1777844278992,
-      "tag": "0007_mushy_leper_queen",
+      "when": 1778997314619,
+      "tag": "0000_clever_christian_walker",
       "breakpoints": true
     }
   ]

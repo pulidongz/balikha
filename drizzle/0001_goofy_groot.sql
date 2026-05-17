@@ -1,1 +1,0 @@
-ALTER TABLE "product_images" ADD COLUMN "storage_key" text;
