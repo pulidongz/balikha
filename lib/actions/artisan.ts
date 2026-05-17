@@ -3,7 +3,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, catalogs } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
@@ -28,7 +28,7 @@ async function bestEffortUnlinkLocalUpload(url: string | null) {
 
 export async function becomeArtisanAction(
   formData: FormData,
-): Promise<Result<{ shopSlug: string }>> {
+): Promise<Result<{ shopSlug: string; firstCatalogSlug: string | null }>> {
   const log = await getRequestLogger();
   const user = await getCurrentUser();
   if (!user) return err('You must be signed in.');
@@ -52,13 +52,22 @@ export async function becomeArtisanAction(
       // (covers double-clicks across page reloads where idempotencyKey
       // changed but the desired end-state was already achieved).
       const [existing] = await db
-        .select({ shopSlug: artisanProfiles.shopSlug })
+        .select({ id: artisanProfiles.id, shopSlug: artisanProfiles.shopSlug })
         .from(artisanProfiles)
         .where(eq(artisanProfiles.userId, user.id))
         .limit(1);
       if (existing) {
+        // A returning seller can have zero catalogs (catalogs are deletable);
+        // null explicitly represents that case so the caller can route to
+        // catalog management instead of a product form.
+        const [firstCatalog] = await db
+          .select({ slug: catalogs.slug })
+          .from(catalogs)
+          .where(eq(catalogs.artisanProfileId, existing.id))
+          .orderBy(asc(catalogs.createdAt))
+          .limit(1);
         revalidatePath('/dashboard');
-        return ok({ shopSlug: existing.shopSlug });
+        return ok({ shopSlug: existing.shopSlug, firstCatalogSlug: firstCatalog?.slug ?? null });
       }
 
       // Resolve a unique shop slug — globally unique, probes per candidate.
@@ -71,24 +80,29 @@ export async function becomeArtisanAction(
         return Boolean(row);
       });
 
-      await db.transaction(async (tx) => {
+      const firstCatalogSlug = await db.transaction(async (tx) => {
         const [profile] = await tx
           .insert(artisanProfiles)
           .values({ userId: user.id, shopName, shopSlug })
           .returning();
         if (!profile) throw new Error('Failed to create artisan profile.');
 
-        await tx.insert(catalogs).values({
-          artisanProfileId: profile.id,
-          slug: 'shop',
-          title: 'Shop',
-          status: 'draft',
-        });
+        const [catalog] = await tx
+          .insert(catalogs)
+          .values({
+            artisanProfileId: profile.id,
+            slug: 'shop',
+            title: 'Shop',
+            status: 'draft',
+          })
+          .returning({ slug: catalogs.slug });
+        if (!catalog) throw new Error('Failed to create default catalog.');
+        return catalog.slug;
       });
 
       log.info({ userId: user.id, shopSlug }, 'Artisan profile created');
       revalidatePath('/dashboard');
-      return ok({ shopSlug });
+      return ok({ shopSlug, firstCatalogSlug });
     },
   });
 }
