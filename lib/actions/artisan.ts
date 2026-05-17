@@ -59,7 +59,7 @@ export async function becomeArtisanAction(
       if (existing) {
         // A returning seller can have zero catalogs (catalogs are deletable);
         // null explicitly represents that case so the caller can route to
-        // catalog management instead of a product form.
+        // the dashboard instead of a product form.
         const [firstCatalog] = await db
           .select({ slug: catalogs.slug })
           .from(catalogs)
