@@ -1,0 +1,366 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-16T12:00:00Z",
+  "title": "Design System: Balikha",
+  "extensions": {
+    "colorMeta": {
+      "sampaguita-cream": {
+        "role": "neutral",
+        "displayName": "Sampaguita Cream",
+        "canonical": "hsl(46 53% 98%)",
+        "tonalRamp": [
+          "oklch(0.25 0.012 90)",
+          "oklch(0.40 0.016 90)",
+          "oklch(0.55 0.018 90)",
+          "oklch(0.68 0.018 90)",
+          "oklch(0.80 0.016 90)",
+          "oklch(0.88 0.014 90)",
+          "oklch(0.94 0.012 90)",
+          "oklch(0.99 0.008 90)"
+        ]
+      },
+      "deep-sea-navy": {
+        "role": "primary",
+        "displayName": "Deep Sea Navy",
+        "canonical": "hsl(210 38% 16%)",
+        "tonalRamp": [
+          "oklch(0.18 0.03 250)",
+          "oklch(0.30 0.045 250)",
+          "oklch(0.42 0.05 250)",
+          "oklch(0.54 0.05 250)",
+          "oklch(0.66 0.045 250)",
+          "oklch(0.78 0.035 250)",
+          "oklch(0.88 0.02 250)",
+          "oklch(0.96 0.01 250)"
+        ]
+      },
+      "shell-white": {
+        "role": "neutral",
+        "displayName": "Shell White",
+        "canonical": "hsl(0 0% 100%)",
+        "tonalRamp": [
+          "oklch(0.20 0 0)",
+          "oklch(0.34 0 0)",
+          "oklch(0.48 0 0)",
+          "oklch(0.62 0 0)",
+          "oklch(0.74 0 0)",
+          "oklch(0.85 0 0)",
+          "oklch(0.93 0 0)",
+          "oklch(1.00 0 0)"
+        ]
+      },
+      "oat": {
+        "role": "neutral",
+        "displayName": "Oat",
+        "canonical": "hsl(43 33% 90%)",
+        "tonalRamp": [
+          "oklch(0.26 0.014 85)",
+          "oklch(0.40 0.018 85)",
+          "oklch(0.54 0.02 85)",
+          "oklch(0.66 0.02 85)",
+          "oklch(0.78 0.02 85)",
+          "oklch(0.86 0.018 85)",
+          "oklch(0.92 0.016 85)",
+          "oklch(0.96 0.012 85)"
+        ]
+      },
+      "driftwood": {
+        "role": "neutral",
+        "displayName": "Driftwood",
+        "canonical": "hsl(210 15% 38%)",
+        "tonalRamp": [
+          "oklch(0.20 0.012 245)",
+          "oklch(0.30 0.018 245)",
+          "oklch(0.40 0.022 245)",
+          "oklch(0.50 0.022 245)",
+          "oklch(0.60 0.02 245)",
+          "oklch(0.72 0.016 245)",
+          "oklch(0.84 0.012 245)",
+          "oklch(0.94 0.008 245)"
+        ]
+      },
+      "philippine-vermilion": {
+        "role": "secondary",
+        "displayName": "Philippine Vermilion",
+        "canonical": "hsl(2 56% 51%)",
+        "tonalRamp": [
+          "oklch(0.25 0.08 28)",
+          "oklch(0.36 0.12 28)",
+          "oklch(0.46 0.16 28)",
+          "oklch(0.55 0.17 28)",
+          "oklch(0.64 0.16 28)",
+          "oklch(0.74 0.13 28)",
+          "oklch(0.85 0.08 28)",
+          "oklch(0.94 0.04 28)"
+        ]
+      },
+      "deep-ember": {
+        "role": "functional",
+        "displayName": "Deep Ember",
+        "canonical": "hsl(0 70% 35%)",
+        "tonalRamp": [
+          "oklch(0.22 0.09 28)",
+          "oklch(0.32 0.13 28)",
+          "oklch(0.42 0.15 28)",
+          "oklch(0.50 0.15 28)",
+          "oklch(0.60 0.14 28)",
+          "oklch(0.71 0.11 28)",
+          "oklch(0.83 0.07 28)",
+          "oklch(0.93 0.035 28)"
+        ]
+      },
+      "forest": {
+        "role": "functional",
+        "displayName": "Forest",
+        "canonical": "hsl(151 40% 30%)",
+        "tonalRamp": [
+          "oklch(0.22 0.05 155)",
+          "oklch(0.32 0.07 155)",
+          "oklch(0.42 0.09 155)",
+          "oklch(0.52 0.095 155)",
+          "oklch(0.63 0.09 155)",
+          "oklch(0.74 0.07 155)",
+          "oklch(0.85 0.045 155)",
+          "oklch(0.94 0.025 155)"
+        ]
+      },
+      "burnt-amber": {
+        "role": "functional",
+        "displayName": "Burnt Amber",
+        "canonical": "hsl(36 76% 39%)",
+        "tonalRamp": [
+          "oklch(0.25 0.06 70)",
+          "oklch(0.36 0.09 70)",
+          "oklch(0.47 0.11 70)",
+          "oklch(0.57 0.12 70)",
+          "oklch(0.67 0.115 70)",
+          "oklch(0.78 0.09 70)",
+          "oklch(0.88 0.06 70)",
+          "oklch(0.95 0.03 70)"
+        ]
+      },
+      "heirloom-gold": {
+        "role": "tertiary",
+        "displayName": "Heirloom Gold",
+        "canonical": "hsl(40 79% 59%)",
+        "tonalRamp": [
+          "oklch(0.30 0.07 80)",
+          "oklch(0.42 0.10 80)",
+          "oklch(0.54 0.12 80)",
+          "oklch(0.64 0.13 80)",
+          "oklch(0.74 0.13 80)",
+          "oklch(0.83 0.11 80)",
+          "oklch(0.90 0.07 80)",
+          "oklch(0.96 0.035 80)"
+        ]
+      },
+      "shoreline-sand": {
+        "role": "neutral",
+        "displayName": "Shoreline Sand",
+        "canonical": "hsl(40 30% 86%)",
+        "tonalRamp": [
+          "oklch(0.28 0.014 80)",
+          "oklch(0.42 0.018 80)",
+          "oklch(0.56 0.022 80)",
+          "oklch(0.68 0.022 80)",
+          "oklch(0.79 0.02 80)",
+          "oklch(0.87 0.018 80)",
+          "oklch(0.92 0.016 80)",
+          "oklch(0.97 0.01 80)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Fraunces. Hero copy on home and storefront pages only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Fraunces. Section titles such as Featured artisans and Recent listings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Fraunces. Product titles on detail pages and artisan names on storefront cards."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Geist. All running copy, capped at 65 to 75 characters per line."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Geist. Buttons, inputs, navigation, and form labels. Steps down to 12px for badges and captions."
+      }
+    },
+    "shadows": [
+      {
+        "name": "hairline-ring",
+        "value": "0 0 0 1px rgba(26, 43, 58, 0.10)",
+        "purpose": "The only elevation cue in the system. Delineates raised app surfaces (cards, dialogs). It is a ring, not a drop shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-quart-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Exponential ease-out for the product image hover scale."
+      },
+      {
+        "name": "duration-state",
+        "value": "150ms",
+        "purpose": "Default transition for button and input state changes."
+      },
+      {
+        "name": "duration-image",
+        "value": "500ms",
+        "purpose": "Product photo scaling to 103% on card hover."
+      },
+      {
+        "name": "duration-overlay",
+        "value": "100ms",
+        "purpose": "Dialog fade and zoom on open and close."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The default action. Deep Sea Navy fill; carries every primary CTA on the storefront.",
+      "html": "<button class='ds-btn-primary'>Browse the catalog</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; gap: 6px; border: 1px solid transparent; border-radius: 8px; background: #1A2B3A; color: #FDFCF7; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 1; cursor: pointer; transition: background 0.15s ease, transform 0.1s ease; } .ds-btn-primary:hover { background: rgba(26, 43, 58, 0.8); } .ds-btn-primary:focus-visible { outline: none; border-color: #1A2B3A; box-shadow: 0 0 0 3px rgba(26, 43, 58, 0.5); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quieter action. Oat fill, navy text; pairs beside a primary button.",
+      "html": "<button class='ds-btn-secondary'>Meet the makers</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; gap: 6px; border: 1px solid transparent; border-radius: 8px; background: #EEE9DD; color: #1A2B3A; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 1; cursor: pointer; transition: background 0.15s ease, transform 0.1s ease; } .ds-btn-secondary:hover { background: #E4DECF; } .ds-btn-secondary:focus-visible { outline: none; border-color: #1A2B3A; box-shadow: 0 0 0 3px rgba(26, 43, 58, 0.5); } .ds-btn-secondary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "The lightest action. Cream fill with a Shoreline Sand border; used for tertiary navigation like pagination.",
+      "html": "<button class='ds-btn-outline'>View shop</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; gap: 6px; border: 1px solid #E6DFD1; border-radius: 8px; background: #FDFCF7; color: #1A2B3A; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 1; cursor: pointer; transition: background 0.15s ease, transform 0.1s ease; } .ds-btn-outline:hover { background: #EEE9DD; } .ds-btn-outline:focus-visible { outline: none; border-color: #1A2B3A; box-shadow: 0 0 0 3px rgba(26, 43, 58, 0.5); } .ds-btn-outline:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Single-line field. Transparent fill, 1px Shoreline Sand stroke, navy focus ring.",
+      "html": "<input class='ds-input' type='text' placeholder='Search handmade work' />",
+      "css": ".ds-input { display: block; width: 220px; height: 32px; padding: 4px 10px; border: 1px solid #E6DFD1; border-radius: 8px; background: transparent; color: #1A2B3A; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; line-height: 1.4; transition: border-color 0.15s ease, box-shadow 0.15s ease; } .ds-input::placeholder { color: #52616F; } .ds-input:focus-visible { outline: none; border-color: #1A2B3A; box-shadow: 0 0 0 3px rgba(26, 43, 58, 0.5); }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "Pill-shaped status mark. Navy fill; labels order state. One per card at most.",
+      "html": "<span class='ds-badge'>Shipped</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; height: 20px; padding: 2px 8px; border-radius: 9999px; background: #1A2B3A; color: #FDFCF7; font-family: 'Geist', system-ui, sans-serif; font-size: 12px; font-weight: 500; line-height: 1; }"
+    },
+    {
+      "name": "Limited Badge",
+      "kind": "chip",
+      "refersTo": "badge-limited",
+      "description": "The rare Heirloom Gold badge. Reserved for genuinely limited drops; never routine.",
+      "html": "<span class='ds-badge-limited'>Limited</span>",
+      "css": ".ds-badge-limited { display: inline-flex; align-items: center; height: 20px; padding: 2px 8px; border-radius: 9999px; background: #E9B244; color: #1A2B3A; font-family: 'Geist', system-ui, sans-serif; font-size: 12px; font-weight: 500; line-height: 1; }"
+    },
+    {
+      "name": "Product Card",
+      "kind": "custom",
+      "description": "The signature storefront component. Deliberately not a Card: a bare stack of photo, title, artisan, and price. The photo carries it. Image scales to 103% and the title shifts to vermilion on hover.",
+      "html": "<a class='ds-product-card' href='#'><div class='ds-product-card__image'><svg viewBox='0 0 96 96' width='56' height='56' aria-hidden='true'><path d='M34 22c0 5 2 8 5 11-9 5-15 15-15 27 0 13 11 22 24 22s24-9 24-22c0-12-6-22-15-27 3-3 5-6 5-11z' fill='#1A2B3A' opacity='0.16'/></svg></div><div class='ds-product-card__body'><h3 class='ds-product-card__title'>Stoneware pour-over carafe</h3><p class='ds-product-card__artisan'>Maria Ceramics</p><span class='ds-product-card__price'>₱1,250.00</span></div></a>",
+      "css": ".ds-product-card { display: flex; flex-direction: column; gap: 12px; width: 220px; text-decoration: none; } .ds-product-card__image { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; border-radius: 8px; background: #EEE9DD; overflow: hidden; } .ds-product-card__image svg { transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1); } .ds-product-card:hover .ds-product-card__image svg { transform: scale(1.03); } .ds-product-card__body { display: flex; flex-direction: column; gap: 4px; } .ds-product-card__title { margin: 0; font-family: 'Geist', system-ui, sans-serif; font-size: 16px; font-weight: 400; line-height: 1.4; color: #1A2B3A; transition: color 0.15s ease; } .ds-product-card:hover .ds-product-card__title { color: #C8413C; } .ds-product-card__artisan { margin: 0; font-family: 'Geist', system-ui, sans-serif; font-size: 12px; color: #52616F; } .ds-product-card__price { font-family: 'Geist', system-ui, sans-serif; font-size: 14px; font-weight: 500; color: #C8413C; }"
+    },
+    {
+      "name": "Price Tag",
+      "kind": "custom",
+      "description": "Price display. Vermilion, weight 500, with any compare-at value struck through in Driftwood.",
+      "html": "<span class='ds-price-tag'>₱1,250.00<s class='ds-price-tag__compare'>₱1,600.00</s></span>",
+      "css": ".ds-price-tag { font-family: 'Geist', system-ui, sans-serif; font-size: 14px; font-weight: 500; color: #C8413C; } .ds-price-tag__compare { margin-left: 6px; font-weight: 400; color: #52616F; }"
+    },
+    {
+      "name": "App Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Dashboard and account surface. Shell White on a hairline navy ring, no drop shadow. Cards belong to the app, not the storefront.",
+      "html": "<div class='ds-card'><h3 class='ds-card__title'>Shop settings</h3><p class='ds-card__desc'>Update your storefront name, location, and banner.</p></div>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 8px; width: 240px; padding: 16px; border-radius: 11px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(26, 43, 58, 0.1); } .ds-card__title { margin: 0; font-family: 'Geist', system-ui, sans-serif; font-size: 16px; font-weight: 500; line-height: 1.3; color: #1A2B3A; } .ds-card__desc { margin: 0; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; line-height: 1.5; color: #52616F; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Maker's Table",
+    "overview": "Balikha lays each artisan's work out as if on a craftsperson's workbench: warm, grounded, and close enough that you can almost see the hands behind it. The system is warm-toned and unhurried. It frames handmade objects the way a gallery frames an artist's work, but it never goes cold or white-cube about it. Paper warmth, not screen glare. The surface recedes so the craft can lead. Photography is the hero of every storefront screen; chrome is hairline-thin; type does its work through scale and through one well-earned switch into a serif, not through heavy weights or loud color. Color is restrained: a warm cream field, a deep navy that carries every action, and a single Philippine vermilion that appears only as a highlight. Motion is small and physical. This system explicitly rejects the marketplaces it is built against: it is not a big-box marketplace, not an Etsy-style craft feed, and not a loud DTC startup. Editorial, not retail: the product should feel browsed, not pushed.",
+    "keyCharacteristics": [
+      "Warm and tactile. Cream field, soft 8px to 11px radii, a 1px press nudge.",
+      "Photo-forward. Storefront product imagery sits in bare containers, no card chrome competing with it.",
+      "Restrained color. Navy carries every action; vermilion is a highlight only; gold is rare.",
+      "Two fonts, used with intent. Geist for the interface, Fraunces for editorial moments.",
+      "Flat by default. Depth comes from a hairline ring, never a drop shadow.",
+      "Mobile-first. Every layout works at 375px, with 64px to 112px of vertical section rhythm."
+    ],
+    "rules": [
+      {
+        "name": "The Navy-Carries-the-Click Rule",
+        "body": "Every button and primary CTA is Deep Sea Navy. Vermilion never fills a button. The one exception is Deep Ember on a true destructive action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Vermilion-Is-a-Highlight Rule",
+        "body": "Philippine Vermilion marks prices, links, and Sale or Limited badges. It is always type or a small mark, never a surface. If vermilion is filling a large area, it is being misused.",
+        "section": "colors"
+      },
+      {
+        "name": "The Gold-Is-Rare Rule",
+        "body": "Heirloom Gold appears only on genuinely limited drops and special moments. If it shows up on every screen it has lost its meaning.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Weight Rule",
+        "body": "Geist runs at 400 for body and 500 for emphasis. Nothing heavier. No 600, no 700. Hierarchy comes from size and from switching to Fraunces, never from weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The Serif-Is-Earned Rule",
+        "body": "Fraunces appears only on editorial moments: hero copy, section headlines, product titles on detail pages, artisan names, and long-form about prose. Everything else is Geist.",
+        "section": "typography"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Surfaces are flat at rest. Separation comes from a 1px ring or a 1px Shoreline Sand border, never from a drop shadow. If a surface needs a shadow to read, the layout is wrong.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do carry every click on Deep Sea Navy (#1A2B3A). Buttons and primary CTAs are navy, always.",
+      "Do reserve Philippine Vermilion (#C8413C) for prices, links, and Sale or Limited badges. It is a highlight, never a fill.",
+      "Do switch to Fraunces only for editorial moments: hero copy, section headlines, product titles on detail pages, artisan names. Geist everywhere else.",
+      "Do keep surfaces flat. Separate them with the 1px navy 10 percent ring or a Shoreline Sand border, never a drop shadow.",
+      "Do let storefront product photos sit in bare containers. Use the cardless ProductCard pattern; photos are the heroes.",
+      "Do bump primary CTAs to at least 44px height on mobile. The default 32px control height is below a comfortable touch target.",
+      "Do cap body copy at 65 to 75 characters per line, and respect prefers-reduced-motion on every animation."
+    ],
+    "donts": [
+      "Don't build the big-box marketplace: no cramped grids, no star-rating noise, no manufactured scarcity (only 2 left).",
+      "Don't build the Etsy-style craft feed: no discount banners, no badge-heavy cards, no infinite homogenous grid where every card screams equally.",
+      "Don't build the loud DTC startup: no gradient-soaked surfaces, no oversized type, no emoji, no popups, exit-intent modals, or countdown timers.",
+      "Don't fill a button with vermilion or any red except Deep Ember on a true destructive action.",
+      "Don't let Heirloom Gold appear beyond the occasional limited-drop moment. Ubiquity kills it.",
+      "Don't reach for font weight 600 or 700. Hierarchy is size plus Fraunces, not heaviness.",
+      "Don't use a colored side-stripe border, gradient text, or decorative glassmorphism. The dialog scrim's backdrop-blur is the only blur in the system.",
+      "Don't wrap storefront products in shadowed cards or repeat identical icon-heading-text card grids."
+    ]
+  }
+}
