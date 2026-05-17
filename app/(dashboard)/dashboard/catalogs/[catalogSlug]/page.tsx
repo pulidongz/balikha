@@ -4,30 +4,15 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs, products } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
-import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CatalogForm } from '@/components/dashboard/catalog-form';
+import { CatalogProductList } from '@/components/dashboard/catalog-product-list';
 import { CatalogStatusButtons } from '@/components/dashboard/catalog-status-buttons';
 import { EmptyState } from '@/components/marketplace/empty-state';
-import { PriceTag } from '@/components/marketplace/price-tag';
 
 export const metadata = {
   title: 'Catalog',
-};
-
-const PRODUCT_STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
-  draft: 'outline',
-  published: 'default',
-  sold_out: 'secondary',
-  archived: 'secondary',
-};
-
-const PRODUCT_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  published: 'Published',
-  sold_out: 'Sold out',
-  archived: 'Archived',
 };
 
 export default async function CatalogDetailPage({
@@ -115,27 +100,18 @@ export default async function CatalogDetailPage({
             }
           />
         ) : (
-          <ul className="divide-y rounded-lg border">
-            {productList.map((p) => (
-              <li key={p.id}>
-                <Link
-                  href={`/dashboard/catalogs/${catalog.slug}/products/${p.slug}`}
-                  className="hover:bg-secondary/50 flex items-center gap-4 p-4 transition-colors"
-                >
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <h3 className="font-serif text-lg leading-tight">{p.title}</h3>
-                    <p className="text-muted-foreground text-xs">
-                      /{p.slug} · stock {p.stockOnHand}
-                    </p>
-                  </div>
-                  <PriceTag price={p.price} currency={p.currency} size="sm" />
-                  <Badge variant={PRODUCT_STATUS_VARIANT[p.status] ?? 'outline'}>
-                    {PRODUCT_STATUS_LABEL[p.status] ?? p.status}
-                  </Badge>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <CatalogProductList
+            catalogSlug={catalog.slug}
+            products={productList.map((p) => ({
+              id: p.id,
+              slug: p.slug,
+              title: p.title,
+              price: p.price,
+              currency: p.currency,
+              stockOnHand: p.stockOnHand,
+              status: p.status,
+            }))}
+          />
         )}
       </section>
     </div>
