@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { deleteAvatarAction, uploadAvatarAction } from '@/lib/actions/profile';
 
 function initialsOf(name: string): string {
@@ -26,19 +27,7 @@ export function AvatarUploader({ currentUrl, userName }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  function handleRemove() {
-    setError(null);
-    if (!confirm('Remove the current avatar?')) return;
-    startTransition(async () => {
-      const result = await deleteAvatarAction();
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -63,7 +52,7 @@ export function AvatarUploader({ currentUrl, userName }: Props) {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={handleRemove}
+            onClick={() => setRemoveOpen(true)}
             disabled={isPending}
           >
             Remove
@@ -111,6 +100,18 @@ export function AvatarUploader({ currentUrl, userName }: Props) {
           </p>
         )}
       </form>
+
+      <ConfirmDialog
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title="Remove your photo?"
+        description="This clears your current avatar and shows your initials instead. You can upload a new photo anytime, but the current one cannot be restored."
+        confirmLabel="Remove photo"
+        pendingLabel="Removing…"
+        destructive
+        onConfirm={() => deleteAvatarAction()}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   );
 }

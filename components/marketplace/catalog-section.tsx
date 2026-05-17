@@ -15,20 +15,13 @@ type CatalogLike = {
   id: string;
   title: string;
   description: string | null;
-  releaseAt: Date | null;
-  closesAt: Date | null;
+  isLimitedEdition: boolean;
 };
 
 type ArtisanLike = {
   shopSlug: string;
   shopName: string;
 };
-
-function isLimited(catalog: CatalogLike): boolean {
-  // A catalog with both release and close dates within a finite window reads as
-  // a limited drop. This is a soft signal — artists set whichever they want.
-  return Boolean(catalog.releaseAt && catalog.closesAt);
-}
 
 export function CatalogSection({
   catalog,
@@ -50,11 +43,7 @@ export function CatalogSection({
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="font-serif text-2xl tracking-tight">{catalog.title}</h2>
-          {isLimited(catalog) && (
-            <Badge className="text-foreground border-transparent bg-[var(--gold)] tracking-wide uppercase">
-              Limited
-            </Badge>
-          )}
+          {catalog.isLimitedEdition && <Badge variant="limited">Limited</Badge>}
         </div>
         <p className="text-muted-foreground text-sm">
           {products.length} {products.length === 1 ? 'piece' : 'pieces'}

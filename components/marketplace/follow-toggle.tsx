@@ -40,6 +40,7 @@ export function FollowToggle({ artisanProfileId, initiallyFollowing, isSignedIn 
     <Button
       type="button"
       variant={following ? 'secondary' : 'outline'}
+      size="lg"
       onClick={handleClick}
       disabled={isPending}
       aria-pressed={following}

@@ -125,7 +125,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
         </p>
       )}
 
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" size="lg" disabled={isPending}>
         {isPending ? 'Saving…' : 'Save changes'}
       </Button>
     </form>

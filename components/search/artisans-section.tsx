@@ -17,17 +17,17 @@ export function ArtisansSection({ artisans }: { artisans: ArtisanHit[] }) {
       <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
         Artisans
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
         {artisans.map((a) => (
           <Link
             key={a.id}
             href={`/shop/${a.shopSlug}`}
-            className="group bg-card hover:bg-secondary/40 flex items-start gap-3 rounded-lg border p-3 transition-colors"
+            className="group flex items-start gap-3 focus-visible:outline-none"
           >
-            <div className="bg-secondary flex h-10 w-10 flex-none items-center justify-center rounded-full text-sm font-medium">
+            <div className="bg-secondary flex h-12 w-12 flex-none items-center justify-center rounded-full font-serif text-base">
               {initialOf(a.shopName)}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 space-y-0.5">
               <p className="group-hover:text-accent truncate text-sm font-medium transition-colors">
                 {a.shopName}
               </p>

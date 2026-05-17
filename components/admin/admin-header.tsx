@@ -11,7 +11,7 @@ export function AdminHeader({ userName }: { userName: string }) {
       <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <Link href="/" className="font-serif text-lg tracking-tight">
-            balikha
+            Balikha
           </Link>
           <span className="bg-accent text-accent-foreground rounded-full px-2 py-0.5 text-[0.65rem] font-medium tracking-widest uppercase">
             admin

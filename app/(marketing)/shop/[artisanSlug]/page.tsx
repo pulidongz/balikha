@@ -157,8 +157,8 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
           the banner; the smaller overlap gives the name breathing room
           while still letting the avatar protrude. */}
       <section className="mx-auto -mt-12 max-w-5xl px-4 sm:px-6 md:-mt-10">
-        <div className="bg-card flex flex-col items-center gap-4 rounded-lg border p-6 text-center md:flex-row md:items-end md:gap-6 md:text-left">
-          <Avatar className="border-card ring-border h-24 w-24 border-4 ring-1">
+        <div className="flex flex-col items-center gap-4 text-center md:flex-row md:items-end md:gap-6 md:text-left">
+          <Avatar className="border-background ring-border h-24 w-24 border-4 ring-1">
             <AvatarImage src={profile.bannerImageUrl ?? undefined} alt={profile.shopName} />
             <AvatarFallback className="font-serif text-2xl">
               {initialsOf(profile.shopName)}

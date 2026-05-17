@@ -227,7 +227,7 @@ export function ProductForm(props: CreateMode | EditMode) {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" size="lg" disabled={isPending}>
         {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
       </Button>
     </form>

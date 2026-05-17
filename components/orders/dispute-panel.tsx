@@ -50,7 +50,7 @@ export async function DisputePanel({
   const counterpartyLabel = viewerRole === 'buyer' ? 'Seller' : 'Buyer';
 
   return (
-    <section className="border-destructive/40 bg-card space-y-4 rounded-md border-l-4 p-4">
+    <section className="border-destructive/30 bg-destructive/5 space-y-4 rounded-md border p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h2 className="text-sm font-medium tracking-wide uppercase">Dispute filed</h2>

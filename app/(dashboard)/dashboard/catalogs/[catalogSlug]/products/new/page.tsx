@@ -35,7 +35,7 @@ export default async function NewProductPage({
             ← {catalog.title}
           </Link>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">New product</h1>
+        <h1 className="mt-2 font-serif text-2xl tracking-tight">New product</h1>
       </header>
 
       <Card>

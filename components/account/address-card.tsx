@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { deleteAddressAction } from '@/lib/actions/addresses';
 
 interface Address {
@@ -25,21 +26,7 @@ interface Address {
 
 export function AddressCard({ address }: { address: Address }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function handleDelete() {
-    setError(null);
-    if (!confirm(`Delete address${address.label ? ` "${address.label}"` : ''}?`)) return;
-    startTransition(async () => {
-      const result = await deleteAddressAction(address.id);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <article className="bg-card flex flex-col gap-3 rounded-md border p-4">
@@ -70,12 +57,6 @@ export function AddressCard({ address }: { address: Address }) {
         {address.countryCode}
       </address>
 
-      {error && (
-        <p role="alert" className="text-destructive text-xs">
-          {error}
-        </p>
-      )}
-
       <div className="flex items-center gap-2 pt-1">
         <Link
           href={`/account/addresses/${address.id}/edit`}
@@ -83,10 +64,24 @@ export function AddressCard({ address }: { address: Address }) {
         >
           Edit
         </Link>
-        <Button variant="ghost" size="sm" onClick={handleDelete} disabled={isPending}>
-          {isPending ? 'Deleting…' : 'Delete'}
+        <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(true)}>
+          Delete
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Delete this address?"
+        description={`This removes ${
+          address.label ? `"${address.label}"` : 'this address'
+        } from your account. You cannot undo this.`}
+        confirmLabel="Delete address"
+        pendingLabel="Deleting…"
+        destructive
+        onConfirm={() => deleteAddressAction(address.id)}
+        onSuccess={() => router.refresh()}
+      />
     </article>
   );
 }

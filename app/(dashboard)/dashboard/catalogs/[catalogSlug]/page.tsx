@@ -85,6 +85,7 @@ export default async function CatalogDetailPage({
               description: catalog.description,
               releaseAt: catalog.releaseAt,
               closesAt: catalog.closesAt,
+              isLimitedEdition: catalog.isLimitedEdition,
             }}
           />
         </CardContent>

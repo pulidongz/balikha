@@ -80,7 +80,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           ← All orders
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-2xl">{order.reference}</h1>
+          <h1 className="text-xl font-medium">
+            Order{' '}
+            <span className="text-muted-foreground font-mono text-base font-normal">
+              {order.reference}
+            </span>
+          </h1>
           <OrderStatusBadge status={order.status} />
         </div>
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
@@ -97,7 +102,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         // the auto-complete. Per Issue 20 (Phase 6 §8 / plan resolution
         // option c), we accept the trade-off and surface the deadline
         // explicitly to buyers rather than extending the window.
-        <aside className="bg-muted text-muted-foreground rounded-md border-l-4 border-l-[var(--gold)] p-3 text-sm">
+        <aside className="border-warning/30 bg-warning/5 text-muted-foreground rounded-md border p-3 text-sm">
           If you don&rsquo;t receive your order, please file a dispute within{' '}
           <strong className="text-foreground">{env.ORDER_BUYER_AUTO_CONFIRM_DAYS} days</strong> of
           shipment. After that, this order will be auto-confirmed and dispute filing is no longer
@@ -105,9 +110,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </aside>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
-        <div className="bg-card flex items-center gap-4 rounded-md border p-4">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">Item</h2>
+        <div className="ring-foreground/10 mt-3 flex items-center gap-4 rounded-xl p-4 ring-1">
           <div className="bg-secondary relative h-16 w-16 shrink-0 overflow-hidden rounded">
             {order.productImageUrlSnapshot ? (
               <Image
@@ -134,9 +139,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Ship to</h2>
-        <address className="bg-card text-muted-foreground rounded-md border p-4 text-sm not-italic">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Ship to
+        </h2>
+        <address className="text-muted-foreground mt-3 text-sm not-italic">
           <p className="text-foreground font-medium">{shipping.recipientName}</p>
           {shipping.phone && <p>{shipping.phone}</p>}
           <p className="mt-1">{shipping.line1}</p>
@@ -150,17 +157,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </section>
 
       {order.notesFromBuyer && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium tracking-wide uppercase">Notes</h2>
-          <p className="bg-card text-foreground rounded-md border p-4 text-sm whitespace-pre-line">
-            {order.notesFromBuyer}
-          </p>
+        <section className="border-t pt-6">
+          <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+            Notes
+          </h2>
+          <p className="text-foreground mt-3 text-sm whitespace-pre-line">{order.notesFromBuyer}</p>
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
-        <OrderEventTimeline events={events} status={order.status} viewerRole="buyer" />
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Timeline
+        </h2>
+        <div className="mt-3">
+          <OrderEventTimeline events={events} status={order.status} viewerRole="buyer" />
+        </div>
       </section>
 
       <div className="flex items-center justify-between">

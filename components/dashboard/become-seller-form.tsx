@@ -58,7 +58,7 @@ export function BecomeSellerForm() {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" size="lg" disabled={isPending}>
         {isPending ? 'Creating shop…' : 'Become a seller'}
       </Button>
     </form>

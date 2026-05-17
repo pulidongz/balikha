@@ -14,12 +14,12 @@ export function CatalogsSection({ catalogs }: { catalogs: CatalogHit[] }) {
       <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
         Catalogs
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
         {catalogs.map((c) => (
           <Link
             key={c.id}
             href={`/shop/${c.artisanSlug}?catalog=${c.slug}`}
-            className="group bg-card hover:bg-secondary/40 rounded-lg border p-3 transition-colors"
+            className="group block space-y-0.5 focus-visible:outline-none"
           >
             <p className="group-hover:text-accent text-sm font-medium transition-colors">
               {c.title}

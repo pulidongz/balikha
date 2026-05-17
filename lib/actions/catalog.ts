@@ -73,7 +73,7 @@ export async function updateCatalogAction(
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-  const { title, description, releaseAt, closesAt } = parsed.data;
+  const { title, description, releaseAt, closesAt, isLimitedEdition } = parsed.data;
 
   await db
     .update(catalogs)
@@ -82,6 +82,7 @@ export async function updateCatalogAction(
       description: description ?? null,
       releaseAt: releaseAt ?? null,
       closesAt: closesAt ?? null,
+      isLimitedEdition,
       updatedAt: new Date(),
     })
     .where(eq(catalogs.id, catalogId));

@@ -15,8 +15,9 @@ const LABEL: Record<OrderStatus, string> = {
 };
 
 const VARIANT_CLASS: Record<OrderStatus, string> = {
+  // Awaiting the seller — a pending state that needs action; Burnt Amber.
+  pending_seller_response: 'border-transparent bg-warning text-warning-foreground',
   // Active states — neutral/in-progress visuals
-  pending_seller_response: 'border-transparent bg-[var(--gold)] text-foreground',
   pending_payment_arrangement: 'border-transparent bg-secondary text-foreground',
   payment_received: 'border-transparent bg-secondary text-foreground',
   shipped: 'border-transparent bg-secondary text-foreground',

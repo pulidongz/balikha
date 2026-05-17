@@ -80,6 +80,9 @@ export const catalogs = pgTable(
     status: catalogStatus('status').notNull().default('draft'),
     releaseAt: timestamp('release_at'),
     closesAt: timestamp('closes_at'),
+    // Seller-controlled: marks a genuine limited edition. Drives the
+    // storefront "Limited" badge; never auto-inferred from the dates above.
+    isLimitedEdition: boolean('is_limited_edition').notNull().default(false),
     // Weighted FTS document. A=title, B=description.
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(description, '')), 'B')`,

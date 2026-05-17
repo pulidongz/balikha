@@ -16,13 +16,13 @@ interface Notification {
 }
 
 // Click handler is fire-and-forget: navigation continues regardless of
-// whether the mark-read action lands. The colored left-border on unread
-// items is a quieter signal than a "NEW" badge — easier on the eye when
-// scanning a long list.
+// whether the mark-read action lands. Unread items carry a small accent
+// dot and a tonal background, a quieter signal than a "NEW" badge and
+// easy on the eye when scanning a long list.
 //
 // `variant="preview"` is for the /account landing's notifications section.
-// Compact: no left border, no body text, no background — just title +
-// time-ago. The full-list page keeps the default `variant="full"`.
+// Compact: no dot, no body text, no background, just title and time-ago.
+// The full-list page keeps the default `variant="full"`.
 export function NotificationItem({
   notification,
   variant = 'full',
@@ -74,19 +74,26 @@ export function NotificationItem({
         href={url}
         onClick={handleClick}
         className={cn(
-          'block border-l-2 py-3 pl-4 transition-colors',
-          optimisticallyRead
-            ? 'border-transparent'
-            : 'border-accent bg-secondary/40 hover:bg-secondary/60',
+          'block rounded-md px-3 py-3 transition-colors',
+          optimisticallyRead ? 'hover:bg-secondary/40' : 'bg-secondary/40 hover:bg-secondary/60',
         )}
       >
-        <p className="text-sm font-medium">{notification.title}</p>
-        {notification.body && (
-          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-sm">{notification.body}</p>
-        )}
-        <p className="text-muted-foreground mt-1 text-xs">
-          {formatRelativeTime(notification.createdAt)}
-        </p>
+        <div className="flex items-start gap-2">
+          {!optimisticallyRead && (
+            <span aria-hidden className="bg-accent mt-1.5 size-1.5 shrink-0 rounded-full" />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{notification.title}</p>
+            {notification.body && (
+              <p className="text-muted-foreground mt-0.5 line-clamp-2 text-sm">
+                {notification.body}
+              </p>
+            )}
+            <p className="text-muted-foreground mt-1 text-xs">
+              {formatRelativeTime(notification.createdAt)}
+            </p>
+          </div>
+        </div>
       </Link>
     </li>
   );

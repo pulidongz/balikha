@@ -23,7 +23,7 @@ export function OrderListItem({ order }: { order: SellerOrderRow }) {
         href={`/dashboard/orders/${order.id}`}
         className={cn(
           'bg-card hover:bg-secondary/40 flex flex-col gap-3 rounded-md border p-4 transition-colors sm:flex-row sm:items-center sm:gap-6',
-          needsAttention && 'border-l-accent border-l-4',
+          needsAttention && 'border-accent/40 bg-accent/5',
         )}
       >
         <div className="min-w-0 flex-1 space-y-1">

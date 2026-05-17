@@ -152,7 +152,7 @@ export default async function AdminOrdersPage({
                 href={`/admin/orders/${o.id}`}
                 className={cn(
                   'bg-card hover:bg-secondary/40 flex flex-col gap-3 rounded-md border p-3 transition-colors sm:flex-row sm:items-center sm:gap-6',
-                  o.status === 'disputed' && 'border-l-destructive border-l-4',
+                  o.status === 'disputed' && 'border-destructive/40 bg-destructive/5',
                 )}
               >
                 <div className="min-w-0 flex-1 space-y-1">

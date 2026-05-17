@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
@@ -52,7 +53,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   );
 
   // Featured artisans — those with at least one published product, plus a count.
-  // Not paginated; this is a "homepage hero" slot.
+  // Not paginated; this is a "homepage hero" slot. Ordered by most recently
+  // opened shop, not inventory volume: a storefront frames work, it does not
+  // rank makers against one another.
   const featuredArtisans = await db
     .select({
       id: artisanProfiles.id,
@@ -66,24 +69,34 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     .innerJoin(products, eq(products.artisanProfileId, artisanProfiles.id))
     .where(eq(products.status, 'published'))
     .groupBy(artisanProfiles.id)
-    .orderBy(desc(sql`count(${products.id})`))
+    .orderBy(desc(artisanProfiles.createdAt))
     .limit(FEATURED_ARTISANS);
 
   const onFirstPage = !cursor;
+
+  // Hero collage — real maker work, not a placeholder. Take the first few
+  // recent products that actually carry a primary image; if none do, the
+  // hero copy runs full-width instead of showing an empty frame.
+  const heroCollage = recent.items
+    .filter((p): p is typeof p & { primaryImage: { url: string; altText: string | null } } =>
+      Boolean(p.primaryImage),
+    )
+    .slice(0, 4);
+  const hasHeroCollage = heroCollage.length > 0;
 
   return (
     <div>
       {/* Hero */}
       <section className="border-b">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-12 lg:py-28">
-          <div className="space-y-6 lg:col-span-7">
+          <div className={`space-y-6 ${hasHeroCollage ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
             <h1 className="font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-6xl">
               Quietly made.
               <br />
               <span className="text-accent">Made to last.</span>
             </h1>
             <p className="text-muted-foreground max-w-xl text-base leading-relaxed md:text-lg">
-              Balikha is a small marketplace for handmade work from independent Filipino artisans —
+              Balikha is a small marketplace for handmade work from independent Filipino artisans:
               pottery, textiles, prints, and the long-form craft behind each piece.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -95,13 +108,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </Link>
             </div>
           </div>
-          <div className="hidden lg:col-span-5 lg:block">
-            <div className="bg-secondary aspect-[4/5] overflow-hidden rounded-lg" aria-hidden>
-              <div className="text-muted-foreground flex h-full items-center justify-center font-serif text-7xl">
-                B
+          {hasHeroCollage && (
+            <div className="hidden lg:col-span-5 lg:block">
+              <div className="grid grid-cols-2 gap-3">
+                {heroCollage.map((p) => (
+                  <div
+                    key={p.id}
+                    className="bg-secondary relative aspect-square overflow-hidden rounded-lg"
+                  >
+                    <Image
+                      src={p.primaryImage.url}
+                      alt={p.primaryImage.altText ?? p.title}
+                      fill
+                      sizes="(min-width: 1024px) 21vw, 50vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 

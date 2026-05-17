@@ -85,7 +85,12 @@ export default async function AdminOrderDetailPage({
           </Link>
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-2xl">{order.reference}</h1>
+          <h1 className="text-xl font-medium">
+            Order{' '}
+            <span className="text-muted-foreground font-mono text-base font-normal">
+              {order.reference}
+            </span>
+          </h1>
           <OrderStatusBadge status={order.status} />
         </div>
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
@@ -95,7 +100,7 @@ export default async function AdminOrderDetailPage({
 
       {/* Active dispute — both parties' statements + admin context. */}
       {activeDispute && (
-        <section className="border-destructive/40 bg-card space-y-3 rounded-md border-l-4 p-4">
+        <section className="border-destructive/30 bg-destructive/5 space-y-3 rounded-md border p-4">
           <h2 className="text-sm font-medium tracking-wide uppercase">
             Active dispute · filed by {activeDispute.filedByRole}
           </h2>
@@ -126,13 +131,15 @@ export default async function AdminOrderDetailPage({
 
       {/* Past disputes — collapsed historical view for repeat disputes. */}
       {disputes.length > (activeDispute ? 1 : 0) && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium tracking-wide uppercase">Past disputes</h2>
-          <ul className="space-y-2">
+        <section className="border-t pt-6">
+          <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+            Past disputes
+          </h2>
+          <ul className="mt-3 space-y-4">
             {disputes
               .filter((d) => d.id !== activeDispute?.id)
               .map((d) => (
-                <li key={d.id} className="bg-card rounded-md border p-3 text-sm">
+                <li key={d.id} className="text-sm">
                   <p className="font-medium">
                     {d.status === 'resolved_for_buyer' && 'Resolved for buyer'}
                     {d.status === 'resolved_for_seller' && 'Resolved for seller'}
@@ -151,9 +158,9 @@ export default async function AdminOrderDetailPage({
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
-        <div className="bg-card flex items-center gap-4 rounded-md border p-4">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">Item</h2>
+        <div className="ring-foreground/10 mt-3 flex items-center gap-4 rounded-xl p-4 ring-1">
           <div className="bg-secondary relative h-16 w-16 shrink-0 overflow-hidden rounded">
             {order.productImageUrlSnapshot ? (
               <Image
@@ -182,15 +189,17 @@ export default async function AdminOrderDetailPage({
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Parties</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="bg-card rounded-md border p-3 text-sm">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Parties
+        </h2>
+        <div className="mt-3 grid gap-6 sm:grid-cols-2">
+          <div className="text-sm">
             <p className="text-muted-foreground text-xs font-medium uppercase">Buyer</p>
             <p className="text-foreground mt-1 font-medium">{buyerName}</p>
             <p className="text-muted-foreground text-xs">{buyerEmail}</p>
           </div>
-          <div className="bg-card rounded-md border p-3 text-sm">
+          <div className="text-sm">
             <p className="text-muted-foreground text-xs font-medium uppercase">Seller</p>
             <p className="text-foreground mt-1 font-medium">{artisanShopName}</p>
             <Link
@@ -203,9 +212,11 @@ export default async function AdminOrderDetailPage({
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Ship to</h2>
-        <address className="bg-card text-muted-foreground rounded-md border p-4 text-sm not-italic">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Ship to
+        </h2>
+        <address className="text-muted-foreground mt-3 text-sm not-italic">
           <p className="text-foreground font-medium">{shipping.recipientName}</p>
           {shipping.phone && <p>{shipping.phone}</p>}
           <p className="mt-1">{shipping.line1}</p>
@@ -219,21 +230,25 @@ export default async function AdminOrderDetailPage({
       </section>
 
       {order.notesFromBuyer && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium tracking-wide uppercase">Note from buyer</h2>
-          <p className="bg-card rounded-md border p-4 text-sm whitespace-pre-line">
-            {order.notesFromBuyer}
-          </p>
+        <section className="border-t pt-6">
+          <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+            Note from buyer
+          </h2>
+          <p className="mt-3 text-sm whitespace-pre-line">{order.notesFromBuyer}</p>
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Timeline
+        </h2>
         {/* Admin viewer — "by you" doesn't apply since admin isn't a
             party on the order. Pass 'seller' arbitrarily; admins should
             read events by their actorRole field rather than the "by you"
             label. Future improvement: a viewerRole: 'admin' variant. */}
-        <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
+        <div className="mt-3">
+          <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
+        </div>
       </section>
     </div>
   );

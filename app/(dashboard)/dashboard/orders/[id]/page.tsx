@@ -81,7 +81,12 @@ export default async function SellerOrderDetailPage({
           </Link>
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-2xl">{order.reference}</h1>
+          <h1 className="text-xl font-medium">
+            Order{' '}
+            <span className="text-muted-foreground font-mono text-base font-normal">
+              {order.reference}
+            </span>
+          </h1>
           <OrderStatusBadge status={order.status} />
         </div>
         <p className="text-muted-foreground text-sm">Placed {DATE_FMT.format(order.placedAt)}</p>
@@ -89,15 +94,13 @@ export default async function SellerOrderDetailPage({
 
       {/* Action buttons appropriate to the current status. Render
           nothing for terminal states (completed, cancelled, disputed). */}
-      <section className="space-y-3">
-        <OrderActionButtons orderId={order.id} status={order.status} />
-      </section>
+      <OrderActionButtons orderId={order.id} status={order.status} />
 
       {order.status === 'disputed' && <DisputePanel orderId={order.id} viewerRole="seller" />}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Item</h2>
-        <div className="bg-card flex items-center gap-4 rounded-md border p-4">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">Item</h2>
+        <div className="ring-foreground/10 mt-3 flex items-center gap-4 rounded-xl p-4 ring-1">
           <div className="bg-secondary relative h-16 w-16 shrink-0 overflow-hidden rounded">
             {order.productImageUrlSnapshot ? (
               <Image
@@ -124,17 +127,19 @@ export default async function SellerOrderDetailPage({
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Buyer</h2>
-        <div className="bg-card text-muted-foreground rounded-md border p-4 text-sm">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">Buyer</h2>
+        <div className="text-muted-foreground mt-3 text-sm">
           <p className="text-foreground font-medium">{buyerName}</p>
           <p>{buyerEmail}</p>
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Ship to</h2>
-        <address className="bg-card text-muted-foreground rounded-md border p-4 text-sm not-italic">
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Ship to
+        </h2>
+        <address className="text-muted-foreground mt-3 text-sm not-italic">
           <p className="text-foreground font-medium">{shipping.recipientName}</p>
           {shipping.phone && <p>{shipping.phone}</p>}
           <p className="mt-1">{shipping.line1}</p>
@@ -148,17 +153,21 @@ export default async function SellerOrderDetailPage({
       </section>
 
       {order.notesFromBuyer && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium tracking-wide uppercase">Note from buyer</h2>
-          <p className="bg-card text-foreground rounded-md border p-4 text-sm whitespace-pre-line">
-            {order.notesFromBuyer}
-          </p>
+        <section className="border-t pt-6">
+          <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+            Note from buyer
+          </h2>
+          <p className="text-foreground mt-3 text-sm whitespace-pre-line">{order.notesFromBuyer}</p>
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Timeline</h2>
-        <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
+      <section className="border-t pt-6">
+        <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+          Timeline
+        </h2>
+        <div className="mt-3">
+          <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
+        </div>
       </section>
 
       {/* Either party can file a dispute on a non-terminal order. The

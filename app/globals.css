@@ -157,3 +157,17 @@
     @apply font-sans;
   }
 }
+
+/* Accessibility: honor the OS "reduce motion" setting globally. Motion in
+   Balikha is always enhancement (hover scales, dialog zoom, sheet slide),
+   never load-bearing, so it is safe to neutralize wholesale. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

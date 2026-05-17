@@ -5,6 +5,7 @@ import { logSearchEvent } from '@/lib/search/log';
 import { searchAll } from '@/lib/search/queries';
 import { parseSearchParams } from '@/lib/search/url';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { ActiveFilterChips } from '@/components/search/active-filter-chips';
 import { ArtisansSection } from '@/components/search/artisans-section';
 import { CatalogsSection } from '@/components/search/catalogs-section';
 import { MobileFiltersTrigger } from '@/components/search/mobile-filters-trigger';
@@ -94,6 +95,7 @@ export default async function SearchPage({
                 availableMaterials={availableMaterials}
                 currentFilters={filters}
               />
+              <ActiveFilterChips query={parsed.q} currentFilters={filters} />
               <ProductSearchGrid
                 initialProducts={results.products.items}
                 initialNextCursor={results.products.nextCursor}
@@ -124,7 +126,7 @@ function SearchEmptyState() {
 
 function NoResults({ query }: { query: string }) {
   return (
-    <div className="bg-card rounded-lg border p-8 text-center">
+    <div className="bg-card rounded-md border p-8 text-center">
       <h2 className="font-serif text-xl">No results for &ldquo;{query}&rdquo;</h2>
       <p className="text-muted-foreground mt-2 text-sm">Try a different word, or check spelling.</p>
     </div>

@@ -55,7 +55,11 @@ export async function SiteHeader() {
           <Link
             href="/search"
             aria-label="Search"
-            className={buttonVariants({ variant: 'ghost', size: 'icon', className: 'md:hidden' })}
+            className={buttonVariants({
+              variant: 'ghost',
+              size: 'icon',
+              className: 'max-md:size-11 md:hidden',
+            })}
           >
             <Search className="h-5 w-5" />
           </Link>

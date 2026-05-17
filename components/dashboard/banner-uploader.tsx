@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { deleteArtisanBannerAction, uploadArtisanBannerAction } from '@/lib/actions/artisan';
 
 export function BannerUploader({ currentUrl }: { currentUrl: string | null }) {
@@ -13,19 +14,7 @@ export function BannerUploader({ currentUrl }: { currentUrl: string | null }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  function handleRemove() {
-    setError(null);
-    if (!confirm('Remove the current banner?')) return;
-    startTransition(async () => {
-      const result = await deleteArtisanBannerAction();
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -88,7 +77,7 @@ export function BannerUploader({ currentUrl }: { currentUrl: string | null }) {
             <Button
               type="button"
               variant="ghost"
-              onClick={handleRemove}
+              onClick={() => setRemoveOpen(true)}
               disabled={isPending}
               className="text-destructive hover:text-destructive"
             >
@@ -97,6 +86,18 @@ export function BannerUploader({ currentUrl }: { currentUrl: string | null }) {
           )}
         </div>
       </form>
+
+      <ConfirmDialog
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title="Remove the current banner?"
+        description="This takes the banner off your storefront right away. You can upload a new one anytime, but the current image cannot be restored."
+        confirmLabel="Remove banner"
+        pendingLabel="Removing…"
+        destructive
+        onConfirm={() => deleteArtisanBannerAction()}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   );
 }

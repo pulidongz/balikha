@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { ProductCard } from '@/components/marketplace/product-card';
+import { ProductGrid } from '@/components/marketplace/product-grid';
 import { search } from '@/lib/actions/search';
 import type { ProductFilters, ProductHit } from '@/lib/search/types';
 
@@ -61,7 +62,7 @@ export function ProductSearchGrid({
 
   if (products.length === 0) {
     return (
-      <div className="bg-card text-muted-foreground rounded-lg border p-8 text-center text-sm">
+      <div className="bg-card text-muted-foreground rounded-md border p-8 text-center text-sm">
         No products match your filters.
       </div>
     );
@@ -69,25 +70,26 @@ export function ProductSearchGrid({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+      <ProductGrid cols={4}>
         {products.map((p) => (
-          <ProductCard
-            key={p.id}
-            product={{
-              id: p.id,
-              slug: p.slug,
-              title: p.title,
-              price: p.price,
-              currency: p.currency,
-            }}
-            artisan={{ shopSlug: p.artisanSlug, shopName: p.artisanName }}
-            primaryImage={p.imageUrl ? { url: p.imageUrl, altText: p.title } : null}
-            responseTimeLabel={p.responseTimeLabel ?? undefined}
-            inWishlist={wishlistedSet.has(p.id)}
-            isSignedIn={isSignedIn}
-          />
+          <li key={p.id}>
+            <ProductCard
+              product={{
+                id: p.id,
+                slug: p.slug,
+                title: p.title,
+                price: p.price,
+                currency: p.currency,
+              }}
+              artisan={{ shopSlug: p.artisanSlug, shopName: p.artisanName }}
+              primaryImage={p.imageUrl ? { url: p.imageUrl, altText: p.title } : null}
+              responseTimeLabel={p.responseTimeLabel ?? undefined}
+              inWishlist={wishlistedSet.has(p.id)}
+              isSignedIn={isSignedIn}
+            />
+          </li>
         ))}
-      </div>
+      </ProductGrid>
       {error && <p className="text-destructive text-center text-sm">{error}</p>}
       {cursor && (
         <div className="flex justify-center">

@@ -21,6 +21,8 @@ export const catalogUpdateSchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   releaseAt: timestampField,
   closesAt: timestampField,
+  // Checkbox: arrives as 'on' when ticked, absent (undefined) otherwise.
+  isLimitedEdition: z.preprocess((v) => v === 'on' || v === true, z.boolean()),
 });
 
 export const catalogStatusSchema = z.enum(['draft', 'published', 'archived']);

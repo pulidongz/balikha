@@ -17,6 +17,7 @@ type EditMode = {
     description: string | null;
     releaseAt: Date | null;
     closesAt: Date | null;
+    isLimitedEdition: boolean;
   };
 };
 
@@ -86,41 +87,58 @@ export function CatalogForm(props: CreateMode | EditMode) {
         )}
       </div>
       {props.mode === 'edit' && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="catalog-release">Release at (optional)</Label>
-            <Input
-              id="catalog-release"
-              name="releaseAt"
-              type="datetime-local"
-              defaultValue={toDatetimeLocal(props.defaults.releaseAt)}
-              aria-invalid={fieldError('releaseAt') ? true : undefined}
-            />
-            {fieldError('releaseAt') && (
-              <p className="text-destructive text-xs">{fieldError('releaseAt')}</p>
-            )}
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="catalog-release">Release at (optional)</Label>
+              <Input
+                id="catalog-release"
+                name="releaseAt"
+                type="datetime-local"
+                defaultValue={toDatetimeLocal(props.defaults.releaseAt)}
+                aria-invalid={fieldError('releaseAt') ? true : undefined}
+              />
+              {fieldError('releaseAt') && (
+                <p className="text-destructive text-xs">{fieldError('releaseAt')}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="catalog-closes">Closes at (optional)</Label>
+              <Input
+                id="catalog-closes"
+                name="closesAt"
+                type="datetime-local"
+                defaultValue={toDatetimeLocal(props.defaults.closesAt)}
+                aria-invalid={fieldError('closesAt') ? true : undefined}
+              />
+              {fieldError('closesAt') && (
+                <p className="text-destructive text-xs">{fieldError('closesAt')}</p>
+              )}
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="catalog-closes">Closes at (optional)</Label>
-            <Input
-              id="catalog-closes"
-              name="closesAt"
-              type="datetime-local"
-              defaultValue={toDatetimeLocal(props.defaults.closesAt)}
-              aria-invalid={fieldError('closesAt') ? true : undefined}
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="isLimitedEdition"
+              defaultChecked={props.defaults.isLimitedEdition}
+              className="focus-visible:ring-ring/50 mt-0.5 size-4 shrink-0 rounded focus-visible:ring-2"
             />
-            {fieldError('closesAt') && (
-              <p className="text-destructive text-xs">{fieldError('closesAt')}</p>
-            )}
-          </div>
-        </div>
+            <span>
+              <span className="font-medium">Limited edition</span>
+              <span className="text-muted-foreground block text-xs">
+                Adds a Limited badge to this catalog on your storefront. Reserve it for genuine
+                limited drops so the badge keeps its meaning.
+              </span>
+            </span>
+          </label>
+        </>
       )}
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       )}
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" size="lg" disabled={isPending}>
         {isPending ? 'Saving…' : props.mode === 'create' ? 'Create catalog' : 'Save changes'}
       </Button>
     </form>

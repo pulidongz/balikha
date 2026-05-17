@@ -53,7 +53,7 @@ export function WishlistToggle({
 
   const baseClasses =
     variant === 'overlay'
-      ? 'bg-background/80 hover:bg-background border-transparent backdrop-blur-sm'
+      ? 'bg-background hover:bg-secondary border-transparent'
       : 'bg-background border-border hover:bg-secondary';
 
   return (
@@ -64,7 +64,7 @@ export function WishlistToggle({
       aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
       aria-pressed={inWishlist}
       className={cn(
-        'inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors disabled:opacity-50',
+        'inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors disabled:opacity-50',
         baseClasses,
         className,
       )}

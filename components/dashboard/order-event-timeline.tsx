@@ -35,6 +35,18 @@ const HAPPY_PATH_EVENTS: ReadonlySet<OrderEventType> = new Set([
   'completed',
 ]);
 
+// Off-path events that ended the order badly — these read as failure,
+// so their node is filled with `destructive`. Everything else off the
+// happy path (a resolved dispute, an admin stepping in) is a holding
+// state and takes the `warning` (Burnt Amber) treatment instead.
+const FAILED_EVENTS: ReadonlySet<OrderEventType> = new Set([
+  'declined',
+  'cancelled_by_buyer',
+  'cancelled_by_seller',
+  'auto_cancelled',
+  'disputed',
+]);
+
 // Milestones that can still be AHEAD of the order. `placed` is omitted
 // because an order always has it already. Labels are anticipatory:
 // they read as what the order is waiting on, not as a logged event.
@@ -104,10 +116,19 @@ function nodeFillClass(node: RailNode): string {
     return 'border border-dashed border-muted-foreground/50 bg-card';
   }
   const offPath = !HAPPY_PATH_EVENTS.has(node.event.type);
-  if (node.kind === 'current') {
-    return offPath ? 'bg-gold ring-4 ring-gold/15' : 'bg-accent ring-4 ring-accent/15';
+  // Gold is reserved for genuinely special moments and never marks a
+  // failure (see DESIGN.md, the Gold-Is-Rare rule). A bad ending reads
+  // as `destructive`; an unresolved off-path state reads as `warning`.
+  if (!offPath) {
+    return node.kind === 'current' ? 'bg-accent ring-4 ring-accent/15' : 'bg-muted-foreground';
   }
-  return offPath ? 'bg-gold' : 'bg-muted-foreground';
+  const failed = FAILED_EVENTS.has(node.event.type);
+  if (node.kind === 'current') {
+    return failed
+      ? 'bg-destructive ring-4 ring-destructive/15'
+      : 'bg-warning ring-4 ring-warning/15';
+  }
+  return failed ? 'bg-destructive' : 'bg-warning';
 }
 
 /**

@@ -227,7 +227,7 @@ export function AddressForm(props: Props) {
       )}
 
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" size="lg" disabled={isPending}>
           {isPending ? 'Saving…' : props.mode === 'create' ? 'Add address' : 'Save changes'}
         </Button>
         <Button

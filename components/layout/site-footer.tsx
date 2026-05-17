@@ -9,13 +9,13 @@ export function SiteFooter() {
           <p>Handmade work from independent artisans.</p>
         </div>
         <nav className="flex gap-6">
-          <Link href="#" className="hover:text-foreground">
+          <Link href="/about" className="hover:text-foreground">
             About
           </Link>
-          <Link href="#" className="hover:text-foreground">
+          <Link href="/contact" className="hover:text-foreground">
             Contact
           </Link>
-          <Link href="#" className="hover:text-foreground">
+          <Link href="/terms" className="hover:text-foreground">
             Terms
           </Link>
         </nav>

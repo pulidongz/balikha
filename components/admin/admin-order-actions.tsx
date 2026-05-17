@@ -94,7 +94,7 @@ function ResolveDisputeForm({ orderId }: { orderId: string }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-card border-destructive/40 space-y-4 rounded-md border-l-4 p-4"
+      className="border-destructive/30 bg-destructive/5 space-y-4 rounded-md border p-4"
     >
       <h2 className="text-sm font-medium tracking-wide uppercase">Resolve dispute</h2>
 

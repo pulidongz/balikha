@@ -64,7 +64,7 @@ export default async function ProductDetailPage({
         </p>
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{product.title}</h1>
+            <h1 className="font-serif text-2xl tracking-tight">{product.title}</h1>
             <p className="text-muted-foreground text-sm">/{product.slug}</p>
           </div>
           <ProductStatusButtons productId={product.id} status={product.status} />
