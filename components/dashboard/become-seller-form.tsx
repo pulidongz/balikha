@@ -34,7 +34,18 @@ export function BecomeSellerForm() {
             setError(result.error);
             return;
           }
-          router.refresh();
+          const { firstCatalogSlug } = result.data;
+          // New sellers land on the first-product form; the ?onboarding=1
+          // marker tells that page to show a calm first-listing intro. Any
+          // falsy slug routes to the dashboard instead: `null` is a defensive
+          // guard for a concurrent-profile-creation race (near-unreachable via
+          // the UI), and `undefined` is a stale pre-change idempotency-cache
+          // replay. The dashboard always exists and self-orients the seller.
+          router.push(
+            firstCatalogSlug
+              ? `/dashboard/catalogs/${firstCatalogSlug}/products/new?onboarding=1`
+              : '/dashboard',
+          );
         });
       }}
     >
