@@ -17,10 +17,15 @@ function safeNextOr(next: string | null, fallback: string): string {
 export function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Same as sign-in: default lands buyers on /account. New users haven't
-  // chosen "I want to be a seller" yet, so /dashboard's auto-redirect to
-  // become-seller would feel pushy. /account is the safe shared default.
-  const next = safeNextOr(searchParams.get('next'), '/account');
+  // Seller-intent signups (from the "Sell your craft" entry point) route into
+  // the shop-creation flow; everyone else lands on the buyer account page. An
+  // explicit, safe `next` (e.g. a proxy-bounce deep link) still wins, since
+  // that is a page the user actually tried to reach.
+  const intent = searchParams.get('intent');
+  const next = safeNextOr(
+    searchParams.get('next'),
+    intent === 'seller' ? '/dashboard/become-seller' : '/account',
+  );
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
