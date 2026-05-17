@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
@@ -34,9 +35,11 @@ export class AdminRequiredError extends Error {
 
 // --- Session + user lookups -------------------------------------------------
 
-export async function getCurrentSession() {
+// Memoized per request (React cache) so multiple server components in one
+// render — SiteHeader and SiteFooter both read it — share a single lookup.
+export const getCurrentSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
-}
+});
 
 export async function getCurrentUser() {
   const session = await getCurrentSession();
