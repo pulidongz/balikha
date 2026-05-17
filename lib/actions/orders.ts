@@ -331,6 +331,25 @@ export async function placeOrder(
             },
           });
 
+          // 6. Notify the seller a new order is waiting for their
+          //    response. Placement is not a status transition, so it
+          //    never reaches transitionOrder's fan-out — the new-order
+          //    notification is created here, inside the same transaction
+          //    as the order + audit event. A notification-insert failure
+          //    rolls the placement back, matching the atomicity stance
+          //    documented on fanOutTransitionNotification.
+          await tx.insert(notifications).values({
+            userId: artisan.userId,
+            type: 'order_status_changed',
+            title: 'New order to review',
+            body: `Order ${reference}`,
+            target: {
+              kind: 'order',
+              id: order.id,
+              url: `/dashboard/orders/${order.id}`,
+            },
+          });
+
           // Write the idempotency cache row INSIDE this transaction so
           // it commits atomically with the order, while the advisory
           // lock above is still held. A concurrent retry's in-lock
