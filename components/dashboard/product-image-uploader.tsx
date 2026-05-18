@@ -19,7 +19,7 @@ export function ProductImageUploader({ productId }: { productId: string }) {
   function handleUpload() {
     setError(null);
     const file = inputRef.current?.files?.[0];
-    if (!file) {
+    if (!file || file.size === 0) {
       setError('Select an image to upload.');
       return;
     }
