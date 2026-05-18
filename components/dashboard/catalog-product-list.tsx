@@ -152,7 +152,9 @@ export function CatalogProductList({
             className="size-4 shrink-0"
           />
           <span className="text-muted-foreground text-xs">
-            {someSelected ? `${selected.size} of ${products.length} selected` : 'Select all'}
+            {someSelected
+              ? `${selected.size} of ${products.length} selected`
+              : 'Select products to publish, change status, or archive (remove from storefront)'}
           </span>
         </li>
         {products.map((p) => {
