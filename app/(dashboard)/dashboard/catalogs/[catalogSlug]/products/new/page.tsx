@@ -59,7 +59,7 @@ export default async function NewProductPage({
       <Card>
         <CardHeader>
           <CardTitle>Product details</CardTitle>
-          <CardDescription>Add images on the product page after it&apos;s created.</CardDescription>
+          <CardDescription>Fill in the details and add photos below.</CardDescription>
         </CardHeader>
         <CardContent>
           <ProductForm mode="create" catalogId={catalog.id} catalogSlug={catalog.slug} />

@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition, type ChangeEvent } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createProductAction, updateProductAction } from '@/lib/actions/product';
+import {
+  ACCEPTED_IMAGE_TYPES,
+  uploadProductImage,
+  validateImageFile,
+} from '@/lib/storage/upload-product-image';
 
 // Prices display with thousands separators ("1,200.00"). Formatting happens
 // on blur — never mid-keystroke — so the caret never jumps. A value that is
@@ -52,6 +58,47 @@ export function ProductForm(props: CreateMode | EditMode) {
   // Controlled so the price can be reformatted with commas on blur.
   const [price, setPrice] = useState(() => formatPriceForDisplay(d?.price ?? ''));
 
+  // --- Create-mode photo buffer -------------------------------------------
+  // Photos are buffered client-side and uploaded after the product is created
+  // (the upload flow needs a productId). Edit mode uses the product page's
+  // Images card, so this state is only exercised when mode === 'create'.
+  const [images, setImages] = useState<{ file: File; url: string }[]>([]);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageUploadProgress, setImageUploadProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
+  // Mirror the buffer into a ref so the unmount cleanup can revoke every
+  // object URL without the effect re-running on each buffer change.
+  const imagesRef = useRef<{ file: File; url: string }[]>([]);
+  useEffect(() => {
+    imagesRef.current = images;
+  });
+  useEffect(() => () => imagesRef.current.forEach((img) => URL.revokeObjectURL(img.url)), []);
+
+  function handleFilesPicked(e: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = ''; // let the same file be re-picked later
+    const accepted: { file: File; url: string }[] = [];
+    const rejected: string[] = [];
+    for (const file of picked) {
+      const problem = validateImageFile(file);
+      if (problem) rejected.push(`${file.name} — ${problem}`);
+      else accepted.push({ file, url: URL.createObjectURL(file) });
+    }
+    if (accepted.length > 0) setImages((prev) => [...prev, ...accepted]);
+    setImageError(rejected.length > 0 ? rejected.join('; ') : null);
+  }
+
+  function removeImage(index: number) {
+    setImages((prev) => {
+      const target = prev[index];
+      if (target) URL.revokeObjectURL(target.url);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
   return (
     <form
       noValidate
@@ -59,6 +106,7 @@ export function ProductForm(props: CreateMode | EditMode) {
       action={(formData) => {
         setError(null);
         setFieldErrors({});
+        setImageError(null);
         startTransition(async () => {
           if (props.mode === 'edit') {
             const result = await updateProductAction(props.productId, formData);
@@ -75,8 +123,25 @@ export function ProductForm(props: CreateMode | EditMode) {
               setFieldErrors(result.fieldErrors ?? {});
               return;
             }
-            // Land on the new product's edit page — that is where images are added.
-            router.push(`/dashboard/catalogs/${props.catalogSlug}/products/${result.data.slug}`);
+            const { slug, productId } = result.data;
+            // Upload buffered photos to the new product, one at a time so
+            // product_images.position matches the order the seller arranged.
+            // A per-file catch keeps one failure from aborting the rest.
+            let failed = 0;
+            let done = 0;
+            for (const img of images) {
+              setImageUploadProgress({ done, total: images.length });
+              try {
+                await uploadProductImage(productId, img.file);
+              } catch {
+                failed += 1;
+              }
+              done += 1;
+              setImageUploadProgress({ done, total: images.length });
+            }
+            setImageUploadProgress(null);
+            const dest = `/dashboard/catalogs/${props.catalogSlug}/products/${slug}`;
+            router.push(failed > 0 ? `${dest}?imagesFailed=${failed}` : dest);
           }
         });
       }}
@@ -247,13 +312,65 @@ export function ProductForm(props: CreateMode | EditMode) {
         )}
       </div>
 
+      {props.mode === 'create' && (
+        <div className="space-y-2">
+          <Label htmlFor="product-photos">Photos</Label>
+          <Input
+            id="product-photos"
+            type="file"
+            multiple
+            accept={ACCEPTED_IMAGE_TYPES.join(',')}
+            onChange={handleFilesPicked}
+            disabled={isPending}
+          />
+          <p className="text-muted-foreground text-xs">
+            JPEG, PNG, WebP, or AVIF; up to 10 MB each. The first photo is the preview buyers see.
+          </p>
+          {imageError && <p className="text-destructive text-xs">{imageError}</p>}
+          {images.length > 0 && (
+            <ul className="grid grid-cols-3 gap-3">
+              {images.map((img, index) => (
+                <li key={img.url} className="space-y-1 rounded-md border p-2">
+                  <div className="bg-muted relative aspect-square overflow-hidden rounded">
+                    <Image
+                      src={img.url}
+                      alt=""
+                      fill
+                      sizes="(min-width: 640px) 160px, 30vw"
+                      unoptimized
+                      className="object-cover"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => removeImage(index)}
+                    disabled={isPending}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       )}
       <Button type="submit" size="lg" disabled={isPending}>
-        {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
+        {imageUploadProgress
+          ? `Uploading photos ${imageUploadProgress.done}/${imageUploadProgress.total}…`
+          : isPending
+            ? 'Saving…'
+            : isEdit
+              ? 'Save changes'
+              : 'Create product'}
       </Button>
     </form>
   );
