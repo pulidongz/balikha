@@ -71,6 +71,22 @@ export default async function ProductDetailPage({
         </div>
       </header>
 
+      {/* Images first: they upload/remove instantly (independent of the
+          details form's "Save changes"), and keeping the details card last
+          lets its Save button read as the end of the page. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Images</CardTitle>
+          <CardDescription>
+            The first image is used as the social-share preview on public pages.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <ProductImageList images={images} />
+          <ProductImageUploader productId={product.id} />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Product details</CardTitle>
@@ -78,6 +94,10 @@ export default async function ProductDetailPage({
         </CardHeader>
         <CardContent>
           <ProductForm
+            // Remount when the product row changes — e.g. after a save's
+            // router.refresh() — so the uncontrolled inputs re-initialise with
+            // the new defaults instead of warning that defaultValue changed.
+            key={product.updatedAt.getTime()}
             mode="edit"
             productId={product.id}
             defaults={{
@@ -91,19 +111,6 @@ export default async function ProductDetailPage({
               dimensions: product.dimensions,
             }}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Images</CardTitle>
-          <CardDescription>
-            The first image is used as the social-share preview on public pages.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <ProductImageList images={images} />
-          <ProductImageUploader productId={product.id} />
         </CardContent>
       </Card>
     </div>
