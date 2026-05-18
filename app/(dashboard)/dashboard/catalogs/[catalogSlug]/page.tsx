@@ -63,6 +63,10 @@ export default async function CatalogDetailPage({
         </CardHeader>
         <CardContent>
           <CatalogForm
+            // Remount when the catalog row changes — e.g. after a save's
+            // router.refresh() — so the uncontrolled inputs re-initialise with
+            // the new defaults instead of warning that defaultValue changed.
+            key={catalog.updatedAt.getTime()}
             mode="edit"
             catalogId={catalog.id}
             defaults={{
@@ -79,12 +83,16 @@ export default async function CatalogDetailPage({
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-serif text-2xl tracking-tight">Products</h2>
-          <Link
-            href={`/dashboard/catalogs/${catalog.slug}/products/new`}
-            className={buttonVariants({ size: 'sm' })}
-          >
-            New product
-          </Link>
+          {/* When the catalog is empty the EmptyState below carries the
+              "Add a product" CTA — a header button here would duplicate it. */}
+          {productList.length > 0 && (
+            <Link
+              href={`/dashboard/catalogs/${catalog.slug}/products/new`}
+              className={buttonVariants({ size: 'sm' })}
+            >
+              New product
+            </Link>
+          )}
         </div>
         {productList.length === 0 ? (
           <EmptyState
