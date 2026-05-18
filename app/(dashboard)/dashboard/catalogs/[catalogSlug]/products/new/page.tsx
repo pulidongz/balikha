@@ -4,7 +4,6 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProductForm } from '@/components/dashboard/product-form';
 
 export const metadata = {
@@ -56,15 +55,7 @@ export default async function NewProductPage({
         </header>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Product details</CardTitle>
-          <CardDescription>Fill in the details and add photos below.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProductForm mode="create" catalogId={catalog.id} catalogSlug={catalog.slug} />
-        </CardContent>
-      </Card>
+      <ProductForm mode="create" catalogId={catalog.id} catalogSlug={catalog.slug} />
     </div>
   );
 }

@@ -4,9 +4,12 @@ import { useEffect, useRef, useState, useTransition, type ChangeEvent } from 're
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ProductImageList, type ImageRow } from '@/components/dashboard/product-image-list';
+import { ProductImageUploader } from '@/components/dashboard/product-image-uploader';
 import { createProductAction, updateProductAction } from '@/lib/actions/product';
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -41,6 +44,7 @@ type EditMode = {
     materials: string[] | null;
     dimensions: { width?: number; height?: number; depth?: number; unit?: 'cm' | 'in' } | null;
   };
+  images: ImageRow[];
 };
 
 export function ProductForm(props: CreateMode | EditMode) {
@@ -60,8 +64,8 @@ export function ProductForm(props: CreateMode | EditMode) {
 
   // --- Create-mode photo buffer -------------------------------------------
   // Photos are buffered client-side and uploaded after the product is created
-  // (the upload flow needs a productId). Edit mode uses the product page's
-  // Images card, so this state is only exercised when mode === 'create'.
+  // (the upload flow needs a productId). Edit mode uploads to the existing
+  // product directly, so this buffer state is only exercised when create.
   const [images, setImages] = useState<{ file: File; url: string }[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageUploadProgress, setImageUploadProgress] = useState<{
@@ -69,8 +73,8 @@ export function ProductForm(props: CreateMode | EditMode) {
     total: number;
   } | null>(null);
 
-  // Mirror the buffer into a ref so the unmount cleanup can revoke every
-  // object URL without the effect re-running on each buffer change.
+  // Mirror the buffer into a ref so the unmount cleanup can revoke every object
+  // URL without the effect re-running on each buffer change.
   const imagesRef = useRef<{ file: File; url: string }[]>([]);
   useEffect(() => {
     imagesRef.current = images;
@@ -102,7 +106,7 @@ export function ProductForm(props: CreateMode | EditMode) {
   return (
     <form
       noValidate
-      className="space-y-4"
+      className="space-y-6"
       action={(formData) => {
         setError(null);
         setFieldErrors({});
@@ -146,217 +150,244 @@ export function ProductForm(props: CreateMode | EditMode) {
         });
       }}
     >
-      <div className="space-y-2">
-        <Label htmlFor="product-title">Title</Label>
-        <Input
-          id="product-title"
-          name="title"
-          required
-          minLength={2}
-          maxLength={200}
-          defaultValue={d?.title}
-          aria-invalid={fieldError('title') ? true : undefined}
-        />
-        {fieldError('title') && <p className="text-destructive text-xs">{fieldError('title')}</p>}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="product-description">Description</Label>
-        <Textarea
-          id="product-description"
-          name="description"
-          rows={4}
-          defaultValue={d?.description ?? ''}
-          aria-invalid={fieldError('description') ? true : undefined}
-        />
-        {fieldError('description') && (
-          <p className="text-destructive text-xs">{fieldError('description')}</p>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="product-price">Price</Label>
-          <Input
-            id="product-price"
-            name="price"
-            inputMode="decimal"
-            placeholder="0.00"
-            required
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            onBlur={(e) => setPrice(formatPriceForDisplay(e.target.value))}
-            aria-invalid={fieldError('price') ? true : undefined}
-          />
-          {fieldError('price') && <p className="text-destructive text-xs">{fieldError('price')}</p>}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="product-currency">Currency</Label>
-          <Input
-            id="product-currency"
-            name="currency"
-            maxLength={3}
-            defaultValue={d?.currency ?? 'PHP'}
-            aria-invalid={fieldError('currency') ? true : undefined}
-          />
-          {fieldError('currency') && (
-            <p className="text-destructive text-xs">{fieldError('currency')}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="product-stock">Stock on hand</Label>
-          <Input
-            id="product-stock"
-            name="stockOnHand"
-            type="number"
-            min={0}
-            step={1}
-            defaultValue={d?.stockOnHand ?? 0}
-            aria-invalid={fieldError('stockOnHand') ? true : undefined}
-          />
-          {fieldError('stockOnHand') && (
-            <p className="text-destructive text-xs">{fieldError('stockOnHand')}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="product-materials">Materials (comma-separated)</Label>
-        <Input
-          id="product-materials"
-          name="materials"
-          placeholder="stoneware, glaze, oxide"
-          defaultValue={d?.materials?.join(', ') ?? ''}
-          aria-invalid={fieldError('materials') ? true : undefined}
-        />
-        {fieldError('materials') && (
-          <p className="text-destructive text-xs">{fieldError('materials')}</p>
-        )}
-      </div>
-
-      <fieldset className="space-y-2 rounded-md border p-4">
-        <legend className="text-sm font-medium">Dimensions</legend>
-        <div className="grid grid-cols-4 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="product-width" className="text-xs">
-              Width
-            </Label>
+      <Card>
+        <CardHeader>
+          <CardTitle>Product details</CardTitle>
+          {isEdit && <CardDescription>Slug is locked once created.</CardDescription>}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="product-title">Title</Label>
             <Input
-              id="product-width"
-              name="width"
-              type="number"
-              step="0.1"
-              min={0}
-              defaultValue={d?.dimensions?.width ?? ''}
+              id="product-title"
+              name="title"
+              required
+              minLength={2}
+              maxLength={200}
+              defaultValue={d?.title}
+              aria-invalid={fieldError('title') ? true : undefined}
             />
+            {fieldError('title') && (
+              <p className="text-destructive text-xs">{fieldError('title')}</p>
+            )}
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="product-height" className="text-xs">
-              Height
-            </Label>
-            <Input
-              id="product-height"
-              name="height"
-              type="number"
-              step="0.1"
-              min={0}
-              defaultValue={d?.dimensions?.height ?? ''}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="product-depth" className="text-xs">
-              Depth
-            </Label>
-            <Input
-              id="product-depth"
-              name="depth"
-              type="number"
-              step="0.1"
-              min={0}
-              defaultValue={d?.dimensions?.depth ?? ''}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="product-unit" className="text-xs">
-              Unit
-            </Label>
-            <select
-              id="product-unit"
-              name="unit"
-              defaultValue={d?.dimensions?.unit ?? 'cm'}
-              className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-            >
-              <option value="cm">cm</option>
-              <option value="in">in</option>
-            </select>
-          </div>
-        </div>
-        {fieldError('dimensions') && (
-          <p className="text-destructive text-xs">{fieldError('dimensions')}</p>
-        )}
-      </fieldset>
 
-      <div className="space-y-2">
-        <Label htmlFor="product-weight">Weight (grams, optional)</Label>
-        <Input
-          id="product-weight"
-          name="weightGrams"
-          type="number"
-          min={0}
-          step={1}
-          defaultValue={d?.weightGrams ?? ''}
-          aria-invalid={fieldError('weightGrams') ? true : undefined}
-        />
-        {fieldError('weightGrams') && (
-          <p className="text-destructive text-xs">{fieldError('weightGrams')}</p>
-        )}
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="product-description">Description</Label>
+            <Textarea
+              id="product-description"
+              name="description"
+              rows={4}
+              defaultValue={d?.description ?? ''}
+              aria-invalid={fieldError('description') ? true : undefined}
+            />
+            {fieldError('description') && (
+              <p className="text-destructive text-xs">{fieldError('description')}</p>
+            )}
+          </div>
 
-      {props.mode === 'create' && (
-        <div className="space-y-2">
-          <Label htmlFor="product-photos">Photos</Label>
-          <Input
-            id="product-photos"
-            type="file"
-            multiple
-            accept={ACCEPTED_IMAGE_TYPES.join(',')}
-            onChange={handleFilesPicked}
-            disabled={isPending}
-          />
-          <p className="text-muted-foreground text-xs">
-            JPEG, PNG, WebP, or AVIF; up to 10 MB each. The first photo is the preview buyers see.
-          </p>
-          {imageError && <p className="text-destructive text-xs">{imageError}</p>}
-          {images.length > 0 && (
-            <ul className="grid grid-cols-3 gap-3">
-              {images.map((img, index) => (
-                <li key={img.url} className="space-y-1 rounded-md border p-2">
-                  <div className="bg-muted relative aspect-square overflow-hidden rounded">
-                    <Image
-                      src={img.url}
-                      alt=""
-                      fill
-                      sizes="(min-width: 640px) 160px, 30vw"
-                      unoptimized
-                      className="object-cover"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => removeImage(index)}
-                    disabled={isPending}
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="product-price">Price</Label>
+              <Input
+                id="product-price"
+                name="price"
+                inputMode="decimal"
+                placeholder="0.00"
+                required
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                onBlur={(e) => setPrice(formatPriceForDisplay(e.target.value))}
+                aria-invalid={fieldError('price') ? true : undefined}
+              />
+              {fieldError('price') && (
+                <p className="text-destructive text-xs">{fieldError('price')}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-currency">Currency</Label>
+              <Input
+                id="product-currency"
+                name="currency"
+                maxLength={3}
+                defaultValue={d?.currency ?? 'PHP'}
+                aria-invalid={fieldError('currency') ? true : undefined}
+              />
+              {fieldError('currency') && (
+                <p className="text-destructive text-xs">{fieldError('currency')}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-stock">Stock on hand</Label>
+              <Input
+                id="product-stock"
+                name="stockOnHand"
+                type="number"
+                min={0}
+                step={1}
+                defaultValue={d?.stockOnHand ?? 0}
+                aria-invalid={fieldError('stockOnHand') ? true : undefined}
+              />
+              {fieldError('stockOnHand') && (
+                <p className="text-destructive text-xs">{fieldError('stockOnHand')}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-materials">Materials (comma-separated)</Label>
+            <Input
+              id="product-materials"
+              name="materials"
+              placeholder="stoneware, glaze, oxide"
+              defaultValue={d?.materials?.join(', ') ?? ''}
+              aria-invalid={fieldError('materials') ? true : undefined}
+            />
+            {fieldError('materials') && (
+              <p className="text-destructive text-xs">{fieldError('materials')}</p>
+            )}
+          </div>
+
+          <fieldset className="space-y-2 rounded-md border p-4">
+            <legend className="text-sm font-medium">Dimensions</legend>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="product-width" className="text-xs">
+                  Width
+                </Label>
+                <Input
+                  id="product-width"
+                  name="width"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  defaultValue={d?.dimensions?.width ?? ''}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="product-height" className="text-xs">
+                  Height
+                </Label>
+                <Input
+                  id="product-height"
+                  name="height"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  defaultValue={d?.dimensions?.height ?? ''}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="product-depth" className="text-xs">
+                  Depth
+                </Label>
+                <Input
+                  id="product-depth"
+                  name="depth"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  defaultValue={d?.dimensions?.depth ?? ''}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="product-unit" className="text-xs">
+                  Unit
+                </Label>
+                <select
+                  id="product-unit"
+                  name="unit"
+                  defaultValue={d?.dimensions?.unit ?? 'cm'}
+                  className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+                >
+                  <option value="cm">cm</option>
+                  <option value="in">in</option>
+                </select>
+              </div>
+            </div>
+            {fieldError('dimensions') && (
+              <p className="text-destructive text-xs">{fieldError('dimensions')}</p>
+            )}
+          </fieldset>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-weight">Weight (grams, optional)</Label>
+            <Input
+              id="product-weight"
+              name="weightGrams"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={d?.weightGrams ?? ''}
+              aria-invalid={fieldError('weightGrams') ? true : undefined}
+            />
+            {fieldError('weightGrams') && (
+              <p className="text-destructive text-xs">{fieldError('weightGrams')}</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Photos</CardTitle>
+          <CardDescription>
+            The first photo is the preview buyers see on public pages.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {props.mode === 'create' ? (
+            <div className="space-y-2">
+              <Label htmlFor="product-photos">Add photos</Label>
+              <Input
+                id="product-photos"
+                type="file"
+                multiple
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                onChange={handleFilesPicked}
+                disabled={isPending}
+              />
+              <p className="text-muted-foreground text-xs">
+                JPEG, PNG, WebP, or AVIF; up to 10 MB each.
+              </p>
+              {imageError && <p className="text-destructive text-xs">{imageError}</p>}
+              {images.length > 0 && (
+                <ul className="grid grid-cols-3 gap-3">
+                  {images.map((img, index) => (
+                    <li key={img.url} className="space-y-1 rounded-md border p-2">
+                      <div className="bg-muted relative aspect-square overflow-hidden rounded">
+                        <Image
+                          src={img.url}
+                          alt=""
+                          fill
+                          sizes="(min-width: 640px) 160px, 30vw"
+                          unoptimized
+                          className="object-cover"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => removeImage(index)}
+                        disabled={isPending}
+                      >
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <ProductImageList images={props.images} />
+              <ProductImageUploader productId={props.productId} />
+            </div>
           )}
-        </div>
-      )}
+        </CardContent>
+      </Card>
 
       {error && (
         <p role="alert" className="text-destructive text-sm">

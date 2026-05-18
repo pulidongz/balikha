@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { deleteProductImageAction } from '@/lib/actions/product';
 import { err } from '@/lib/result';
 
-type ImageRow = {
+export type ImageRow = {
   id: string;
   url: string;
   width: number | null;

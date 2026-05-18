@@ -4,11 +4,8 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs, productImages, products } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProductForm } from '@/components/dashboard/product-form';
 import { ProductStatusButtons } from '@/components/dashboard/product-status-buttons';
-import { ProductImageUploader } from '@/components/dashboard/product-image-uploader';
-import { ProductImageList } from '@/components/dashboard/product-image-list';
 
 export const metadata = {
   title: 'Edit product',
@@ -78,9 +75,6 @@ export default async function ProductDetailPage({
         </div>
       </header>
 
-      {/* Images first: they upload/remove instantly (independent of the
-          details form's "Save changes"), and keeping the details card last
-          lets its Save button read as the end of the page. */}
       {showImagesFailedNotice && (
         <p role="status" className="bg-secondary/50 rounded-md border p-3 text-sm">
           {failedCount === 1
@@ -88,45 +82,26 @@ export default async function ProductDetailPage({
             : `${failedCount} photos could not be uploaded when this product was created. Add them below.`}
         </p>
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Images</CardTitle>
-          <CardDescription>
-            The first image is used as the social-share preview on public pages.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <ProductImageList images={images} />
-          <ProductImageUploader productId={product.id} />
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Product details</CardTitle>
-          <CardDescription>Slug is locked once created.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProductForm
-            // Remount when the product row changes — e.g. after a save's
-            // router.refresh() — so the uncontrolled inputs re-initialise with
-            // the new defaults instead of warning that defaultValue changed.
-            key={product.updatedAt.getTime()}
-            mode="edit"
-            productId={product.id}
-            defaults={{
-              title: product.title,
-              description: product.description,
-              price: product.price,
-              currency: product.currency,
-              stockOnHand: product.stockOnHand,
-              weightGrams: product.weightGrams,
-              materials: product.materials,
-              dimensions: product.dimensions,
-            }}
-          />
-        </CardContent>
-      </Card>
+      <ProductForm
+        // Remount when the product row changes — e.g. after a save's
+        // router.refresh() — so the uncontrolled inputs re-initialise with
+        // the new defaults instead of warning that defaultValue changed.
+        key={product.updatedAt.getTime()}
+        mode="edit"
+        productId={product.id}
+        images={images}
+        defaults={{
+          title: product.title,
+          description: product.description,
+          price: product.price,
+          currency: product.currency,
+          stockOnHand: product.stockOnHand,
+          weightGrams: product.weightGrams,
+          materials: product.materials,
+          dimensions: product.dimensions,
+        }}
+      />
     </div>
   );
 }
