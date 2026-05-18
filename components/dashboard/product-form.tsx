@@ -8,7 +8,20 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createProductAction, updateProductAction } from '@/lib/actions/product';
 
-type CreateMode = { mode: 'create'; catalogId: string };
+// Prices display with thousands separators ("1,200.00"). Formatting happens
+// on blur — never mid-keystroke — so the caret never jumps. A value that is
+// not a clean number is left untouched for the server validator to flag.
+function formatPriceForDisplay(raw: string): string {
+  const cleaned = raw.replace(/,/g, '').trim();
+  if (cleaned === '') return '';
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return raw;
+  return Number(cleaned).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+type CreateMode = { mode: 'create'; catalogId: string; catalogSlug: string };
 type EditMode = {
   mode: 'edit';
   productId: string;
@@ -36,6 +49,8 @@ export function ProductForm(props: CreateMode | EditMode) {
 
   const isEdit = props.mode === 'edit';
   const d = isEdit ? props.defaults : null;
+  // Controlled so the price can be reformatted with commas on blur.
+  const [price, setPrice] = useState(() => formatPriceForDisplay(d?.price ?? ''));
 
   return (
     <form
@@ -45,16 +60,24 @@ export function ProductForm(props: CreateMode | EditMode) {
         setError(null);
         setFieldErrors({});
         startTransition(async () => {
-          const result = isEdit
-            ? await updateProductAction(props.productId, formData)
-            : await createProductAction(props.catalogId, formData);
-          if (!result.ok) {
-            setError(result.error);
-            setFieldErrors(result.fieldErrors ?? {});
-            return;
+          if (props.mode === 'edit') {
+            const result = await updateProductAction(props.productId, formData);
+            if (!result.ok) {
+              setError(result.error);
+              setFieldErrors(result.fieldErrors ?? {});
+              return;
+            }
+            router.refresh();
+          } else {
+            const result = await createProductAction(props.catalogId, formData);
+            if (!result.ok) {
+              setError(result.error);
+              setFieldErrors(result.fieldErrors ?? {});
+              return;
+            }
+            // Land on the new product's edit page — that is where images are added.
+            router.push(`/dashboard/catalogs/${props.catalogSlug}/products/${result.data.slug}`);
           }
-          router.refresh();
-          if (!isEdit) router.back();
         });
       }}
     >
@@ -95,7 +118,9 @@ export function ProductForm(props: CreateMode | EditMode) {
             inputMode="decimal"
             placeholder="0.00"
             required
-            defaultValue={d?.price}
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            onBlur={(e) => setPrice(formatPriceForDisplay(e.target.value))}
             aria-invalid={fieldError('price') ? true : undefined}
           />
           {fieldError('price') && <p className="text-destructive text-xs">{fieldError('price')}</p>}
