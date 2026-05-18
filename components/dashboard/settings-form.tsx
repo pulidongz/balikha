@@ -22,6 +22,14 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [saved, setSaved] = useState(false);
+  // Controlled inputs, seeded once from `defaults`. A successful save calls
+  // router.refresh(), which feeds new `defaults` into this persisted instance;
+  // controlled state ignores that, avoiding Base UI's changed-defaultValue
+  // warning while keeping the "Saved." message (the instance is not remounted).
+  const [shopName, setShopName] = useState(defaults.shopName);
+  const [location, setLocation] = useState(defaults.location ?? '');
+  const [bio, setBio] = useState(defaults.bio ?? '');
+  const [policies, setPolicies] = useState(defaults.policies ?? '');
 
   function fieldError(name: string): string | undefined {
     return fieldErrors[name]?.[0];
@@ -52,7 +60,8 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
         <Input
           id="settings-shop-name"
           name="shopName"
-          defaultValue={defaults.shopName}
+          value={shopName}
+          onChange={(e) => setShopName(e.target.value)}
           required
           minLength={2}
           maxLength={80}
@@ -76,7 +85,8 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
         <Input
           id="settings-location"
           name="location"
-          defaultValue={defaults.location ?? ''}
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
           placeholder="e.g. Quezon City"
           maxLength={120}
           aria-invalid={fieldError('location') ? true : undefined}
@@ -91,7 +101,8 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
         <Textarea
           id="settings-bio"
           name="bio"
-          defaultValue={defaults.bio ?? ''}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
           rows={4}
           placeholder="A short introduction to you and your craft."
           aria-invalid={fieldError('bio') ? true : undefined}
@@ -104,7 +115,8 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
         <Textarea
           id="settings-policies"
           name="policies"
-          defaultValue={defaults.policies ?? ''}
+          value={policies}
+          onChange={(e) => setPolicies(e.target.value)}
           rows={5}
           placeholder="Shipping, returns, custom orders…"
           aria-invalid={fieldError('policies') ? true : undefined}
