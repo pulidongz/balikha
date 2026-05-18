@@ -4,10 +4,18 @@ import { z } from 'zod';
 // precision — see lib/format.ts. The regex enforces "digits with up to 2
 // decimals", and the refine then asserts the parsed value is positive.
 const priceRegex = /^\d+(\.\d{1,2})?$/;
+// The product form formats the price for display with thousands separators
+// ("1,200.00"). Strip commas before the regex/refine so the stored value is
+// always a clean numeric string.
 const priceField = z
   .string()
-  .regex(priceRegex, 'Price must be a number with up to 2 decimals')
-  .refine((v) => Number(v) > 0, 'Price must be greater than zero');
+  .transform((v) => v.replace(/,/g, ''))
+  .pipe(
+    z
+      .string()
+      .regex(priceRegex, 'Price must be a number with up to 2 decimals')
+      .refine((v) => Number(v) > 0, 'Price must be greater than zero'),
+  );
 
 const dimensionsField = z
   .object({
