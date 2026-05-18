@@ -70,7 +70,7 @@ function inputFromFormData(formData: FormData) {
 export async function createProductAction(
   catalogId: string,
   formData: FormData,
-): Promise<Result<{ slug: string }>> {
+): Promise<Result<{ slug: string; productId: string }>> {
   const profile = await requireArtisan().catch(() => null);
   if (!profile) return err('You must have an artisan profile.');
 
@@ -105,24 +105,28 @@ export async function createProductAction(
     return Boolean(row);
   });
 
-  await db.insert(products).values({
-    catalogId,
-    artisanProfileId: profile.id,
-    slug,
-    title,
-    description: description ?? null,
-    price,
-    currency,
-    stockOnHand,
-    status: 'draft',
-    dimensions: dimensions ?? null,
-    materials: materials ?? null,
-    weightGrams: weightGrams ?? null,
-  });
+  const [created] = await db
+    .insert(products)
+    .values({
+      catalogId,
+      artisanProfileId: profile.id,
+      slug,
+      title,
+      description: description ?? null,
+      price,
+      currency,
+      stockOnHand,
+      status: 'draft',
+      dimensions: dimensions ?? null,
+      materials: materials ?? null,
+      weightGrams: weightGrams ?? null,
+    })
+    .returning({ id: products.id });
+  if (!created) return err('Failed to create product.');
 
   revalidatePath('/dashboard/catalogs');
   revalidateTag(FACET_TAG, 'max');
-  return ok({ slug });
+  return ok({ slug, productId: created.id });
 }
 
 export async function updateProductAction(
