@@ -21,8 +21,10 @@ export const catalogUpdateSchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   releaseAt: timestampField,
   closesAt: timestampField,
-  // Checkbox: arrives as 'on' when ticked, absent (undefined) otherwise.
-  isLimitedEdition: z.preprocess((v) => v === 'on' || v === true, z.boolean()),
+  // Checkbox: arrives as 'on' when ticked, absent otherwise. The trailing
+  // .default(false) is required — Zod 4 rejects a missing object key on a
+  // non-optional field before preprocess runs (cf. buyer.ts booleanCheckbox).
+  isLimitedEdition: z.preprocess((v) => v === 'on' || v === true, z.boolean()).default(false),
 });
 
 export const catalogStatusSchema = z.enum(['draft', 'published', 'archived']);
