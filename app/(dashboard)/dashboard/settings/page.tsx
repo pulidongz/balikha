@@ -31,6 +31,16 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="font-serif text-xl">Banner image</CardTitle>
+          <CardDescription>Hero image at the top of your public storefront.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BannerUploader currentUrl={profile.bannerImageUrl} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="font-serif text-xl">Profile</CardTitle>
           <CardDescription>
             Public information that appears on your storefront and product pages.
@@ -46,16 +56,6 @@ export default async function SettingsPage() {
               policies: profile.policies,
             }}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-serif text-xl">Banner image</CardTitle>
-          <CardDescription>Hero image at the top of your public storefront.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <BannerUploader currentUrl={profile.bannerImageUrl} />
         </CardContent>
       </Card>
     </div>
