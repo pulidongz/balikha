@@ -12,6 +12,10 @@ export const orderPlaceSchema = z.object({
   shippingAddressId: z.string().uuid(),
   notesFromBuyer: z.string().max(2000).optional(),
   idempotencyKey: z.string().uuid().optional(),
+  // When the buyer places an order from inside a pre-purchase
+  // thread, the thread pivots: orderId gets set on that thread and
+  // the conversation continues seamlessly into the order surface.
+  threadId: z.string().uuid().optional(),
 });
 
 export type OrderPlaceInput = z.infer<typeof orderPlaceSchema>;

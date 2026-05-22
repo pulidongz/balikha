@@ -2,11 +2,12 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidateTag } from 'next/cache';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db, type Tx } from '@/db';
 import {
   artisanProfiles,
   idempotencyKeys,
+  messageThreads,
   notifications,
   orderDisputes,
   orderEvents,
@@ -135,7 +136,7 @@ export async function reorderAction(input: {
  */
 export async function placeOrder(
   input: unknown,
-): Promise<Result<{ orderId: string; reference: string }>> {
+): Promise<Result<{ orderId: string; reference: string; threadLinkSkipped: boolean }>> {
   const log = await getRequestLogger();
   const parsed = orderPlaceSchema.safeParse(input);
   if (!parsed.success) {
@@ -162,9 +163,15 @@ export async function placeOrder(
         type TxResult =
           | {
               kind: 'cached';
-              cached: Result<{ orderId: string; reference: string }>;
+              cached: Result<{ orderId: string; reference: string; threadLinkSkipped: boolean }>;
             }
-          | { kind: 'fresh'; orderId: string; reference: string; artisanProfileId: string };
+          | {
+              kind: 'fresh';
+              orderId: string;
+              reference: string;
+              artisanProfileId: string;
+              threadLinkSkipped: boolean;
+            };
 
         const result: TxResult = await db.transaction(async (tx) => {
           // 0. Advisory lock keyed on idempotencyKey + cache re-check.
@@ -206,6 +213,7 @@ export async function placeOrder(
                 cached: JSON.parse(cached.responseJson) as Result<{
                   orderId: string;
                   reference: string;
+                  threadLinkSkipped: boolean;
                 }>,
               };
             }
@@ -350,6 +358,59 @@ export async function placeOrder(
             },
           });
 
+          // 6.5. Pre-purchase thread pivot (optional, BEST-EFFORT).
+          //      When the placement was initiated from inside an
+          //      existing thread, link them: thread.orderId becomes
+          //      set, thread.updatedAt bumps so the inbox surfaces the
+          //      converted thread.
+          //
+          //      Guards (all enforced via the UPDATE's WHERE clause,
+          //      one round-trip, IDOR-safe):
+          //      - Thread must belong to this buyer.
+          //      - Thread must point at THIS product.
+          //      - Thread must not already have an orderId (already
+          //        converted).
+          //
+          //      Non-fatal by design (round-2 review Issue 12): if the
+          //      UPDATE matches 0 rows (stale CTA link, thread already
+          //      converted, wrong product), the order STILL commits.
+          //      The order is the buyer's actual goal; the thread link
+          //      is a secondary nicety. Throwing OrderBusinessError
+          //      here would roll back the placement AND let
+          //      withIdempotency cache that failure — permanently
+          //      bricking the idempotency key for an order that could
+          //      otherwise be placed. Instead, log it and surface a
+          //      non-blocking `threadLinkSkipped` flag on the success
+          //      result (the failure is reported, not swallowed). A
+          //      SUCCESSFUL pivot stays atomic with the order insert
+          //      (same transaction).
+          let threadLinkSkipped = false;
+          if (parsed.data.threadId) {
+            const updated = await tx
+              .update(messageThreads)
+              .set({ orderId: order.id, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(messageThreads.id, parsed.data.threadId),
+                  eq(messageThreads.buyerUserId, buyer.id),
+                  eq(messageThreads.productId, product.id),
+                  isNull(messageThreads.orderId),
+                ),
+              )
+              .returning({ id: messageThreads.id });
+            if (updated.length === 0) {
+              threadLinkSkipped = true;
+              log.warn(
+                {
+                  threadId: parsed.data.threadId,
+                  orderId: order.id,
+                  buyerUserId: buyer.id,
+                },
+                'placeOrder: thread pivot matched 0 rows — order placed, thread not linked',
+              );
+            }
+          }
+
           // Write the idempotency cache row INSIDE this transaction so
           // it commits atomically with the order, while the advisory
           // lock above is still held. A concurrent retry's in-lock
@@ -364,7 +425,9 @@ export async function placeOrder(
                 key: parsed.data.idempotencyKey,
                 userId: buyer.id,
                 scope: 'placeOrder',
-                responseJson: JSON.stringify(ok({ orderId: order.id, reference })),
+                responseJson: JSON.stringify(
+                  ok({ orderId: order.id, reference, threadLinkSkipped }),
+                ),
                 expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
               })
               .onConflictDoNothing();
@@ -375,6 +438,7 @@ export async function placeOrder(
             orderId: order.id,
             reference,
             artisanProfileId: artisan.id,
+            threadLinkSkipped,
           };
         });
 
@@ -397,7 +461,11 @@ export async function placeOrder(
         // invalidating every other seller's cache on every order.
         revalidateTag(`reputation:${result.artisanProfileId}`, 'max');
 
-        return ok({ orderId: result.orderId, reference: result.reference });
+        return ok({
+          orderId: result.orderId,
+          reference: result.reference,
+          threadLinkSkipped: result.threadLinkSkipped,
+        });
       } catch (e) {
         if (e instanceof OrderBusinessError) {
           // Deterministic, user-facing rejection — safe to surface to
