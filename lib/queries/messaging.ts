@@ -195,7 +195,13 @@ async function inboxQuery(opts: {
       // inbox renders this in a single CSS-truncated line, so shipping
       // the full body (up to 2000 chars) × PAGE_SIZE rows of HTML is
       // waste. 200 chars is far more than one line ever displays.
-      body: sql<string>`left(${messages.body}, 200)`,
+      //
+      // `.as('body')` is REQUIRED: this is a raw SQL field inside a
+      // subquery referenced via leftJoinLateral. Drizzle infers aliases
+      // for real columns but raw `sql` fragments need the alias spelled
+      // out so the outer `lastMessage.body` reference can resolve. Real
+      // columns below (senderRole, createdAt) don't need it.
+      body: sql<string>`left(${messages.body}, 200)`.as('body'),
       senderRole: messages.senderRole,
       createdAt: messages.createdAt,
     })
