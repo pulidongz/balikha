@@ -12,6 +12,7 @@ import {
   customType,
   boolean,
   primaryKey,
+  bigserial,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth';
@@ -339,6 +340,7 @@ export const notificationType = pgEnum('notification_type', [
   'wishlist_low_stock',
   'order_status_changed',
   'system_announcement',
+  'new_message',
 ]);
 
 export const notifications = pgTable(
@@ -352,6 +354,13 @@ export const notifications = pgTable(
     title: text('title').notNull(),
     body: text('body'),
     target: jsonb('target').$type<{ kind: string; id: string; url?: string }>(),
+    // Set only for type = 'new_message'. References messageThreads
+    // for both the dedup index and the click-through URL fallback.
+    // Cascade matches the thread's cascade — if a thread is removed
+    // (artisan deletion), its notifications go with it.
+    threadId: uuid('thread_id').references(() => messageThreads.id, {
+      onDelete: 'cascade',
+    }),
     readAt: timestamp('read_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
@@ -362,6 +371,28 @@ export const notifications = pgTable(
     index('notifications_user_unread_idx')
       .on(t.userId)
       .where(sql`read_at IS NULL`),
+    // At most one UNREAD new_message notification per (user, thread).
+    // Senders insert with ON CONFLICT DO NOTHING against this index
+    // so a burst of N messages produces a single notification row
+    // that the recipient clears once.
+    //
+    // The predicate is `thread_id IS NOT NULL` — NOT `type =
+    // 'new_message'` — even though they are logically equivalent
+    // (thread_id is populated only for new_message notifications).
+    // Reason: this index ships in the SAME migration as the
+    // `ALTER TYPE notification_type ADD VALUE 'new_message'`.
+    // Postgres allows ADD VALUE inside a transaction but forbids
+    // *using* the new value in the same transaction — and the runtime
+    // migrator wraps every pending migration in one transaction. A
+    // predicate that referenced the `'new_message'` literal would
+    // fail `npm run db:migrate` with "unsafe use of new value". The
+    // `thread_id IS NOT NULL` form never references the enum value,
+    // so the index and the ADD VALUE coexist safely. If a future
+    // notification type also wants a thread_id, revisit this — for v1,
+    // thread_id is exclusive to new_message.
+    uniqueIndex('notifications_user_thread_unread_idx')
+      .on(t.userId, t.threadId)
+      .where(sql`thread_id IS NOT NULL AND read_at IS NULL`),
   ],
 );
 
@@ -558,5 +589,180 @@ export const orderDisputes = pgTable(
     uniqueIndex('order_disputes_active_per_order')
       .on(t.orderId)
       .where(sql`status IN ('open', 'under_review')`),
+  ],
+);
+
+// =============================================================================
+// Messaging
+// =============================================================================
+
+// Threads. A thread is anchored to a (buyer, artisan, product) tuple
+// pre-purchase, and additionally to an order post-placement. The
+// pre→order pivot is a single UPDATE that sets orderId; no row
+// migration. Snapshot fields on the thread persist when the product
+// or order is later deleted — mirroring orders.product_*Snapshot.
+//
+// Append-only convention for thread row deletion: threads are never
+// deleted by users. Cascade only fires when the artisan profile is
+// removed (the seller-deletion path); buyer deletion is `restrict`
+// because order history must remain queryable (see orders.buyer_user_id).
+export const messageThreads = pgTable(
+  'message_threads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    // Anchor — always set.
+    buyerUserId: text('buyer_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    artisanProfileId: uuid('artisan_profile_id')
+      .notNull()
+      .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
+
+    // Pre-purchase anchor — set on creation, kept after pivot for
+    // historical context. The seller sees "Asking about: <product>"
+    // even after the order is placed. snapshot fields persist past
+    // product deletion via ON DELETE SET NULL on productId.
+    productId: uuid('product_id').references(() => products.id, {
+      onDelete: 'set null',
+    }),
+    productTitleSnapshot: text('product_title_snapshot').notNull(),
+    productSlugSnapshot: text('product_slug_snapshot').notNull(),
+    productImageUrlSnapshot: text('product_image_url_snapshot'),
+    artisanShopSlugSnapshot: text('artisan_shop_slug_snapshot').notNull(),
+    artisanShopNameSnapshot: text('artisan_shop_name_snapshot').notNull(),
+
+    // Order anchor — null pre-purchase, set on pivot. ON DELETE SET NULL
+    // matches `orders.product_id` discipline: if an order is somehow
+    // hard-deleted (shouldn't happen, but defensive), the thread row
+    // survives with its history intact.
+    orderId: uuid('order_id').references(() => orders.id, {
+      onDelete: 'set null',
+    }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    // Bumped by sendMessage so the inbox can ORDER BY updatedAt DESC
+    // without an additional last-message lookup.
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('message_threads_buyer_idx').on(t.buyerUserId),
+    index('message_threads_artisan_idx').on(t.artisanProfileId),
+    index('message_threads_order_idx').on(t.orderId),
+    // Inbox sort target — recent activity first per side.
+    index('message_threads_buyer_updated_idx').on(t.buyerUserId, t.updatedAt),
+    index('message_threads_artisan_updated_idx').on(t.artisanProfileId, t.updatedAt),
+    // At most one ACTIVE pre-purchase thread per (buyer, product).
+    // Active = orderId IS NULL. Once the thread pivots to an order
+    // (orderId is set), a fresh pre-purchase thread on the same
+    // product is allowed (e.g. asking about a restock after the
+    // first order completed). Mirrors order_disputes_active_per_order
+    // pattern.
+    uniqueIndex('message_threads_active_pre_purchase_idx')
+      .on(t.buyerUserId, t.productId)
+      .where(sql`order_id IS NULL`),
+  ],
+);
+
+// Sender role on a message. Stored explicitly so the thread renderer
+// doesn't have to re-derive it by looking up artisanProfiles.userId
+// for every message.
+export const messageSenderRole = pgEnum('message_sender_role', ['buyer', 'seller']);
+
+// Messages. Append-only. No edits, no deletes (except via thread
+// cascade on artisan deletion).
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => messageThreads.id, { onDelete: 'cascade' }),
+    senderUserId: text('sender_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    senderRole: messageSenderRole('sender_role').notNull(),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    // Monotonic per-row ordering key. `created_at` alone is not safe
+    // for an incremental poll — two inserts in the same statement-time
+    // tick can share a timestamp, so a future SSE/websocket layer
+    // streaming `WHERE created_at > $lastSeen` could miss or
+    // re-deliver a message. `seq` gives a deterministic stream cursor
+    // (`seq > $lastSeen`) and a stable tie-break for the thread render
+    // (`ORDER BY seq`). bigserial is gap-tolerant — gaps from
+    // rolled-back inserts are harmless for an ordering key.
+    seq: bigserial('seq', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    // Hot read: thread render (load all messages for a thread,
+    // chronological). Indexed on (threadId, seq) so the render's
+    // `ORDER BY seq` is a deterministic, index-ordered scan.
+    index('messages_thread_seq_idx').on(t.threadId, t.seq),
+    // Rate-limit check: count this sender's recent messages across
+    // all threads (the daily limit) and on one thread (the burst
+    // limit). Composite covers both.
+    index('messages_sender_created_idx').on(t.senderUserId, t.createdAt),
+  ],
+);
+
+// Abuse reports. A reporting user flags a single message; admin
+// reviews in /admin/reports. The reported message stays visible in
+// the thread — the report is signal, not redaction.
+export const messageReportStatus = pgEnum('message_report_status', [
+  'open',
+  'reviewed_actioned',
+  'reviewed_dismissed',
+]);
+
+export const messageReports = pgTable(
+  'message_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    reporterUserId: text('reporter_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reason: text('reason'),
+    status: messageReportStatus('status').notNull().default('open'),
+    reviewedByAdminUserId: text('reviewed_by_admin_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    reviewedAt: timestamp('reviewed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('message_reports_status_idx').on(t.status),
+    index('message_reports_message_idx').on(t.messageId),
+    // A single reporter can't file two open reports on the same
+    // message — dedupes the "report" button against rapid clicks.
+    // Mirrors order_disputes_active_per_order.
+    uniqueIndex('message_reports_open_per_reporter_idx')
+      .on(t.messageId, t.reporterUserId)
+      .where(sql`status = 'open'`),
+  ],
+);
+
+// Seller-side block list. Composite primary key on
+// (artisanProfileId, blockedUserId) makes duplicate blocks
+// structurally impossible. Block is messaging-only — active orders
+// between the parties continue normally.
+export const sellerBlockedBuyers = pgTable(
+  'seller_blocked_buyers',
+  {
+    artisanProfileId: uuid('artisan_profile_id')
+      .notNull()
+      .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
+    blockedUserId: text('blocked_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reason: text('reason'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.artisanProfileId, t.blockedUserId] }),
+    index('seller_blocked_buyers_blocked_user_idx').on(t.blockedUserId),
   ],
 );

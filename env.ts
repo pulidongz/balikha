@@ -23,6 +23,19 @@ export const env = createEnv({
     // orders surfaces the same value so buyers know their dispute deadline.
     ORDER_SELLER_RESPONSE_TIMEOUT_HOURS: z.coerce.number().int().positive().default(48),
     ORDER_BUYER_AUTO_CONFIRM_DAYS: z.coerce.number().int().positive().default(14),
+    // Messaging rate limits. Defaults tuned for an early-stage
+    // marketplace ("calm confidence" — sellers should not be drowning
+    // in messages, see PRODUCT.md). Tune post-deploy via env without
+    // a code change.
+    //
+    // The new-thread limit is per-buyer TOTAL across all artisans —
+    // a buyer who has started this many new pre-purchase threads in
+    // the last 24h cannot open another, regardless of which artisan.
+    // The name says PER_BUYER (not PER_ARTISAN) so the semantics are
+    // unambiguous when tuning.
+    MESSAGING_NEW_THREADS_PER_BUYER_PER_24H: z.coerce.number().int().positive().default(1),
+    MESSAGING_MAX_MESSAGES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(50),
+    MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE: z.coerce.number().int().positive().default(3),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -42,6 +55,10 @@ export const env = createEnv({
     S3_PUBLIC_URL_BASE: process.env.S3_PUBLIC_URL_BASE,
     ORDER_SELLER_RESPONSE_TIMEOUT_HOURS: process.env.ORDER_SELLER_RESPONSE_TIMEOUT_HOURS,
     ORDER_BUYER_AUTO_CONFIRM_DAYS: process.env.ORDER_BUYER_AUTO_CONFIRM_DAYS,
+    MESSAGING_NEW_THREADS_PER_BUYER_PER_24H: process.env.MESSAGING_NEW_THREADS_PER_BUYER_PER_24H,
+    MESSAGING_MAX_MESSAGES_PER_USER_PER_DAY: process.env.MESSAGING_MAX_MESSAGES_PER_USER_PER_DAY,
+    MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE:
+      process.env.MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE,
   },
   emptyStringAsUndefined: true,
 });
