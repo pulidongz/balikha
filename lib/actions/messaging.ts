@@ -416,10 +416,13 @@ export async function markThreadRead(input: unknown): Promise<Result<null>> {
   if (cleared.length > 0) {
     // Both layouts are revalidated deliberately: the Messages badge
     // renders in the buyer account sidebar AND the seller dashboard
-    // sidebar, and a single user can be both a buyer and a seller
-    // (an artisan is also a `user` who can buy). Both reflect the
-    // same getUnreadMessagesCount(userId). Only fires when a row
-    // actually changed.
+    // sidebar, and a single user can be both buyer-on-some-threads
+    // and seller-on-other-threads (an artisan is also a `user` who
+    // can buy). The badges are scoped per-side
+    // (getUnreadBuyerMessagesCount / getUnreadSellerMessagesCount, so
+    // each surface shows the count of threads IT actually renders);
+    // revalidating both ensures whichever surface the viewer is on
+    // updates. Only fires when a row actually changed.
     //
     // Cost tradeoff (round-2 review Issue 4): markThreadRead runs on
     // every thread-page render and every embedded-thread render, so

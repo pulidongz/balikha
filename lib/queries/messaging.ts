@@ -277,18 +277,46 @@ export async function getInboxForSeller(
 }
 
 // =============================================================================
-// Unread counts for sidebar badges
+// Unread counts for sidebar badges (per side)
 // =============================================================================
 
-export async function getUnreadMessagesCount(userId: string): Promise<number> {
+// The Messages badge in each layout (/account vs /dashboard) shows the
+// unread count for the threads THAT SURFACE will display. A single user
+// can be both buyer (in some threads) and seller (in others, if they
+// have an artisan profile); without per-side scoping, the buyer-account
+// badge would say "1" when the only unread is on the user's seller
+// dashboard inbox — and clicking it leads to an empty page. These two
+// helpers join through message_threads so the count matches what each
+// inbox will actually render.
+
+export async function getUnreadBuyerMessagesCount(userId: string): Promise<number> {
   const [row] = await db
     .select({ value: count() })
     .from(notifications)
+    .innerJoin(messageThreads, eq(messageThreads.id, notifications.threadId))
     .where(
       and(
         eq(notifications.userId, userId),
         eq(notifications.type, 'new_message'),
         isNull(notifications.readAt),
+        eq(messageThreads.buyerUserId, userId),
+      ),
+    );
+  return row?.value ?? 0;
+}
+
+export async function getUnreadSellerMessagesCount(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(notifications)
+    .innerJoin(messageThreads, eq(messageThreads.id, notifications.threadId))
+    .innerJoin(artisanProfiles, eq(artisanProfiles.id, messageThreads.artisanProfileId))
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, 'new_message'),
+        isNull(notifications.readAt),
+        eq(artisanProfiles.userId, userId),
       ),
     );
   return row?.value ?? 0;
