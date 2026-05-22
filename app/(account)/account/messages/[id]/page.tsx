@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { getThreadForViewer, getMessagesForThread } from '@/lib/queries/messaging';
 import { writeStateFor } from '@/lib/messaging/access';
 import { ThreadView } from '@/components/account/thread-view';
-import { markThreadRead } from '@/lib/actions/messaging';
+import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-mount';
 
 export const metadata = { title: 'Conversation' };
 
@@ -19,21 +19,23 @@ export default async function BuyerThreadPage({ params }: { params: Promise<{ id
 
   const messages = await getMessagesForThread(id);
 
-  // Mark this thread's notifications read on every render. Idempotent;
-  // markThreadRead only revalidates when a row actually changed.
-  await markThreadRead({ threadId: id });
-
   // No DB read — writeStateFor derives from the already-loaded status.
   const writeState = writeStateFor(data.thread, data.orderStatus);
 
   return (
-    <ThreadView
-      thread={data.thread}
-      messages={messages}
-      viewerRole="buyer"
-      writeState={writeState}
-      orderStatus={data.orderStatus}
-      orderReference={data.orderReference}
-    />
+    <>
+      {/* Side-effect client component: clears this thread's unread
+          notification on mount via a server action (Next 16 forbids
+          revalidatePath during server render). */}
+      <MarkThreadReadOnMount threadId={id} />
+      <ThreadView
+        thread={data.thread}
+        messages={messages}
+        viewerRole="buyer"
+        writeState={writeState}
+        orderStatus={data.orderStatus}
+        orderReference={data.orderReference}
+      />
+    </>
   );
 }

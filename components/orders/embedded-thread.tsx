@@ -9,7 +9,7 @@ import {
 } from '@/lib/queries/messaging';
 import { writeStateFor } from '@/lib/messaging/access';
 import { ThreadView } from '@/components/account/thread-view';
-import { markThreadRead } from '@/lib/actions/messaging';
+import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-mount';
 
 // No `viewerRole` prop: on the participant path the role is derived
 // from getThreadForViewer; on the adminReadOnly path the render is
@@ -71,16 +71,20 @@ export async function EmbeddedThread({
   if (!data) return null;
   const messages = await getMessagesForThread(threadAnchor.id);
 
-  await markThreadRead({ threadId: threadAnchor.id });
-
   return wrap(
-    <ThreadView
-      thread={data.thread}
-      messages={messages}
-      viewerRole={data.role}
-      writeState={writeStateFor(data.thread, data.orderStatus)}
-      orderStatus={data.orderStatus}
-      orderReference={data.orderReference}
-    />,
+    <>
+      {/* Side-effect client component: clears this thread's unread
+          notification on mount via a server action (Next 16 forbids
+          revalidatePath during server render). */}
+      <MarkThreadReadOnMount threadId={threadAnchor.id} />
+      <ThreadView
+        thread={data.thread}
+        messages={messages}
+        viewerRole={data.role}
+        writeState={writeStateFor(data.thread, data.orderStatus)}
+        orderStatus={data.orderStatus}
+        orderReference={data.orderReference}
+      />
+    </>,
   );
 }

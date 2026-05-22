@@ -6,8 +6,8 @@ import { requireSellerProfile } from '@/lib/auth-helpers';
 import { getThreadForViewer, getMessagesForThread } from '@/lib/queries/messaging';
 import { writeStateFor } from '@/lib/messaging/access';
 import { ThreadView } from '@/components/account/thread-view';
+import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-mount';
 import { BlockBuyerButton } from '@/components/dashboard/block-buyer-button';
-import { markThreadRead } from '@/lib/actions/messaging';
 
 export const metadata = { title: 'Conversation — Dashboard' };
 
@@ -23,7 +23,6 @@ export default async function SellerThreadPage({ params }: { params: Promise<{ i
   if (!data || data.role !== 'seller') notFound();
 
   const messages = await getMessagesForThread(id);
-  await markThreadRead({ threadId: id });
 
   // Block status drives the header's Block/Unblock affordance.
   const [block] = await db
@@ -39,6 +38,9 @@ export default async function SellerThreadPage({ params }: { params: Promise<{ i
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:px-6">
+      {/* Side-effect client component (see Next 16 note in
+          mark-thread-read-on-mount.tsx). */}
+      <MarkThreadReadOnMount threadId={id} />
       <ThreadView
         thread={data.thread}
         messages={messages}
