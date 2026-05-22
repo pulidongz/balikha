@@ -36,11 +36,15 @@ export function DashboardHeaderMenu({
   userEmail,
   shopSlug,
   isAdmin,
+  pendingOrdersCount,
+  unreadMessagesCount,
 }: {
   userName: string;
   userEmail: string;
   shopSlug: string | null;
   isAdmin: boolean;
+  pendingOrdersCount: number;
+  unreadMessagesCount: number;
 }) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -69,7 +73,11 @@ export function DashboardHeaderMenu({
             <SheetTitle className="font-serif text-lg">Dashboard</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
-            <DashboardNav onNavigate={() => setSheetOpen(false)} />
+            <DashboardNav
+              pendingOrdersCount={pendingOrdersCount}
+              unreadMessagesCount={unreadMessagesCount}
+              onNavigate={() => setSheetOpen(false)}
+            />
           </div>
         </SheetContent>
       </Sheet>

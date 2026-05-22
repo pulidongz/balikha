@@ -7,7 +7,13 @@ import {
 } from '@/lib/auth-helpers';
 import { DashboardHeaderMenu } from './dashboard-header-menu';
 
-export async function DashboardHeader() {
+export async function DashboardHeader({
+  pendingOrdersCount,
+  unreadMessagesCount,
+}: {
+  pendingOrdersCount: number;
+  unreadMessagesCount: number;
+}) {
   const session = await getCurrentSession();
   if (!session) redirect('/sign-in');
   // Both PK lookups in parallel — same pattern as SiteHeader.
@@ -27,6 +33,8 @@ export async function DashboardHeader() {
           userEmail={session.user.email}
           shopSlug={profile?.shopSlug ?? null}
           isAdmin={userWithRole?.isAdmin ?? false}
+          pendingOrdersCount={pendingOrdersCount}
+          unreadMessagesCount={unreadMessagesCount}
         />
       </div>
     </header>

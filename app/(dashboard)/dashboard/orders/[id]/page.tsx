@@ -9,6 +9,7 @@ import { formatPrice } from '@/lib/format';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { OrderActionButtons } from '@/components/dashboard/order-action-buttons';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
+import { EmbeddedThread } from '@/components/orders/embedded-thread';
 import { FileDisputeButton } from '@/components/orders/dispute-buttons';
 import { DisputePanel } from '@/components/orders/dispute-panel';
 
@@ -169,6 +170,8 @@ export default async function SellerOrderDetailPage({
           <OrderEventTimeline events={events} status={order.status} viewerRole="seller" />
         </div>
       </section>
+
+      <EmbeddedThread orderId={order.id} viewerUserId={profile.userId} />
 
       {/* Either party can file a dispute on a non-terminal order. The
           button hides itself for terminal/already-disputed orders. */}

@@ -58,6 +58,24 @@ export default async function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-xl">Blocked buyers</CardTitle>
+          <CardDescription>
+            Manage buyers you&rsquo;ve paused from starting new conversations or sending new
+            messages. Active orders between you continue normally.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/dashboard/settings/blocked"
+            className="text-foreground underline-offset-4 hover:underline"
+          >
+            Manage blocked buyers →
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }
