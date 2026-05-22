@@ -5,6 +5,7 @@ import { asc, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, orderDisputes, orderEvents, orders, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
+import { EmbeddedThread } from '@/components/orders/embedded-thread';
 import { formatPrice } from '@/lib/format';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { AdminOrderActions } from '@/components/admin/admin-order-actions';
@@ -35,7 +36,10 @@ export default async function AdminOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  // Capture admin's return so EmbeddedThread receives viewerUserId
+  // (required by the prop, though unused on the adminReadOnly path —
+  // that branch loads via getThreadForAdmin and skips markThreadRead).
+  const admin = await requireAdmin();
   const { id } = await params;
 
   const [row] = await db
@@ -127,6 +131,13 @@ export default async function AdminOrderDetailPage({
             </div>
           )}
         </section>
+      )}
+
+      {/* Disputed-order conversation: read-only thread view so admin
+          can see the full back-and-forth that led to the dispute.
+          adminReadOnly forces getThreadForAdmin + readOnly render. */}
+      {order.status === 'disputed' && (
+        <EmbeddedThread orderId={order.id} viewerUserId={admin.id} adminReadOnly />
       )}
 
       {/* Past disputes — collapsed historical view for repeat disputes. */}

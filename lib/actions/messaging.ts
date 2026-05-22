@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '@/db';
 import {
   artisanProfiles,
@@ -13,7 +14,7 @@ import {
   products,
   sellerBlockedBuyers,
 } from '@/db/schema';
-import { requireUser, requireArtisan } from '@/lib/auth-helpers';
+import { requireUser, requireArtisan, requireAdmin } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
@@ -546,4 +547,54 @@ export async function reportMessage(input: unknown): Promise<Result<{ reportId: 
     }
     throw e;
   }
+}
+
+/**
+ * Admin: mark a report as actioned. The reporter is told an admin
+ * is reviewing; what "actioned" looks like operationally (warning,
+ * suspension, etc.) is out of scope here — this just closes the
+ * report row.
+ */
+export async function markReportActioned(input: unknown): Promise<Result<null>> {
+  const parsed = z
+    .object({ reportId: z.string().uuid(), notes: z.string().max(2000).optional() })
+    .safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const admin = await requireAdmin().catch(() => null);
+  if (!admin) return err('Admin required');
+
+  await db
+    .update(messageReports)
+    .set({
+      status: 'reviewed_actioned',
+      reviewedByAdminUserId: admin.id,
+      reviewedAt: new Date(),
+    })
+    .where(eq(messageReports.id, parsed.data.reportId));
+
+  return ok(null);
+}
+
+/**
+ * Admin: mark a report as dismissed (no action warranted). Pairs
+ * with markReportActioned — together they close out an open report.
+ */
+export async function markReportDismissed(input: unknown): Promise<Result<null>> {
+  const parsed = z.object({ reportId: z.string().uuid() }).safeParse(input);
+  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
+
+  const admin = await requireAdmin().catch(() => null);
+  if (!admin) return err('Admin required');
+
+  await db
+    .update(messageReports)
+    .set({
+      status: 'reviewed_dismissed',
+      reviewedByAdminUserId: admin.id,
+      reviewedAt: new Date(),
+    })
+    .where(eq(messageReports.id, parsed.data.reportId));
+
+  return ok(null);
 }
