@@ -8,6 +8,7 @@ import {
   Heart,
   Home,
   MapPin,
+  MessageCircle,
   Rss,
   ShoppingBag,
   User,
@@ -32,6 +33,7 @@ const CONTENT_NAV: readonly NavItem[] = [
   { href: '/account/feed', label: 'New listings', Icon: Rss, exact: false },
   { href: '/account/wishlist', label: 'Wishlist', Icon: Heart, exact: false },
   { href: '/account/following', label: 'Following', Icon: Users, exact: false },
+  { href: '/account/messages', label: 'Messages', Icon: MessageCircle, exact: false },
   { href: '/account/notifications', label: 'Notifications', Icon: Bell, exact: false },
   { href: '/account/orders', label: 'Orders', Icon: ShoppingBag, exact: false },
 ];
@@ -41,16 +43,20 @@ const CONFIG_NAV: readonly NavItem[] = [
 ];
 
 interface Props {
-  unreadCount: number;
+  unreadNotifications: number;
+  unreadMessages: number;
   onNavigate?: () => void;
 }
 
-export function AccountSidebar({ unreadCount, onNavigate }: Props) {
+export function AccountSidebar({ unreadNotifications, unreadMessages, onNavigate }: Props) {
   const pathname = usePathname();
 
   function renderItem({ href, label, Icon, exact }: NavItem) {
     const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
-    const showBadge = href === '/account/notifications' && unreadCount > 0;
+    let badgeCount = 0;
+    if (href === '/account/notifications') badgeCount = unreadNotifications;
+    if (href === '/account/messages') badgeCount = unreadMessages;
+    const showBadge = badgeCount > 0;
     return (
       <Link
         key={href}
@@ -67,7 +73,7 @@ export function AccountSidebar({ unreadCount, onNavigate }: Props) {
         <span className="flex-1">{label}</span>
         {showBadge && (
           <span className="bg-accent text-accent-foreground rounded-full px-1.5 py-0.5 text-[0.65rem] font-medium tabular-nums">
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}
       </Link>

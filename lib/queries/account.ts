@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, not, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanFollows,
@@ -137,7 +137,13 @@ export async function getNotificationsPreview(userId: string): Promise<Notificat
       createdAt: notifications.createdAt,
     })
     .from(notifications)
-    .where(eq(notifications.userId, userId))
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        // Exclude message notifications — the Messages surface owns them.
+        not(eq(notifications.type, 'new_message')),
+      ),
+    )
     .orderBy(
       // Unread first, then newest first within each group.
       sql`${notifications.readAt} IS NULL DESC`,

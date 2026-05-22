@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, not } from 'drizzle-orm';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
@@ -44,7 +44,17 @@ export async function markAllReadAction(): Promise<Result<null>> {
   await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(eq(notifications.userId, current.id), isNull(notifications.readAt)));
+    .where(
+      and(
+        eq(notifications.userId, current.id),
+        isNull(notifications.readAt),
+        // "Mark all read" must NOT clear unread message notifications:
+        // they are owned by the Messages surface and cleared per-thread
+        // via markThreadRead. Clearing them here would silently zero the
+        // Messages badge for threads the user never opened.
+        not(eq(notifications.type, 'new_message')),
+      ),
+    );
 
   revalidatePath('/account', 'layout');
   return ok(null);

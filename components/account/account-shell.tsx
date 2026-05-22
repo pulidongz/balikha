@@ -7,19 +7,24 @@ import { AccountMobileNav } from './account-mobile-nav';
 // marketplace, not like an admin panel. This shell only owns the sidebar +
 // content grid.
 export function AccountShell({
-  unreadCount,
+  unreadNotifications,
+  unreadMessages,
   children,
 }: {
-  unreadCount: number;
+  unreadNotifications: number;
+  unreadMessages: number;
   children: ReactNode;
 }) {
   return (
     <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[14rem_1fr] lg:px-6 lg:py-12">
       <aside className="hidden lg:block">
-        <AccountSidebar unreadCount={unreadCount} />
+        <AccountSidebar unreadNotifications={unreadNotifications} unreadMessages={unreadMessages} />
       </aside>
       <main className="min-w-0">
-        <AccountMobileNav unreadCount={unreadCount} />
+        <AccountMobileNav
+          unreadNotifications={unreadNotifications}
+          unreadMessages={unreadMessages}
+        />
         {children}
       </main>
     </div>

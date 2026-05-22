@@ -149,18 +149,25 @@ function OrderDialog(props: OrderButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // Reorder flow: ReorderButton routes here with ?reorder=1. We open
-  // the dialog by deriving the INITIAL state from the URL via lazy
-  // useState init (computed once at mount). The follow-up effect just
-  // strips the param so a refresh doesn't reopen — no setState inside
-  // an effect (react-hooks/set-state-in-effect).
-  const [open, setOpen] = useState<boolean>(() => searchParams.get('reorder') === '1');
+  // Reorder flow: ReorderButton routes here with ?reorder=1.
+  // Thread→order flow: ThreadView's "Order this piece" CTA routes here
+  // with ?threadId=<id> (§6.10a). Both auto-open the dialog by deriving
+  // the INITIAL state from the URL via lazy useState init (computed once
+  // at mount). The follow-up effect strips both params so a refresh
+  // doesn't reopen — no setState inside an effect.
+  const [open, setOpen] = useState<boolean>(
+    () => searchParams.get('reorder') === '1' || searchParams.get('threadId') !== null,
+  );
+  // threadId carried into placeOrder. Read once at mount — the strip
+  // effect below removes it from the URL, so don't re-read it later.
+  const [threadId] = useState<string | null>(() => searchParams.get('threadId'));
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (searchParams.get('reorder') === '1') {
+    if (searchParams.get('reorder') === '1' || searchParams.get('threadId') !== null) {
       const next = new URLSearchParams(searchParams.toString());
       next.delete('reorder');
+      next.delete('threadId');
       const query = next.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     }
@@ -193,15 +200,21 @@ function OrderDialog(props: OrderButtonProps) {
           shippingAddressId: addressId,
           notesFromBuyer: notes.trim() || undefined,
           idempotencyKey,
+          threadId: threadId ?? undefined,
         });
         if (!result.ok) {
           setError(result.error);
           return;
         }
-        // Redirect to the order detail page. router.push is a Next-side
-        // navigation, no full reload — the order list/detail will read
-        // fresh data because we just wrote to it.
-        router.push(`/account/orders/${result.data.orderId}`);
+        // Redirect to the order detail page. If the optional thread link
+        // failed (stale "Order this piece" CTA — see §4.8), surface a
+        // non-blocking notice via ?threadLinkSkipped=1 so the order page
+        // can tell the buyer their order placed but the conversation was
+        // not attached. Order placement itself succeeded either way.
+        const orderHref = result.data.threadLinkSkipped
+          ? `/account/orders/${result.data.orderId}?threadLinkSkipped=1`
+          : `/account/orders/${result.data.orderId}`;
+        router.push(orderHref);
         setOpen(false);
       } catch {
         // placeOrder re-throws unexpected (non-business) failures so a

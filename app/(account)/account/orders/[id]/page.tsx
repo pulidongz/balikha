@@ -12,6 +12,7 @@ import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { ReorderButton } from '@/components/account/reorder-button';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
 import { FileDisputeButton } from '@/components/orders/dispute-buttons';
+import { EmbeddedThread } from '@/components/orders/embedded-thread';
 import { DisputePanel } from '@/components/orders/dispute-panel';
 
 export const metadata = {
@@ -38,8 +39,21 @@ interface ShippingAddressSnapshot {
   countryCode: string;
 }
 
-export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OrderDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
+  // Set by OrderButton (§6.10a) when an order was placed from inside a
+  // pre-purchase thread but the pivot UPDATE matched 0 rows (stale CTA
+  // link). The order placed fine — only the optional thread link was
+  // skipped. We surface it here as a one-shot notice rather than
+  // swallow it (CLAUDE.md: no silently degraded outcomes).
+  const threadLinkSkipped = sp.threadLinkSkipped === '1';
   const current = await getCurrentUser();
   if (!current) redirect(`/sign-in?next=/account/orders/${id}`);
 
@@ -72,6 +86,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-8">
+      {threadLinkSkipped && (
+        <div
+          className="border-accent/40 bg-accent/5 text-foreground rounded-md border p-3 text-sm"
+          role="status"
+        >
+          Your order is placed. We couldn&rsquo;t attach your earlier conversation to this order (it
+          may have been used already), but you can still message the maker from this page.
+        </div>
+      )}
       <header className="space-y-2">
         <Link
           href="/account/orders"
@@ -173,6 +196,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <OrderEventTimeline events={events} status={order.status} viewerRole="buyer" />
         </div>
       </section>
+
+      <EmbeddedThread orderId={order.id} viewerUserId={current.id} />
 
       <div className="flex items-center justify-between">
         <FileDisputeButton orderId={order.id} status={order.status} />

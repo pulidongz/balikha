@@ -15,13 +15,20 @@ const ITEMS = [
   { href: '/account/feed', label: 'New listings', exact: false },
   { href: '/account/wishlist', label: 'Wishlist', exact: false },
   { href: '/account/following', label: 'Following', exact: false },
+  { href: '/account/messages', label: 'Messages', exact: false },
   { href: '/account/notifications', label: 'Notifications', exact: false },
   { href: '/account/orders', label: 'Orders', exact: false },
   { href: '/account/addresses', label: 'Addresses', exact: false },
   { href: '/account/profile', label: 'Profile', exact: false },
 ] as const;
 
-export function AccountMobileNav({ unreadCount }: { unreadCount: number }) {
+export function AccountMobileNav({
+  unreadNotifications,
+  unreadMessages,
+}: {
+  unreadNotifications: number;
+  unreadMessages: number;
+}) {
   const pathname = usePathname();
 
   return (
@@ -33,7 +40,10 @@ export function AccountMobileNav({ unreadCount }: { unreadCount: number }) {
         const active = exact
           ? pathname === href
           : pathname === href || pathname.startsWith(`${href}/`);
-        const showBadge = href === '/account/notifications' && unreadCount > 0;
+        let badgeCount = 0;
+        if (href === '/account/notifications') badgeCount = unreadNotifications;
+        if (href === '/account/messages') badgeCount = unreadMessages;
+        const showBadge = badgeCount > 0;
         return (
           <Link
             key={href}
@@ -53,7 +63,7 @@ export function AccountMobileNav({ unreadCount }: { unreadCount: number }) {
                   active ? 'bg-background text-foreground' : 'bg-accent text-accent-foreground',
                 )}
               >
-                {unreadCount > 99 ? '99+' : unreadCount}
+                {badgeCount > 99 ? '99+' : badgeCount}
               </span>
             )}
           </Link>

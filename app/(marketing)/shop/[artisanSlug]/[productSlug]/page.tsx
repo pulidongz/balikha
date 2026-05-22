@@ -8,6 +8,7 @@ import { artisanProfiles, productImages, products, userAddresses } from '@/db/sc
 import { env } from '@/env';
 import { Badge } from '@/components/ui/badge';
 import { OrderButton } from '@/components/marketplace/order-button';
+import { AskTheMakerButton } from '@/components/marketplace/ask-the-maker-button';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
@@ -325,6 +326,16 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
               className="h-11 w-11"
             />
           </div>
+
+          {!isOwnProduct && (
+            <div>
+              <AskTheMakerButton
+                productId={product.id}
+                signedIn={viewer !== null}
+                productUrl={`/shop/${artisan.shopSlug}/${product.slug}`}
+              />
+            </div>
+          )}
 
           {product.description && (
             <p className="text-foreground text-base leading-relaxed whitespace-pre-line">
