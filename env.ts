@@ -36,6 +36,10 @@ export const env = createEnv({
     MESSAGING_NEW_THREADS_PER_BUYER_PER_24H: z.coerce.number().int().positive().default(1),
     MESSAGING_MAX_MESSAGES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(50),
     MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE: z.coerce.number().int().positive().default(3),
+    // Google OAuth credentials. Optional — when both are absent the dev
+    // server still boots and email/password sign-in works unchanged.
+    GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -59,6 +63,8 @@ export const env = createEnv({
     MESSAGING_MAX_MESSAGES_PER_USER_PER_DAY: process.env.MESSAGING_MAX_MESSAGES_PER_USER_PER_DAY,
     MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE:
       process.env.MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   },
   emptyStringAsUndefined: true,
 });
