@@ -7,10 +7,10 @@ import { markThreadRead } from '@/lib/actions/messaging';
 // a server action so the viewer's unread notification for this thread
 // is cleared. Why a client effect instead of a direct call in the
 // server component render — Next 16 forbids revalidatePath/Tag during
-// render. markThreadRead's `revalidatePath('/account','layout')` +
-// `revalidatePath('/dashboard','layout')` (round-2 Issue 4) are only
-// valid in server-action context, which is exactly what a server
-// action invoked from a client effect provides.
+// render. markThreadRead's `revalidatePath('/account','layout')` and
+// `revalidatePath('/dashboard','layout')` are only valid in server-
+// action context, which is exactly what a server action invoked from a
+// client effect provides.
 //
 // Fire-and-forget: the read-receipt is passive UX, so a transient
 // failure (DB blip) is logged but not surfaced — the badge stays at

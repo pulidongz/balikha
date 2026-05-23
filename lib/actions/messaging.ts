@@ -121,20 +121,19 @@ export async function createPrePurchaseThread(
 
           // Rate limits — checked here, AFTER the in-lock cache
           // re-check, so a retry-after-success short-circuits above and
-          // is never re-gated (round-2 review Issue 6). A genuinely
-          // fresh call evaluates the limits and, if tripped, throws a
-          // MessagingBusinessError — a deterministic outcome for this
-          // key, safe for withIdempotency to cache. The buyer's next
-          // genuine attempt uses a fresh key and is re-evaluated.
+          // is never re-gated. A genuinely fresh call evaluates the
+          // limits and, if tripped, throws a MessagingBusinessError —
+          // a deterministic outcome for this key, safe for
+          // withIdempotency to cache. The buyer's next genuine attempt
+          // uses a fresh key and is re-evaluated.
           //
-          // NOTE (round-3 review Issue 1): these COUNT helpers query
-          // the module-level `db`, not `tx` — a separate pooled
-          // connection, outside this transaction's snapshot and the
-          // advisory lock's serialization. The limit is therefore
-          // ADVISORY spam friction, not a concurrency-exact invariant:
-          // two simultaneous first-time submits by one buyer (distinct
-          // keys → distinct locks) can both pass. Accepted for v1 —
-          // matches the plan's "indexed COUNT, not Redis" stance (§1).
+          // These COUNT helpers query the module-level `db`, not `tx`
+          // — a separate pooled connection, outside this transaction's
+          // snapshot and the advisory lock's serialization. The limit
+          // is therefore ADVISORY spam friction, not a concurrency-
+          // exact invariant: two simultaneous first-time submits by
+          // one buyer (distinct keys → distinct locks) can both pass.
+          // Matches plan §1 ("indexed COUNT, not Redis").
           if (await isAtNewThreadLimit(buyer.id)) {
             log.info({ buyerUserId: buyer.id }, 'new-thread rate limit hit');
             throw new MessagingBusinessError(
@@ -402,6 +401,11 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
       return m.id;
     });
 
+    log.info(
+      { threadId: thread.id, senderRole: role, byteLength: parsed.data.body.length },
+      'message sent',
+    );
+
     // Refresh both audience layouts so badges and inboxes stay in sync.
     revalidatePath('/dashboard', 'layout');
     revalidatePath('/account', 'layout');
@@ -462,23 +466,20 @@ export async function markThreadRead(input: unknown): Promise<Result<null>> {
     // sidebar, and a single user can be both buyer-on-some-threads
     // and seller-on-other-threads (an artisan is also a `user` who
     // can buy). The badges are scoped per-side
-    // (getUnreadBuyerMessagesCount / getUnreadSellerMessagesCount, so
-    // each surface shows the count of threads IT actually renders);
+    // (getUnreadBuyerMessagesCount / getUnreadSellerMessagesCount), so
+    // each surface shows the count of threads IT actually renders;
     // revalidating both ensures whichever surface the viewer is on
     // updates. Only fires when a row actually changed.
     //
-    // Cost tradeoff (round-2 review Issue 4): markThreadRead runs on
-    // every thread-page render and every embedded-thread render, so
-    // the first open of each unread thread invalidates BOTH whole
-    // layout subtrees. The `cleared.length > 0` gate keeps steady-
-    // state re-opens free, but working through an inbox of N unread
-    // threads costs N pairs of full-layout invalidations. Acceptable
-    // for v1 (consistent with markReadAction in
-    // lib/actions/notifications.ts). Escape hatch if inbox navigation
-    // ever feels sluggish: replace these two revalidatePath calls with
-    // a narrow revalidateTag(`messages-badge:${current.id}`) that only
-    // the badge COUNT query reads, instead of invalidating the whole
-    // layout subtree.
+    // Cost tradeoff: markThreadRead runs on every thread-page and
+    // embedded-thread render, so the first open of each unread thread
+    // invalidates BOTH whole layout subtrees. The `cleared.length > 0`
+    // gate keeps steady-state re-opens free, but working through an
+    // inbox of N unread threads costs N pairs of full-layout
+    // invalidations. Escape hatch if inbox navigation ever feels
+    // sluggish: replace these two revalidatePath calls with a narrow
+    // revalidateTag(`messages-badge:${current.id}`) that only the
+    // badge COUNT query reads.
     revalidatePath('/account', 'layout');
     revalidatePath('/dashboard', 'layout');
   }
@@ -491,6 +492,7 @@ export async function markThreadRead(input: unknown): Promise<Result<null>> {
  * with the same pair is a no-op via onConflictDoNothing.
  */
 export async function blockBuyer(input: unknown): Promise<Result<null>> {
+  const log = await getRequestLogger();
   const parsed = blockBuyerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
@@ -511,11 +513,16 @@ export async function blockBuyer(input: unknown): Promise<Result<null>> {
     })
     .onConflictDoNothing();
 
+  log.info(
+    { artisanProfileId: seller.id, blockedUserId: parsed.data.blockedUserId },
+    'buyer blocked',
+  );
   revalidatePath('/dashboard', 'layout');
   return ok(null);
 }
 
 export async function unblockBuyer(input: unknown): Promise<Result<null>> {
+  const log = await getRequestLogger();
   const parsed = unblockBuyerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
@@ -531,6 +538,10 @@ export async function unblockBuyer(input: unknown): Promise<Result<null>> {
       ),
     );
 
+  log.info(
+    { artisanProfileId: seller.id, blockedUserId: parsed.data.blockedUserId },
+    'buyer unblocked',
+  );
   revalidatePath('/dashboard', 'layout');
   return ok(null);
 }
@@ -542,6 +553,7 @@ export async function unblockBuyer(input: unknown): Promise<Result<null>> {
  * onConflictDoNothing.
  */
 export async function blockSeller(input: unknown): Promise<Result<null>> {
+  const log = await getRequestLogger();
   const parsed = blockSellerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
@@ -570,11 +582,16 @@ export async function blockSeller(input: unknown): Promise<Result<null>> {
     })
     .onConflictDoNothing();
 
+  log.info(
+    { buyerUserId: buyer.id, blockedArtisanProfileId: parsed.data.blockedArtisanProfileId },
+    'maker blocked',
+  );
   revalidatePath('/account', 'layout');
   return ok(null);
 }
 
 export async function unblockSeller(input: unknown): Promise<Result<null>> {
+  const log = await getRequestLogger();
   const parsed = unblockSellerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
@@ -590,6 +607,10 @@ export async function unblockSeller(input: unknown): Promise<Result<null>> {
       ),
     );
 
+  log.info(
+    { buyerUserId: buyer.id, blockedArtisanProfileId: parsed.data.blockedArtisanProfileId },
+    'maker unblocked',
+  );
   revalidatePath('/account', 'layout');
   return ok(null);
 }

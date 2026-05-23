@@ -14,8 +14,7 @@ import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-
 // No `viewerRole` prop: on the participant path the role is derived
 // from getThreadForViewer; on the adminReadOnly path the render is
 // read-only so role only tints label text. A prop that is ignored on
-// one path and arbitrary on the other is a maintenance trap, so it is
-// not exposed (round-2 review Issue 8).
+// one path and arbitrary on the other is a maintenance trap.
 export async function EmbeddedThread({
   orderId,
   viewerUserId,

@@ -178,10 +178,10 @@ async function inboxQuery(whereClause: SQL, viewerUserId: string): Promise<Inbox
   // resolves it via the LATERAL join.
   const lastMessage = db
     .select({
-      // Truncated at the data layer (round-2 review Issue 17): the
-      // inbox renders this in a single CSS-truncated line, so shipping
-      // the full body (up to 2000 chars) × PAGE_SIZE rows of HTML is
-      // waste. 200 chars is far more than one line ever displays.
+      // Truncated at the data layer: the inbox renders this in a
+      // single CSS-truncated line, so shipping the full body (up to
+      // 2000 chars) × PAGE_SIZE rows of HTML is waste. 200 chars is
+      // far more than one line ever displays.
       //
       // `.as('body')` is REQUIRED: this is a raw SQL field inside a
       // subquery referenced via leftJoinLateral. Drizzle infers aliases

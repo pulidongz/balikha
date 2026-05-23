@@ -20,12 +20,11 @@ export function MessagesInbox({
       {threads.map((t) => {
         const counterparty = side === 'buyer' ? t.artisanShopNameSnapshot : t.buyerName;
         const baseHref = side === 'buyer' ? '/account/messages' : '/dashboard/messages';
+        const mine = side === t.lastMessageSenderRole;
         const preview = t.lastMessageBody
-          ? side === 'buyer' && t.lastMessageSenderRole === 'buyer'
+          ? mine
             ? `You: ${t.lastMessageBody}`
-            : side === 'seller' && t.lastMessageSenderRole === 'seller'
-              ? `You: ${t.lastMessageBody}`
-              : t.lastMessageBody
+            : t.lastMessageBody
           : '';
         return (
           <li key={t.threadId}>
