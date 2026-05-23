@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Ban,
   Bell,
   Heart,
   Home,
@@ -39,6 +40,7 @@ const CONTENT_NAV: readonly NavItem[] = [
 ];
 const CONFIG_NAV: readonly NavItem[] = [
   { href: '/account/addresses', label: 'Addresses', Icon: MapPin, exact: false },
+  { href: '/account/blocked', label: 'Blocked makers', Icon: Ban, exact: false },
   { href: '/account/profile', label: 'Profile', Icon: User, exact: false },
 ];
 

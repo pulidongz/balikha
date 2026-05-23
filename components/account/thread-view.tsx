@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { MessageComposer } from './message-composer';
-import { ReportMessageButton } from './report-message-button';
 import { OrderStatusBadge } from './order-status-badge';
 import { Button } from '@/components/ui/button';
 import type { OrderStatus } from '@/lib/orders/types';
@@ -105,11 +104,6 @@ export function ThreadView({
                 <p className="text-muted-foreground text-xs">{DATE_TIME_FMT.format(m.createdAt)}</p>
               </div>
               <p className="text-foreground text-sm whitespace-pre-line">{m.body}</p>
-              {!mine && !readOnly && (
-                <div className="text-right">
-                  <ReportMessageButton messageId={m.id} />
-                </div>
-              )}
             </li>
           );
         })}

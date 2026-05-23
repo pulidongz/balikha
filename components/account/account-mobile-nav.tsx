@@ -19,6 +19,7 @@ const ITEMS = [
   { href: '/account/notifications', label: 'Notifications', exact: false },
   { href: '/account/orders', label: 'Orders', exact: false },
   { href: '/account/addresses', label: 'Addresses', exact: false },
+  { href: '/account/blocked', label: 'Blocked', exact: false },
   { href: '/account/profile', label: 'Profile', exact: false },
 ] as const;
 

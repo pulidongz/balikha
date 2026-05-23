@@ -706,45 +706,6 @@ export const messages = pgTable(
   ],
 );
 
-// Abuse reports. A reporting user flags a single message; admin
-// reviews in /admin/reports. The reported message stays visible in
-// the thread — the report is signal, not redaction.
-export const messageReportStatus = pgEnum('message_report_status', [
-  'open',
-  'reviewed_actioned',
-  'reviewed_dismissed',
-]);
-
-export const messageReports = pgTable(
-  'message_reports',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    messageId: uuid('message_id')
-      .notNull()
-      .references(() => messages.id, { onDelete: 'cascade' }),
-    reporterUserId: text('reporter_user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    reason: text('reason'),
-    status: messageReportStatus('status').notNull().default('open'),
-    reviewedByAdminUserId: text('reviewed_by_admin_user_id').references(() => user.id, {
-      onDelete: 'set null',
-    }),
-    reviewedAt: timestamp('reviewed_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (t) => [
-    index('message_reports_status_idx').on(t.status),
-    index('message_reports_message_idx').on(t.messageId),
-    // A single reporter can't file two open reports on the same
-    // message — dedupes the "report" button against rapid clicks.
-    // Mirrors order_disputes_active_per_order.
-    uniqueIndex('message_reports_open_per_reporter_idx')
-      .on(t.messageId, t.reporterUserId)
-      .where(sql`status = 'open'`),
-  ],
-);
-
 // Seller-side block list. Composite primary key on
 // (artisanProfileId, blockedUserId) makes duplicate blocks
 // structurally impossible. Block is messaging-only — active orders
@@ -764,5 +725,29 @@ export const sellerBlockedBuyers = pgTable(
   (t) => [
     primaryKey({ columns: [t.artisanProfileId, t.blockedUserId] }),
     index('seller_blocked_buyers_blocked_user_idx').on(t.blockedUserId),
+  ],
+);
+
+// Buyer-side block list. Mirror of sellerBlockedBuyers — gives buyers
+// peer-level recourse against unwanted seller messages without an admin
+// in the loop. Composite primary key on (buyerUserId, blockedArtisanProfileId)
+// makes duplicate blocks structurally impossible. Block is
+// messaging-only — active orders between the parties continue normally,
+// matching the seller-block semantics in §1 of the messaging plan.
+export const buyerBlockedSellers = pgTable(
+  'buyer_blocked_sellers',
+  {
+    buyerUserId: text('buyer_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    blockedArtisanProfileId: uuid('blocked_artisan_profile_id')
+      .notNull()
+      .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
+    reason: text('reason'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.buyerUserId, t.blockedArtisanProfileId] }),
+    index('buyer_blocked_sellers_blocked_artisan_idx').on(t.blockedArtisanProfileId),
   ],
 );

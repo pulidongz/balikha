@@ -42,9 +42,18 @@ export const unblockBuyerSchema = z.object({
 
 export type UnblockBuyerInput = z.infer<typeof unblockBuyerSchema>;
 
-export const reportMessageSchema = z.object({
-  messageId: z.string().uuid(),
-  reason: z.string().max(2000).optional(),
+// Buyer-side block: the buyer blocks an artisan. Mirrors blockBuyerSchema
+// in shape; the action body lives in the same lib/actions/messaging.ts
+// and uses the same "messaging-only, doesn't affect orders" semantics.
+export const blockSellerSchema = z.object({
+  blockedArtisanProfileId: z.string().uuid(),
+  reason: z.string().max(500).optional(),
 });
 
-export type ReportMessageInput = z.infer<typeof reportMessageSchema>;
+export type BlockSellerInput = z.infer<typeof blockSellerSchema>;
+
+export const unblockSellerSchema = z.object({
+  blockedArtisanProfileId: z.string().uuid(),
+});
+
+export type UnblockSellerInput = z.infer<typeof unblockSellerSchema>;

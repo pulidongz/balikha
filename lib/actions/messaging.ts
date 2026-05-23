@@ -2,23 +2,27 @@
 
 import { revalidatePath } from 'next/cache';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { z } from 'zod';
 import { db } from '@/db';
 import {
   artisanProfiles,
+  buyerBlockedSellers,
   idempotencyKeys,
-  messageReports,
   messageThreads,
   messages,
   notifications,
   products,
   sellerBlockedBuyers,
 } from '@/db/schema';
-import { requireUser, requireArtisan, requireAdmin } from '@/lib/auth-helpers';
+import { requireUser, requireArtisan } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
-import { assertThreadAccess, getWriteState, isBuyerBlocked } from '@/lib/messaging/access';
+import {
+  assertThreadAccess,
+  getWriteState,
+  isBuyerBlocked,
+  isSellerBlocked,
+} from '@/lib/messaging/access';
 import { fanOutMessageNotification } from '@/lib/messaging/fan-out';
 import {
   isAtDailyMessageLimit,
@@ -27,11 +31,12 @@ import {
 } from '@/lib/messaging/rate-limit';
 import {
   blockBuyerSchema,
+  blockSellerSchema,
   createPrePurchaseThreadSchema,
   markThreadReadSchema,
-  reportMessageSchema,
   sendMessageSchema,
   unblockBuyerSchema,
+  unblockSellerSchema,
 } from '@/lib/validators/messaging';
 
 // User-facing rejection thrown inside withIdempotency's transaction.
@@ -322,19 +327,20 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
     return err('Slow down a moment — you can send another message in a minute.');
   }
 
-  // Block check — gates PRE-PURCHASE threads only. A block stops a
-  // buyer from starting or continuing unsolicited pre-purchase
-  // conversations; it does NOT mute an order-anchored thread. Once an
-  // order exists the seller has accepted a live commercial
-  // relationship — the buyer must be able to coordinate payment and
-  // shipping, and a disputed order's thread (reopened by
-  // getWriteState) must stay writable for both sides. A seller who
+  // Block check — gates PRE-PURCHASE threads only, in either direction.
+  // A block stops the blocking party from receiving new unsolicited
+  // messages on a pre-purchase thread; it does NOT mute an order-
+  // anchored thread. Once an order exists both parties have accepted
+  // a live commercial relationship — they must be able to coordinate
+  // payment and shipping, and a disputed order's thread (reopened by
+  // getWriteState) must stay writable for both sides. A party who
   // wants out of a soured order uses cancel or dispute, not block.
-  // The check is buyer→seller direction only (no "buyer blocks
-  // seller" feature in v1).
-  if (role === 'buyer' && !thread.orderId) {
-    if (await isBuyerBlocked(thread.artisanProfileId, sender.id)) {
+  if (!thread.orderId) {
+    if (role === 'buyer' && (await isBuyerBlocked(thread.artisanProfileId, sender.id))) {
       return err('This maker has paused new conversations from you.');
+    }
+    if (role === 'seller' && (await isSellerBlocked(thread.buyerUserId, thread.artisanProfileId))) {
+      return err('This buyer has paused new conversations from you.');
     }
   }
 
@@ -494,107 +500,57 @@ export async function unblockBuyer(input: unknown): Promise<Result<null>> {
 }
 
 /**
- * Either party can report a counterparty message. Writes a row to
- * message_reports. The partial unique index
- * message_reports_open_per_reporter_idx prevents a reporter from
- * filing multiple OPEN reports on the same message; a closed (admin-
- * reviewed) report doesn't block a new one.
- *
- * Does NOT modify the message or thread — the report is signal only.
+ * Buyer-only. Adds the (buyerUserId, blockedArtisanProfileId) row to
+ * buyerBlockedSellers. Mirror of blockBuyer — the composite primary
+ * key means the second call with the same pair is a no-op via
+ * onConflictDoNothing.
  */
-export async function reportMessage(input: unknown): Promise<Result<{ reportId: string }>> {
-  const parsed = reportMessageSchema.safeParse(input);
+export async function blockSeller(input: unknown): Promise<Result<null>> {
+  const parsed = blockSellerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const reporter = await requireUser().catch(() => null);
-  if (!reporter) return err('Not authenticated');
+  const buyer = await requireUser().catch(() => null);
+  if (!buyer) return err('Not authenticated');
 
-  // Confirm the reporter is a participant on the message's thread
-  // (privacy: non-participants can't even see message IDs, but
-  // defense-in-depth here is cheap).
-  const [row] = await db
-    .select({
-      messageId: messages.id,
-      threadId: messages.threadId,
-    })
-    .from(messages)
-    .where(eq(messages.id, parsed.data.messageId))
+  // Self-block protection — the buyer can't block an artisan they own.
+  const [artisan] = await db
+    .select({ userId: artisanProfiles.userId })
+    .from(artisanProfiles)
+    .where(eq(artisanProfiles.id, parsed.data.blockedArtisanProfileId))
     .limit(1);
-  if (!row) return err('Message not found');
-
-  const accessResult = await assertThreadAccess(row.threadId, reporter.id);
-  if (!accessResult.ok) return err('Message not found');
-
-  try {
-    const [report] = await db
-      .insert(messageReports)
-      .values({
-        messageId: parsed.data.messageId,
-        reporterUserId: reporter.id,
-        reason: parsed.data.reason ?? null,
-      })
-      .returning({ id: messageReports.id });
-    if (!report) throw new Error('Report insert returned no rows');
-    return ok({ reportId: report.id });
-  } catch (e) {
-    if (
-      e instanceof Error &&
-      /message_reports_open_per_reporter_idx|duplicate key value/i.test(e.message)
-    ) {
-      // Idempotent from the user's perspective: double-clicking
-      // Report shouldn't error out.
-      return err("You've already reported this message — we're reviewing it.");
-    }
-    throw e;
+  if (artisan && artisan.userId === buyer.id) {
+    return err('You cannot block your own shop.');
   }
-}
-
-/**
- * Admin: mark a report as actioned. The reporter is told an admin
- * is reviewing; what "actioned" looks like operationally (warning,
- * suspension, etc.) is out of scope here — this just closes the
- * report row.
- */
-export async function markReportActioned(input: unknown): Promise<Result<null>> {
-  const parsed = z
-    .object({ reportId: z.string().uuid(), notes: z.string().max(2000).optional() })
-    .safeParse(input);
-  if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
-
-  const admin = await requireAdmin().catch(() => null);
-  if (!admin) return err('Admin required');
 
   await db
-    .update(messageReports)
-    .set({
-      status: 'reviewed_actioned',
-      reviewedByAdminUserId: admin.id,
-      reviewedAt: new Date(),
+    .insert(buyerBlockedSellers)
+    .values({
+      buyerUserId: buyer.id,
+      blockedArtisanProfileId: parsed.data.blockedArtisanProfileId,
+      reason: parsed.data.reason ?? null,
     })
-    .where(eq(messageReports.id, parsed.data.reportId));
+    .onConflictDoNothing();
 
+  revalidatePath('/account', 'layout');
   return ok(null);
 }
 
-/**
- * Admin: mark a report as dismissed (no action warranted). Pairs
- * with markReportActioned — together they close out an open report.
- */
-export async function markReportDismissed(input: unknown): Promise<Result<null>> {
-  const parsed = z.object({ reportId: z.string().uuid() }).safeParse(input);
+export async function unblockSeller(input: unknown): Promise<Result<null>> {
+  const parsed = unblockSellerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
-  if (!admin) return err('Admin required');
+  const buyer = await requireUser().catch(() => null);
+  if (!buyer) return err('Not authenticated');
 
   await db
-    .update(messageReports)
-    .set({
-      status: 'reviewed_dismissed',
-      reviewedByAdminUserId: admin.id,
-      reviewedAt: new Date(),
-    })
-    .where(eq(messageReports.id, parsed.data.reportId));
+    .delete(buyerBlockedSellers)
+    .where(
+      and(
+        eq(buyerBlockedSellers.buyerUserId, buyer.id),
+        eq(buyerBlockedSellers.blockedArtisanProfileId, parsed.data.blockedArtisanProfileId),
+      ),
+    );
 
+  revalidatePath('/account', 'layout');
   return ok(null);
 }

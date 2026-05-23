@@ -1,6 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, messageThreads, orders, sellerBlockedBuyers } from '@/db/schema';
+import {
+  artisanProfiles,
+  buyerBlockedSellers,
+  messageThreads,
+  orders,
+  sellerBlockedBuyers,
+} from '@/db/schema';
 import { err, ok, type Result } from '@/lib/result';
 import type { OrderStatus } from '@/lib/orders/types';
 import type { MessageThread, MessageSenderRole, ThreadWriteState } from './types';
@@ -100,6 +106,27 @@ export async function isBuyerBlocked(
       and(
         eq(sellerBlockedBuyers.artisanProfileId, artisanProfileId),
         eq(sellerBlockedBuyers.blockedUserId, buyerUserId),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+// Mirror of isBuyerBlocked — has the buyer blocked this artisan? Used
+// in sendMessage to reject a seller's reply on a pre-purchase thread
+// when the buyer has blocked them. Order-anchored threads are
+// unaffected (block is messaging-only, same stance as seller-block).
+export async function isSellerBlocked(
+  buyerUserId: string,
+  artisanProfileId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ buyerUserId: buyerBlockedSellers.buyerUserId })
+    .from(buyerBlockedSellers)
+    .where(
+      and(
+        eq(buyerBlockedSellers.buyerUserId, buyerUserId),
+        eq(buyerBlockedSellers.blockedArtisanProfileId, artisanProfileId),
       ),
     )
     .limit(1);

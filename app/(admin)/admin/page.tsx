@@ -3,7 +3,6 @@ import { count, eq, gte } from 'drizzle-orm';
 import { db } from '@/db';
 import { orders, searchEvents } from '@/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getOpenReportsCount } from '@/lib/queries/messaging';
 
 // The remaining placeholder panels intentionally name the three most-likely
 // upcoming admin features. They double as a roadmap and as slot markers —
@@ -12,10 +11,9 @@ import { getOpenReportsCount } from '@/lib/queries/messaging';
 // the search plan, so its placeholder is now a real summary linking to the
 // dedicated page.
 export default async function AdminOverview() {
-  const [searchCount7d, disputedCountRow, openReportsCount] = await Promise.all([
+  const [searchCount7d, disputedCountRow] = await Promise.all([
     loadSearchCount7d(),
     db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
-    getOpenReportsCount(),
   ]);
   const disputedCount = disputedCountRow[0]?.value ?? 0;
 
@@ -41,7 +39,6 @@ export default async function AdminOverview() {
           description="An audit log of meaningful marketplace events will appear here once event logging is wired in."
         />
         <DisputesNeedingAttention count={disputedCount} />
-        <OpenReportsCard count={openReportsCount} />
         <PlaceholderPanel
           title="Sales overview"
           description="Order volume, revenue, and conversion data will appear here once payments ship."
@@ -114,33 +111,6 @@ async function loadSearchCount7d(): Promise<number> {
     .from(searchEvents)
     .where(gte(searchEvents.createdAt, sevenDaysAgo));
   return row?.value ?? 0;
-}
-
-// User-reported messages awaiting admin review. Pairs with
-// DisputesNeedingAttention — together they're the moderation queue.
-function OpenReportsCard({ count }: { count: number }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Open reports</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className={count > 0 ? 'text-destructive text-3xl font-medium' : 'text-3xl font-medium'}>
-          {count}
-        </p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          {count === 0
-            ? 'No reports awaiting review.'
-            : count === 1
-              ? 'message report awaiting review'
-              : 'message reports awaiting review'}
-        </p>
-        <Link href="/admin/reports" className="text-foreground mt-3 inline-block text-sm underline">
-          View queue →
-        </Link>
-      </CardContent>
-    </Card>
-  );
 }
 
 // Replaces the "Reported content" roadmap placeholder. Surfaces the

@@ -2,7 +2,6 @@ import { and, count, desc, eq, exists, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanProfiles,
-  messageReports,
   messageThreads,
   messages,
   notifications,
@@ -320,47 +319,4 @@ export async function getUnreadSellerMessagesCount(userId: string): Promise<numb
       ),
     );
   return row?.value ?? 0;
-}
-
-// =============================================================================
-// Admin reports queue
-// =============================================================================
-
-export async function getOpenReportsCount(): Promise<number> {
-  const [row] = await db
-    .select({ value: count() })
-    .from(messageReports)
-    .where(eq(messageReports.status, 'open'));
-  return row?.value ?? 0;
-}
-
-export interface OpenReportRow {
-  reportId: string;
-  messageId: string;
-  threadId: string;
-  reporterName: string;
-  reason: string | null;
-  createdAt: Date;
-  messageBody: string;
-  messageSenderRole: 'buyer' | 'seller';
-}
-
-export async function getOpenReports(limit = 50): Promise<OpenReportRow[]> {
-  return db
-    .select({
-      reportId: messageReports.id,
-      messageId: messageReports.messageId,
-      threadId: messages.threadId,
-      reporterName: user.name,
-      reason: messageReports.reason,
-      createdAt: messageReports.createdAt,
-      messageBody: messages.body,
-      messageSenderRole: messages.senderRole,
-    })
-    .from(messageReports)
-    .innerJoin(messages, eq(messages.id, messageReports.messageId))
-    .innerJoin(user, eq(user.id, messageReports.reporterUserId))
-    .where(eq(messageReports.status, 'open'))
-    .orderBy(desc(messageReports.createdAt))
-    .limit(limit);
 }
