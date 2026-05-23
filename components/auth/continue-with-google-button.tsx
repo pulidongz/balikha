@@ -23,12 +23,18 @@ export function ContinueWithGoogleButton({ next }: ContinueWithGoogleButtonProps
       callbackURL: next,
       errorCallbackURL: '/sign-in?error=oauth',
     });
-    // On success the browser follows result.data.url before we get here.
-    // We only reach this branch on a network/transport failure (the
-    // social-sign-in POST itself failed to reach the server).
     if (result.error) {
       setLoading(false);
       setError(result.error.message ?? 'Could not start Google sign-in. Please try again.');
+      return;
+    }
+    // Better Auth's client-fetch plugin navigates the browser when
+    // `data.redirect && data.url` are both truthy. If either is missing,
+    // navigation will not happen — surface that as an error rather than
+    // leaving the button stuck on "Redirecting…".
+    if (!result.data?.redirect || !result.data?.url) {
+      setLoading(false);
+      setError('Could not start Google sign-in. Please try again.');
     }
   }
 
