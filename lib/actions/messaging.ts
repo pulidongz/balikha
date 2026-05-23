@@ -17,12 +17,7 @@ import { requireUser, requireArtisan } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
-import {
-  assertThreadAccess,
-  getWriteState,
-  isBuyerBlocked,
-  isSellerBlocked,
-} from '@/lib/messaging/access';
+import { assertThreadAccess, getBlockState, getWriteState } from '@/lib/messaging/access';
 import { fanOutMessageNotification } from '@/lib/messaging/fan-out';
 import {
   isAtDailyMessageLimit,
@@ -187,10 +182,10 @@ export async function createPrePurchaseThread(
           // half is the more surprising case (they're the one initiating
           // contact), so we surface their own prior block clearly and
           // point at the unblock path instead of silently allowing it.
-          const [sellerBlockedBuyer, buyerBlockedSeller] = await Promise.all([
-            isBuyerBlocked(artisan.id, buyer.id),
-            isSellerBlocked(buyer.id, artisan.id),
-          ]);
+          const { sellerBlockedBuyer, buyerBlockedSeller } = await getBlockState(
+            buyer.id,
+            artisan.id,
+          );
           if (sellerBlockedBuyer) {
             throw new MessagingBusinessError('This maker has paused new conversations from you.');
           }
@@ -353,10 +348,10 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
   // both sides. A party who wants out of a soured order uses cancel or
   // dispute, not block.
   if (!thread.orderId) {
-    const [sellerBlockedBuyer, buyerBlockedSeller] = await Promise.all([
-      isBuyerBlocked(thread.artisanProfileId, thread.buyerUserId),
-      isSellerBlocked(thread.buyerUserId, thread.artisanProfileId),
-    ]);
+    const { sellerBlockedBuyer, buyerBlockedSeller } = await getBlockState(
+      thread.buyerUserId,
+      thread.artisanProfileId,
+    );
     if (role === 'buyer') {
       if (sellerBlockedBuyer) {
         return err('This maker has paused new conversations from you.');

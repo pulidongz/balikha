@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
-import { and, desc, eq, not } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { notNewMessage } from '@/lib/queries/account';
 import { NotificationItem } from '@/components/account/notification-item';
 import { MarkAllReadButton } from '@/components/account/mark-all-read-button';
 
@@ -16,17 +17,12 @@ export default async function NotificationsPage() {
   const current = await getCurrentUser();
   if (!current) redirect('/sign-in?next=/account/notifications');
 
+  // Exclude message notifications — the Messages page owns them and
+  // clearing them happens per-thread via markThreadRead.
   const items = await db
     .select()
     .from(notifications)
-    .where(
-      and(
-        eq(notifications.userId, current.id),
-        // Exclude message notifications — the Messages page owns them
-        // and clearing them happens per-thread via markThreadRead.
-        not(eq(notifications.type, 'new_message')),
-      ),
-    )
+    .where(and(eq(notifications.userId, current.id), notNewMessage))
     .orderBy(desc(notifications.createdAt))
     .limit(PAGE_SIZE);
 

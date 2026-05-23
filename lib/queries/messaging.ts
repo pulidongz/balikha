@@ -1,4 +1,4 @@
-import { and, count, desc, eq, exists, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, exists, isNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanProfiles,
@@ -171,19 +171,7 @@ const PAGE_SIZE = 50;
 // redundant today (thread_id is exclusive to new_message rows, §3.3)
 // but invariant-independent, so the query stays correct if a future
 // notification type ever gains a thread_id.
-async function inboxQuery(opts: {
-  side: 'buyer' | 'seller';
-  viewerKey: { buyerUserId: string } | { artisanProfileId: string };
-  viewerUserId: string;
-}): Promise<InboxThreadRow[]> {
-  const whereClause =
-    opts.side === 'buyer'
-      ? eq(messageThreads.buyerUserId, (opts.viewerKey as { buyerUserId: string }).buyerUserId)
-      : eq(
-          messageThreads.artisanProfileId,
-          (opts.viewerKey as { artisanProfileId: string }).artisanProfileId,
-        );
-
+async function inboxQuery(whereClause: SQL, viewerUserId: string): Promise<InboxThreadRow[]> {
   // Correlated LATERAL subquery: the most-recent message per thread.
   // Ordered by `seq` (monotonic) so "most recent" is deterministic.
   // The subquery references the outer messageThreads.id — Postgres
@@ -233,7 +221,7 @@ async function inboxQuery(opts: {
             .from(notifications)
             .where(
               and(
-                eq(notifications.userId, opts.viewerUserId),
+                eq(notifications.userId, viewerUserId),
                 eq(notifications.threadId, messageThreads.id),
                 eq(notifications.type, 'new_message'),
                 isNull(notifications.readAt),
@@ -257,22 +245,14 @@ async function inboxQuery(opts: {
 }
 
 export function getInboxForBuyer(buyerUserId: string): Promise<InboxThreadRow[]> {
-  return inboxQuery({
-    side: 'buyer',
-    viewerKey: { buyerUserId },
-    viewerUserId: buyerUserId,
-  });
+  return inboxQuery(eq(messageThreads.buyerUserId, buyerUserId), buyerUserId);
 }
 
-export async function getInboxForSeller(
+export function getInboxForSeller(
   artisanProfileId: string,
   viewerUserId: string,
 ): Promise<InboxThreadRow[]> {
-  return inboxQuery({
-    side: 'seller',
-    viewerKey: { artisanProfileId },
-    viewerUserId,
-  });
+  return inboxQuery(eq(messageThreads.artisanProfileId, artisanProfileId), viewerUserId);
 }
 
 // =============================================================================

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanFollows,
@@ -8,6 +8,13 @@ import {
   products,
   wishlistItems,
 } from '@/db/schema';
+
+// "Not a new_message notification" — the predicate that defines what
+// the general Notifications surface owns. Shared across the layout
+// badge count, the page query, the preview helper below, and the
+// markAllReadAction so a future notification type that should be
+// excluded gets added once.
+export const notNewMessage = not(eq(notifications.type, 'new_message'));
 
 // Helpers powering the new content-rich /account landing. Each one is a
 // SLICE of the dedicated page's data, not a separate query path — the
@@ -109,6 +116,18 @@ export async function getWishlistPreview(userId: string): Promise<PreviewProduct
   return attachPrimaryImages(rows);
 }
 
+// Layout-badge counterpart to getUnreadBuyerMessagesCount: the count of
+// unread non-message notifications powering the sidebar "Notifications"
+// badge. Lives here (not in the layout) so the four sites that share
+// the predicate go through one helper or the shared expression above.
+export async function getUnreadNonMessageNotificationsCount(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt), notNewMessage));
+  return row?.value ?? 0;
+}
+
 export interface NotificationPreviewItem {
   id: string;
   title: string;
@@ -137,13 +156,7 @@ export async function getNotificationsPreview(userId: string): Promise<Notificat
       createdAt: notifications.createdAt,
     })
     .from(notifications)
-    .where(
-      and(
-        eq(notifications.userId, userId),
-        // Exclude message notifications — the Messages surface owns them.
-        not(eq(notifications.type, 'new_message')),
-      ),
-    )
+    .where(and(eq(notifications.userId, userId), notNewMessage))
     .orderBy(
       // Unread first, then newest first within each group.
       sql`${notifications.readAt} IS NULL DESC`,

@@ -2,12 +2,11 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidateTag } from 'next/cache';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db, type Tx } from '@/db';
 import {
   artisanProfiles,
   idempotencyKeys,
-  messageThreads,
   notifications,
   orderDisputes,
   orderEvents,
@@ -20,6 +19,7 @@ import { requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
+import { pivotPrePurchaseThreadToOrder } from '@/lib/messaging/pivot';
 import { generateOrderReference } from '@/lib/orders/reference';
 import { returnStockIfPreShipment } from '@/lib/orders/stock';
 import type { ActorRole, Order, OrderEventType, OrderStatus } from '@/lib/orders/types';
@@ -362,43 +362,31 @@ export async function placeOrder(
           //      When the placement was initiated from inside an
           //      existing thread, link them: thread.orderId becomes
           //      set, thread.updatedAt bumps so the inbox surfaces the
-          //      converted thread.
+          //      converted thread. The messaging-domain UPDATE
+          //      (active-pre-purchase invariant + IDOR-safe WHERE) lives
+          //      in lib/messaging/pivot.ts alongside the other
+          //      messaging-tx helpers.
           //
-          //      Guards (all enforced via the UPDATE's WHERE clause,
-          //      one round-trip, IDOR-safe):
-          //      - Thread must belong to this buyer.
-          //      - Thread must point at THIS product.
-          //      - Thread must not already have an orderId (already
-          //        converted).
-          //
-          //      Non-fatal by design (round-2 review Issue 12): if the
-          //      UPDATE matches 0 rows (stale CTA link, thread already
-          //      converted, wrong product), the order STILL commits.
-          //      The order is the buyer's actual goal; the thread link
-          //      is a secondary nicety. Throwing OrderBusinessError
-          //      here would roll back the placement AND let
-          //      withIdempotency cache that failure — permanently
-          //      bricking the idempotency key for an order that could
-          //      otherwise be placed. Instead, log it and surface a
-          //      non-blocking `threadLinkSkipped` flag on the success
-          //      result (the failure is reported, not swallowed). A
+          //      Non-fatal by design: if the pivot matches 0 rows
+          //      (stale CTA, thread already converted, wrong product),
+          //      the order STILL commits — the order is the buyer's
+          //      actual goal, the thread link is a secondary nicety.
+          //      Throwing here would roll back the placement AND let
+          //      withIdempotency cache that failure, permanently
+          //      bricking the key for an order that could otherwise be
+          //      placed. Instead we log it and surface a non-blocking
+          //      `threadLinkSkipped` flag on the success result. A
           //      SUCCESSFUL pivot stays atomic with the order insert
           //      (same transaction).
           let threadLinkSkipped = false;
           if (parsed.data.threadId) {
-            const updated = await tx
-              .update(messageThreads)
-              .set({ orderId: order.id, updatedAt: new Date() })
-              .where(
-                and(
-                  eq(messageThreads.id, parsed.data.threadId),
-                  eq(messageThreads.buyerUserId, buyer.id),
-                  eq(messageThreads.productId, product.id),
-                  isNull(messageThreads.orderId),
-                ),
-              )
-              .returning({ id: messageThreads.id });
-            if (updated.length === 0) {
+            const { linked } = await pivotPrePurchaseThreadToOrder(tx, {
+              threadId: parsed.data.threadId,
+              buyerUserId: buyer.id,
+              productId: product.id,
+              orderId: order.id,
+            });
+            if (!linked) {
               threadLinkSkipped = true;
               log.warn(
                 {

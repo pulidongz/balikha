@@ -132,3 +132,20 @@ export async function isSellerBlocked(
     .limit(1);
   return !!row;
 }
+
+// Both block directions, fetched in parallel. The two underlying helpers
+// take their two ID arguments in OPPOSITE orders — every paired call
+// site previously had to remember which goes where, twice. This wrapper
+// is the one source of truth for "is the buyer↔seller relationship
+// paused on either side?", used by both server actions and both thread
+// pages.
+export async function getBlockState(
+  buyerUserId: string,
+  artisanProfileId: string,
+): Promise<{ buyerBlockedSeller: boolean; sellerBlockedBuyer: boolean }> {
+  const [sellerBlockedBuyer, buyerBlockedSeller] = await Promise.all([
+    isBuyerBlocked(artisanProfileId, buyerUserId),
+    isSellerBlocked(buyerUserId, artisanProfileId),
+  ]);
+  return { buyerBlockedSeller, sellerBlockedBuyer };
+}

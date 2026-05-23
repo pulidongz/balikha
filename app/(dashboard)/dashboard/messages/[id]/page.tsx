@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 import { getThreadForViewer, getMessagesForThread } from '@/lib/queries/messaging';
-import { isBuyerBlocked, isSellerBlocked, writeStateFor } from '@/lib/messaging/access';
+import { getBlockState, writeStateFor } from '@/lib/messaging/access';
 import { ThreadView } from '@/components/account/thread-view';
 import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-mount';
 import { BlockBuyerButton } from '@/components/dashboard/block-buyer-button';
@@ -23,12 +23,13 @@ export default async function SellerThreadPage({ params }: { params: Promise<{ i
 
   // Both block directions — mirrors the buyer thread page. Skipped on
   // order-anchored threads where blocks don't apply.
-  const [blockedByMe, blockedByThem] = data.thread.orderId
-    ? [false, false]
-    : await Promise.all([
-        isBuyerBlocked(data.thread.artisanProfileId, data.thread.buyerUserId),
-        isSellerBlocked(data.thread.buyerUserId, data.thread.artisanProfileId),
-      ]);
+  let blockedByMe = false;
+  let blockedByThem = false;
+  if (!data.thread.orderId) {
+    const state = await getBlockState(data.thread.buyerUserId, data.thread.artisanProfileId);
+    blockedByMe = state.sellerBlockedBuyer;
+    blockedByThem = state.buyerBlockedSeller;
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:px-6">

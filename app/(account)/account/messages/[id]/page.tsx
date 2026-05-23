@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getThreadForViewer, getMessagesForThread } from '@/lib/queries/messaging';
-import { isBuyerBlocked, isSellerBlocked, writeStateFor } from '@/lib/messaging/access';
+import { getBlockState, writeStateFor } from '@/lib/messaging/access';
 import { ThreadView } from '@/components/account/thread-view';
 import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-mount';
 import { BlockSellerButton } from '@/components/account/block-seller-button';
@@ -24,12 +24,13 @@ export default async function BuyerThreadPage({ params }: { params: Promise<{ id
   // AND the composer's paused-conversation panel. Only meaningful on
   // pre-purchase threads (blocks don't affect order-anchored threads),
   // so we skip the reads when an order is attached.
-  const [blockedByMe, blockedByThem] = data.thread.orderId
-    ? [false, false]
-    : await Promise.all([
-        isSellerBlocked(current.id, data.thread.artisanProfileId),
-        isBuyerBlocked(data.thread.artisanProfileId, current.id),
-      ]);
+  let blockedByMe = false;
+  let blockedByThem = false;
+  if (!data.thread.orderId) {
+    const state = await getBlockState(current.id, data.thread.artisanProfileId);
+    blockedByMe = state.buyerBlockedSeller;
+    blockedByThem = state.sellerBlockedBuyer;
+  }
 
   // No DB read — writeStateFor derives from the already-loaded status.
   const writeState = writeStateFor(data.thread, data.orderStatus);
