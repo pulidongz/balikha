@@ -10,7 +10,11 @@ export function AdminHeader({ userName }: { userName: string }) {
     <header className="bg-foreground text-primary-foreground sticky top-0 z-30 border-b">
       <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-3">
-          <Link href="/" className="font-serif text-lg tracking-tight">
+          {/* Inside /admin the logo acts as "back to admin overview",
+              not "back to the public marketplace" — keeps admins in
+              their workspace. "Back to dashboard" → /dashboard is the
+              explicit exit affordance below. */}
+          <Link href="/admin" className="font-serif text-lg tracking-tight">
             Balikha
           </Link>
           <span className="bg-accent text-accent-foreground rounded-full px-2 py-0.5 text-[0.65rem] font-medium tracking-widest uppercase">
