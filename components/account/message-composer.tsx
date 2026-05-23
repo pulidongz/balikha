@@ -19,13 +19,17 @@ export function MessageComposer({ threadId }: { threadId: string }) {
     if (!canSubmit) return;
     setError(null);
     startTransition(async () => {
-      const result = await sendMessage({ threadId, body: body.trim() });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = await sendMessage({ threadId, body: body.trim() });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setBody('');
+        router.refresh();
+      } catch {
+        setError('We could not send your message just now. Please try again in a moment.');
       }
-      setBody('');
-      router.refresh();
     });
   }
 

@@ -17,12 +17,16 @@ export function UnblockButton({ blockedUserId }: { blockedUserId: string }) {
   function handleClick() {
     setError(null);
     startTransition(async () => {
-      const result = await unblockBuyer({ blockedUserId });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = await unblockBuyer({ blockedUserId });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError('Something went wrong. Please try again in a moment.');
       }
-      router.refresh();
     });
   }
 

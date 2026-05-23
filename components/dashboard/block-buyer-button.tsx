@@ -28,15 +28,19 @@ export function BlockBuyerButton({
   function handleSubmit() {
     setError(null);
     startTransition(async () => {
-      const result = alreadyBlocked
-        ? await unblockBuyer({ blockedUserId: buyerUserId })
-        : await blockBuyer({ blockedUserId: buyerUserId });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = alreadyBlocked
+          ? await unblockBuyer({ blockedUserId: buyerUserId })
+          : await blockBuyer({ blockedUserId: buyerUserId });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setOpen(false);
+        router.refresh();
+      } catch {
+        setError('Something went wrong. Please try again in a moment.');
       }
-      setOpen(false);
-      router.refresh();
     });
   }
 

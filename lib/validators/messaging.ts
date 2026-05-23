@@ -8,9 +8,18 @@ import { z } from 'zod';
 // threadId; two genuinely distinct submits get distinct keys and are
 // deduped by the partial unique index
 // message_threads_active_pre_purchase_idx.
+// Message body validation: the .refine guards against whitespace-only
+// submissions — the client composer disables Send on trimmed-empty, but
+// a direct POST with body=" " would pass min(1) without it.
+const messageBodySchema = z
+  .string()
+  .min(1)
+  .max(2000)
+  .refine((v) => v.trim().length > 0, { message: 'Message cannot be blank.' });
+
 export const createPrePurchaseThreadSchema = z.object({
   productId: z.string().uuid(),
-  initialMessage: z.string().min(1).max(2000),
+  initialMessage: messageBodySchema,
   idempotencyKey: z.string().uuid(),
 });
 
@@ -18,7 +27,7 @@ export type CreatePrePurchaseThreadInput = z.infer<typeof createPrePurchaseThrea
 
 export const sendMessageSchema = z.object({
   threadId: z.string().uuid(),
-  body: z.string().min(1).max(2000),
+  body: messageBodySchema,
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

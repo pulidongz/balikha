@@ -383,9 +383,8 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
     return err('This conversation is closed.');
   }
 
-  let messageId: string;
   try {
-    messageId = await db.transaction(async (tx) => {
+    const messageId = await db.transaction(async (tx) => {
       const [m] = await tx
         .insert(messages)
         .values({
@@ -407,16 +406,16 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
 
       return m.id;
     });
+
+    // Refresh both audience layouts so badges and inboxes stay in sync.
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/account', 'layout');
+
+    return ok({ messageId });
   } catch (e) {
     log.error({ err: e, threadId: thread.id }, 'sendMessage failed');
     throw e;
   }
-
-  // Refresh both audience layouts so badges and inboxes stay in sync.
-  revalidatePath('/dashboard', 'layout');
-  revalidatePath('/account', 'layout');
-
-  return ok({ messageId });
 }
 
 /**
@@ -435,6 +434,16 @@ export async function markThreadRead(input: unknown): Promise<Result<null>> {
 
   const current = await requireUser().catch(() => null);
   if (!current) return err('Not authenticated');
+
+  // Defense-in-depth participant check. Today's invariant
+  // (notifications.threadId is only set for thread participants via
+  // fanOutMessageNotification) already prevents IDOR — a guessed
+  // threadId would match zero rows. But locking the check in here means
+  // a future notification type that ever carries threadId to a
+  // non-participant cannot expose those rows via this action. Privacy-
+  // over-403 stance via assertThreadAccess's "Thread not found".
+  const access = await assertThreadAccess(parsed.data.threadId, current.id);
+  if (!access.ok) return err(access.error);
 
   // `.returning()` lets us detect whether any unread row was actually
   // cleared. Re-opening an already-read thread updates nothing, so we
@@ -545,12 +554,15 @@ export async function blockSeller(input: unknown): Promise<Result<null>> {
   if (!buyer) return err('Not authenticated');
 
   // Self-block protection — the buyer can't block an artisan they own.
+  // If the artisan row is missing we surface a named error rather than
+  // falling through to the FK violation an absent row would cause.
   const [artisan] = await db
     .select({ userId: artisanProfiles.userId })
     .from(artisanProfiles)
     .where(eq(artisanProfiles.id, parsed.data.blockedArtisanProfileId))
     .limit(1);
-  if (artisan && artisan.userId === buyer.id) {
+  if (!artisan) return err('Maker not found.');
+  if (artisan.userId === buyer.id) {
     return err('You cannot block your own shop.');
   }
 

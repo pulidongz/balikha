@@ -34,15 +34,19 @@ export function BlockSellerButton({
   function handleSubmit() {
     setError(null);
     startTransition(async () => {
-      const result = alreadyBlocked
-        ? await unblockSeller({ blockedArtisanProfileId: artisanProfileId })
-        : await blockSeller({ blockedArtisanProfileId: artisanProfileId });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = alreadyBlocked
+          ? await unblockSeller({ blockedArtisanProfileId: artisanProfileId })
+          : await blockSeller({ blockedArtisanProfileId: artisanProfileId });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setOpen(false);
+        router.refresh();
+      } catch {
+        setError('Something went wrong. Please try again in a moment.');
       }
-      setOpen(false);
-      router.refresh();
     });
   }
 

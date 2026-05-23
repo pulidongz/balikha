@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Tx } from '@/db';
 import { artisanProfiles, notifications } from '@/db/schema';
+import { getRequestLogger } from '@/lib/logger-context';
 import type { MessageSenderRole, MessageThread } from './types';
 
 const PREVIEW_MAX_CHARS = 120;
@@ -33,9 +34,17 @@ export async function fanOutMessageNotification(
       .where(eq(artisanProfiles.id, thread.artisanProfileId))
       .limit(1);
     // If the seller account vanished mid-transaction the message is
-    // still valuable to the buyer, but there's no one to notify —
-    // skip silently. Don't roll back the message.
-    if (!artisan) return;
+    // still valuable to the buyer, but there's no one to notify — skip
+    // (don't roll back the message). Leave a log trace so the silent
+    // path is observable if it ever fires for a non-deletion reason.
+    if (!artisan) {
+      const log = await getRequestLogger();
+      log.warn(
+        { threadId: thread.id, artisanProfileId: thread.artisanProfileId },
+        'fanOutMessageNotification: seller artisan profile missing — message committed without notification',
+      );
+      return;
+    }
     recipientUserId = artisan.userId;
     recipientUrl = thread.orderId
       ? `/dashboard/orders/${thread.orderId}`

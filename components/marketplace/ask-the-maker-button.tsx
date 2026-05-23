@@ -42,16 +42,20 @@ export function AskTheMakerButton({
     if (pending || body.trim().length === 0) return;
     setError(null);
     startTransition(async () => {
-      const result = await createPrePurchaseThread({
-        productId,
-        initialMessage: body.trim(),
-        idempotencyKey: crypto.randomUUID(),
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = await createPrePurchaseThread({
+          productId,
+          initialMessage: body.trim(),
+          idempotencyKey: crypto.randomUUID(),
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        router.push(`/account/messages/${result.data.threadId}`);
+      } catch {
+        setError('We could not send your message just now. Please try again in a moment.');
       }
-      router.push(`/account/messages/${result.data.threadId}`);
     });
   }
 
