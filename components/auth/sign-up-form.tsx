@@ -6,15 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUp } from '@/lib/auth-client';
+import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
 
 // Same open-redirect guard as sign-in: same-origin paths only.
 function safeNextOr(next: string | null, fallback: string): string {
   if (!next) return fallback;
   if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
+  // Body characters: only same-origin path/query chars. Rejects CR/LF (\r, \n),
+  // encoded variants (%0d, %0a), whitespace, @ smuggles, and other smuggle
+  // vectors that could end up in a Location: header via Better Auth's redirect.
+  if (!/^[A-Za-z0-9_\-/?&=.+,#]*$/.test(next.slice(1))) return fallback;
   return next;
 }
 
-export function SignUpForm() {
+interface SignUpFormProps {
+  googleEnabled: boolean;
+}
+
+export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Seller-intent signups (from the "Sell your craft" entry point) route into
@@ -46,61 +55,73 @@ export function SignUpForm() {
   }
 
   return (
-    <form
-      noValidate
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void attemptSignUp();
-      }}
-    >
-      <div className="space-y-2">
-        <Label htmlFor="signup-name">Name</Label>
-        <Input
-          id="signup-name"
-          name="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          autoComplete="name"
-          className="h-11"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="signup-email">Email</Label>
-        <Input
-          id="signup-email"
-          name="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-          className="h-11"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="signup-password">Password</Label>
-        <Input
-          id="signup-password"
-          name="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          minLength={8}
-          className="h-11"
-        />
-      </div>
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
+    <div className="space-y-4">
+      {googleEnabled && (
+        <>
+          <ContinueWithGoogleButton next={next} />
+          <div className="flex items-center gap-3">
+            <div className="bg-border h-px flex-1" />
+            <span className="text-muted-foreground text-xs tracking-wider uppercase">or</span>
+            <div className="bg-border h-px flex-1" />
+          </div>
+        </>
       )}
-      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
-        {loading ? 'Creating account…' : 'Create account'}
-      </Button>
-    </form>
+      <form
+        noValidate
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void attemptSignUp();
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="signup-name">Name</Label>
+          <Input
+            id="signup-name"
+            name="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoComplete="name"
+            className="h-11"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="signup-email">Email</Label>
+          <Input
+            id="signup-email"
+            name="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="h-11"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="signup-password">Password</Label>
+          <Input
+            id="signup-password"
+            name="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            minLength={8}
+            className="h-11"
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+        <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+          {loading ? 'Creating account…' : 'Create account'}
+        </Button>
+      </form>
+    </div>
   );
 }

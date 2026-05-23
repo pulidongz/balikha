@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SignInForm } from '@/components/auth/sign-in-form';
+import { googleAuthEnabled } from '@/lib/auth';
 
 export const metadata = {
   title: 'Sign in',
@@ -27,7 +28,7 @@ export default function SignInPage() {
       </CardHeader>
       <CardContent>
         <Suspense fallback={null}>
-          <SignInForm />
+          <SignInForm googleEnabled={googleAuthEnabled} />
         </Suspense>
       </CardContent>
       <CardFooter>

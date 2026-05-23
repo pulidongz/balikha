@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signIn } from '@/lib/auth-client';
+import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
 
 // Reject anything that isn't a same-origin path. Required: starts with `/`,
 // not protocol-relative (`//foo.com`), not a backslash-trick. This blocks
@@ -14,10 +15,18 @@ import { signIn } from '@/lib/auth-client';
 function safeNextOr(next: string | null, fallback: string): string {
   if (!next) return fallback;
   if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
+  // Body characters: only same-origin path/query chars. Rejects CR/LF (\r, \n),
+  // encoded variants (%0d, %0a), whitespace, @ smuggles, and other smuggle
+  // vectors that could end up in a Location: header via Better Auth's redirect.
+  if (!/^[A-Za-z0-9_\-/?&=.+,#]*$/.test(next.slice(1))) return fallback;
   return next;
 }
 
-export function SignInForm() {
+interface SignInFormProps {
+  googleEnabled: boolean;
+}
+
+export function SignInForm({ googleEnabled }: SignInFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Default destination is the buyer surface — every signed-in user has
@@ -25,9 +34,13 @@ export function SignInForm() {
   // the become-seller flow. Sellers reach /dashboard from the avatar
   // dropdown's "My shop" link.
   const next = safeNextOr(searchParams.get('next'), '/account');
+  // Surface OAuth failures that landed us back here via errorCallbackURL.
+  const oauthErrored = searchParams.get('error') === 'oauth';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oauthErrored ? 'Could not complete Google sign-in. Please try again.' : null,
+  );
   const [loading, setLoading] = useState(false);
 
   async function attemptSignIn() {
@@ -44,57 +57,69 @@ export function SignInForm() {
   }
 
   return (
-    <form
-      noValidate
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void attemptSignIn();
-      }}
-    >
-      <div className="space-y-2">
-        <Label htmlFor="signin-email">Email</Label>
-        <Input
-          id="signin-email"
-          name="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-          className="h-11"
-        />
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="signin-password">Password</Label>
-          <a
-            href="#"
-            className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-            aria-label="Forgot password (coming soon)"
-          >
-            Forgot password?
-          </a>
-        </div>
-        <Input
-          id="signin-password"
-          name="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-          className="h-11"
-        />
-      </div>
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
+    <div className="space-y-4">
+      {googleEnabled && (
+        <>
+          <ContinueWithGoogleButton next={next} />
+          <div className="flex items-center gap-3">
+            <div className="bg-border h-px flex-1" />
+            <span className="text-muted-foreground text-xs tracking-wider uppercase">or</span>
+            <div className="bg-border h-px flex-1" />
+          </div>
+        </>
       )}
-      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
-        {loading ? 'Signing in…' : 'Sign in'}
-      </Button>
-    </form>
+      <form
+        noValidate
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void attemptSignIn();
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="signin-email">Email</Label>
+          <Input
+            id="signin-email"
+            name="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="h-11"
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="signin-password">Password</Label>
+            <a
+              href="#"
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+              aria-label="Forgot password (coming soon)"
+            >
+              Forgot password?
+            </a>
+          </div>
+          <Input
+            id="signin-password"
+            name="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className="h-11"
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+        <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+          {loading ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+    </div>
   );
 }

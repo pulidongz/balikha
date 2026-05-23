@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SignUpForm } from '@/components/auth/sign-up-form';
+import { googleAuthEnabled } from '@/lib/auth';
 
 export const metadata = {
   title: 'Create account',
@@ -25,7 +26,7 @@ export default function SignUpPage() {
       </CardHeader>
       <CardContent>
         <Suspense fallback={null}>
-          <SignUpForm />
+          <SignUpForm googleEnabled={googleAuthEnabled} />
         </Suspense>
       </CardContent>
       <CardFooter>
