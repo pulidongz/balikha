@@ -1,10 +1,7 @@
 import { notFound } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
-import { db } from '@/db';
-import { sellerBlockedBuyers } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 import { getThreadForViewer, getMessagesForThread } from '@/lib/queries/messaging';
-import { writeStateFor } from '@/lib/messaging/access';
+import { isBuyerBlocked, isSellerBlocked, writeStateFor } from '@/lib/messaging/access';
 import { ThreadView } from '@/components/account/thread-view';
 import { MarkThreadReadOnMount } from '@/components/account/mark-thread-read-on-mount';
 import { BlockBuyerButton } from '@/components/dashboard/block-buyer-button';
@@ -24,17 +21,14 @@ export default async function SellerThreadPage({ params }: { params: Promise<{ i
 
   const messages = await getMessagesForThread(id);
 
-  // Block status drives the header's Block/Unblock affordance.
-  const [block] = await db
-    .select({ blockedUserId: sellerBlockedBuyers.blockedUserId })
-    .from(sellerBlockedBuyers)
-    .where(
-      and(
-        eq(sellerBlockedBuyers.artisanProfileId, profile.id),
-        eq(sellerBlockedBuyers.blockedUserId, data.thread.buyerUserId),
-      ),
-    )
-    .limit(1);
+  // Both block directions — mirrors the buyer thread page. Skipped on
+  // order-anchored threads where blocks don't apply.
+  const [blockedByMe, blockedByThem] = data.thread.orderId
+    ? [false, false]
+    : await Promise.all([
+        isBuyerBlocked(data.thread.artisanProfileId, data.thread.buyerUserId),
+        isSellerBlocked(data.thread.buyerUserId, data.thread.artisanProfileId),
+      ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:px-6">
@@ -48,8 +42,10 @@ export default async function SellerThreadPage({ params }: { params: Promise<{ i
         writeState={writeStateFor(data.thread, data.orderStatus)}
         orderStatus={data.orderStatus}
         orderReference={data.orderReference}
+        blockedByMe={blockedByMe}
+        blockedByThem={blockedByThem}
         headerExtra={
-          <BlockBuyerButton buyerUserId={data.thread.buyerUserId} alreadyBlocked={!!block} />
+          <BlockBuyerButton buyerUserId={data.thread.buyerUserId} alreadyBlocked={blockedByMe} />
         }
       />
     </div>

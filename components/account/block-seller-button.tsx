@@ -59,8 +59,8 @@ export function BlockSellerButton({
             </DialogTitle>
             <DialogDescription>
               {alreadyBlocked
-                ? `${shopName} will be able to send you new messages on pre-purchase threads again.`
-                : `${shopName} will not be able to send you new messages on pre-purchase threads. Existing orders between you continue normally.`}
+                ? `You and ${shopName} will be able to message each other on pre-purchase threads again.`
+                : `Pauses messaging in both directions on pre-purchase threads with ${shopName} — neither of you can send until you unblock. Existing orders between you continue normally.`}
             </DialogDescription>
           </DialogHeader>
           {error && (

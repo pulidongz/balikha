@@ -53,8 +53,8 @@ export function BlockBuyerButton({
             </DialogTitle>
             <DialogDescription>
               {alreadyBlocked
-                ? 'They will be able to start new conversations with you again.'
-                : 'They will not be able to start new conversations or send new messages. Existing orders between you continue normally.'}
+                ? 'You and this buyer will be able to message each other on pre-purchase threads again.'
+                : 'Pauses messaging in both directions on pre-purchase threads — neither of you can send, and they cannot start new conversations, until you unblock. Existing orders between you continue normally.'}
             </DialogDescription>
           </DialogHeader>
           {error && (

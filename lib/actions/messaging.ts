@@ -182,9 +182,22 @@ export async function createPrePurchaseThread(
           }
 
           // Block check inside the lock so a block placed mid-action
-          // doesn't slip through.
-          if (await isBuyerBlocked(artisan.id, buyer.id)) {
+          // doesn't slip through. Symmetric — either party having blocked
+          // the other shuts the door on a new thread. The buyer-initiated
+          // half is the more surprising case (they're the one initiating
+          // contact), so we surface their own prior block clearly and
+          // point at the unblock path instead of silently allowing it.
+          const [sellerBlockedBuyer, buyerBlockedSeller] = await Promise.all([
+            isBuyerBlocked(artisan.id, buyer.id),
+            isSellerBlocked(buyer.id, artisan.id),
+          ]);
+          if (sellerBlockedBuyer) {
             throw new MessagingBusinessError('This maker has paused new conversations from you.');
+          }
+          if (buyerBlockedSeller) {
+            throw new MessagingBusinessError(
+              "You've blocked this maker. Unblock them from your Blocked makers list to start a conversation.",
+            );
           }
 
           // First-image snapshot (lowest position).
@@ -327,20 +340,39 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
     return err('Slow down a moment — you can send another message in a minute.');
   }
 
-  // Block check — gates PRE-PURCHASE threads only, in either direction.
-  // A block stops the blocking party from receiving new unsolicited
-  // messages on a pre-purchase thread; it does NOT mute an order-
-  // anchored thread. Once an order exists both parties have accepted
-  // a live commercial relationship — they must be able to coordinate
-  // payment and shipping, and a disputed order's thread (reopened by
-  // getWriteState) must stay writable for both sides. A party who
-  // wants out of a soured order uses cancel or dispute, not block.
+  // Block check — gates PRE-PURCHASE threads only, and the effect is
+  // symmetric: if EITHER side has blocked the other, NEITHER side can
+  // send. A block pauses the conversation for both parties until the
+  // blocker unblocks (mirroring how every messaging product treats a
+  // mutual relationship pause).
+  //
+  // Blocks do NOT mute an order-anchored thread. Once an order exists
+  // both parties have accepted a live commercial relationship — they
+  // must be able to coordinate payment and shipping, and a disputed
+  // order's thread (reopened by getWriteState) must stay writable for
+  // both sides. A party who wants out of a soured order uses cancel or
+  // dispute, not block.
   if (!thread.orderId) {
-    if (role === 'buyer' && (await isBuyerBlocked(thread.artisanProfileId, sender.id))) {
-      return err('This maker has paused new conversations from you.');
-    }
-    if (role === 'seller' && (await isSellerBlocked(thread.buyerUserId, thread.artisanProfileId))) {
-      return err('This buyer has paused new conversations from you.');
+    const [sellerBlockedBuyer, buyerBlockedSeller] = await Promise.all([
+      isBuyerBlocked(thread.artisanProfileId, thread.buyerUserId),
+      isSellerBlocked(thread.buyerUserId, thread.artisanProfileId),
+    ]);
+    if (role === 'buyer') {
+      if (sellerBlockedBuyer) {
+        return err('This maker has paused new conversations from you.');
+      }
+      if (buyerBlockedSeller) {
+        return err(
+          "You've blocked this maker. Unblock them from your Blocked makers list to continue.",
+        );
+      }
+    } else {
+      if (buyerBlockedSeller) {
+        return err('This buyer has paused new conversations from you.');
+      }
+      if (sellerBlockedBuyer) {
+        return err("You've blocked this buyer. Unblock them from your settings to continue.");
+      }
     }
   }
 

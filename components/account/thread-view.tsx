@@ -24,6 +24,8 @@ export function ThreadView({
   orderReference,
   headerExtra,
   readOnly = false,
+  blockedByMe = false,
+  blockedByThem = false,
 }: {
   thread: MessageThread;
   messages: MessageWithSender[];
@@ -37,6 +39,12 @@ export function ThreadView({
   // Admin report / dispute view renders read-only — no composer, no
   // Report affordance, no Order CTA — regardless of writeState (§8.3).
   readOnly?: boolean;
+  // Block state (pre-purchase threads only). EITHER true → composer is
+  // hidden and a clear panel explains why. The block effect is symmetric:
+  // one block pauses the conversation for both sides, mirroring the
+  // server-side rejection in sendMessage.
+  blockedByMe?: boolean;
+  blockedByThem?: boolean;
 }) {
   const counterpartyLabel = viewerRole === 'buyer' ? thread.artisanShopNameSnapshot : 'Buyer';
 
@@ -46,10 +54,15 @@ export function ThreadView({
       : `/dashboard/orders/${thread.orderId}`
     : null;
 
+  const isBlocked = blockedByMe || blockedByThem;
+
   // "Order this piece" — shown only to a buyer on a still-pre-purchase
   // thread. Routes to the product page with ?threadId so OrderDialog
   // auto-opens (§6.10a) and the placed order pivots this thread. The
-  // thread's snapshot columns hold every part of the URL.
+  // thread's snapshot columns hold every part of the URL. Block state
+  // intentionally does NOT gate this: the block is messaging-only, and
+  // a buyer/seller who wants to transact despite the messaging pause
+  // should be able to.
   const showOrderCta = viewerRole === 'buyer' && !thread.orderId && !readOnly;
   const orderCtaHref = `/shop/${thread.artisanShopSlugSnapshot}/${thread.productSlugSnapshot}?threadId=${thread.id}`;
 
@@ -117,8 +130,24 @@ export function ThreadView({
         </div>
       )}
 
-      {!readOnly && writeState.kind === 'open' && <MessageComposer threadId={thread.id} />}
-      {!readOnly && writeState.kind === 'closed' && (
+      {!readOnly && isBlocked && (
+        <p
+          className="text-muted-foreground border-muted bg-muted/30 rounded-md border p-3 text-sm"
+          role="status"
+        >
+          {blockedByMe
+            ? viewerRole === 'buyer'
+              ? `You've blocked ${thread.artisanShopNameSnapshot}. This conversation is paused for both of you until you unblock from your Blocked makers list.`
+              : `You've blocked this buyer. This conversation is paused for both of you until you unblock from your Blocked buyers settings.`
+            : viewerRole === 'buyer'
+              ? `${thread.artisanShopNameSnapshot} has paused this conversation. You'll be able to message again if they unblock you.`
+              : `This buyer has paused this conversation. You'll be able to message again if they unblock you.`}
+        </p>
+      )}
+      {!readOnly && !isBlocked && writeState.kind === 'open' && (
+        <MessageComposer threadId={thread.id} />
+      )}
+      {!readOnly && !isBlocked && writeState.kind === 'closed' && (
         <p className="text-muted-foreground text-sm">
           This conversation is closed. Existing messages remain visible.
         </p>
