@@ -40,6 +40,11 @@ export const env = createEnv({
     // server still boots and email/password sign-in works unchanged.
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+    // Resend transactional email. RESEND_API_KEY is optional so the dev
+    // server boots without it (sendEmail() falls back to render-and-log).
+    // EMAIL_FROM and EMAIL_REPLY_TO are required with no default —
+    // identity-load-bearing values where a silent default would mask a
+    // misconfigured prod deploy.
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().email(),
     EMAIL_REPLY_TO: z.string().email(),
