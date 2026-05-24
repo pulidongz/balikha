@@ -5,6 +5,15 @@ import { env } from '@/env';
 import { logger } from '@/lib/logger';
 import { ok, err, type Result } from '@/lib/result';
 
+// Error-log shape policy for this file (all three are deliberate):
+//   - Render failure (Error instance): { err: e, ... } — project convention
+//     for thrown Errors; Pino's default serializer handles these.
+//   - Resend send failure (plain {name, message} object): flat
+//     { errName, errMessage, ... } — AC3 Check B pins to this contract;
+//     see the longer rationale at the call site below.
+//   - Resend success-without-id (unexpected SDK shape): { result, ... } —
+//     off-path anomaly; whole-object kept for diagnosability.
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -69,6 +78,9 @@ export async function sendEmail(opts: SendEmailOptions): Promise<Result<SendEmai
   }
 
   // Production path. Pass both html and text — see plainText render above.
+  // No try/catch: Resend SDK returns {data, error} for send failures (handled
+  // below). Unexpected throws (network panic etc.) propagate intentionally —
+  // the caller has the request context to surface them properly.
   const result = await resend.emails.send({
     from,
     to: opts.to,
