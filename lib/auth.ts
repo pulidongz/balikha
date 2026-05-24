@@ -29,8 +29,14 @@ export const auth = betterAuth({
   },
   socialProviders,
   account: {
-    // Encrypt access/refresh/id tokens at rest (AES-256-GCM). Pre-launch
+    // Encrypt access_token and refresh_token at rest (AES-256-GCM). Pre-launch
     // is the cheapest time to enable — no existing OAuth rows to migrate.
+    // Note: despite the flag's name, Better Auth 1.6.9 does NOT encrypt
+    // id_token (see better-auth/dist/api/routes/callback.mjs:114 — idToken is
+    // stored as-is without setTokenUtil). Defensible upstream: id_token is
+    // short-lived (1h), already signed by Google, and less sensitive than a
+    // long-lived refresh_token. When auditing the account table, expect
+    // id_token to look like a plaintext JWT (eyJ...xxx.yyy.zzz).
     encryptOAuthTokens: true,
     accountLinking: {
       // Auto-link a Google sign-in to an existing email/password user
