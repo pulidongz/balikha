@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   const recipient = process.argv[2];
 
   if (!recipient) {
-    logger.error('Usage: npm run email:test -- <recipient@example.com>');
+    console.error('Usage: npm run email:test -- <recipient@example.com>');
     process.exit(1);
   }
 
