@@ -40,6 +40,9 @@ export const env = createEnv({
     // server still boots and email/password sign-in works unchanged.
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+    RESEND_API_KEY: z.string().min(1).optional(),
+    EMAIL_FROM: z.string().email(),
+    EMAIL_REPLY_TO: z.string().email(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -65,6 +68,9 @@ export const env = createEnv({
       process.env.MESSAGING_MAX_MESSAGES_PER_THREAD_PER_MINUTE,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
   },
   emptyStringAsUndefined: true,
 });
