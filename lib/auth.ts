@@ -47,11 +47,16 @@ export const auth = betterAuth({
       trustedProviders: ['google'],
     },
   },
-  // Both the canonical https://balikha.localhost:8443 (via Caddy) and the
-  // direct http://localhost:3000 (bypass Caddy) need to pass Better Auth's
-  // CSRF Origin check during local dev. The plain-localhost entry can come
-  // off once everyone uses the Caddy URL day-to-day.
-  trustedOrigins: ['https://balikha.localhost:8443', 'http://localhost:3000'],
+  // All three local-dev origins need to pass Better Auth's CSRF Origin check:
+  //   - https://dev.balikha.art:8443    — pretty URL (works with Google OAuth)
+  //   - https://balikha.localhost:8443  — Caddy with .localhost (no Google OAuth)
+  //   - http://localhost:3000           — direct, bypasses Caddy (works with Google OAuth)
+  // The middle entry can come off once everyone uses the pretty URL day-to-day.
+  trustedOrigins: [
+    'https://dev.balikha.art:8443',
+    'https://balikha.localhost:8443',
+    'http://localhost:3000',
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;
