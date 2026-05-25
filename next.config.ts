@@ -1,6 +1,16 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Allow Caddy-proxied dev URLs to connect to the dev server's HMR WebSocket
+  // and pass Next 16's cross-origin dev checks. Without this, Next responds
+  // to the WS upgrade with a literal "Unauthorized" body (which Caddy reports
+  // as a "malformed HTTP response" 502 since the dev server didn't speak the
+  // WS protocol back). A broken HMR socket can also stall React hydration
+  // mid-tree, leaving SSR-rendered buttons with no click handler attached —
+  // which is why "Continue with Google" silently does nothing on these URLs.
+  //
+  // localhost:3000 is implicitly allowed (the dev server's own host).
+  allowedDevOrigins: ['dev.balikha.art', 'balikha.localhost'],
   images: {
     remotePatterns: [
       // Seeded placeholder images. Drop when seeded products migrate to
