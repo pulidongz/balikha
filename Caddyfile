@@ -1,7 +1,12 @@
 # Local development reverse proxy + TLS termination for Balikha.
 #
-# Maps:
+# Maps (both URLs share one block — Caddy passes the requested host through):
 #   https://balikha.localhost:8443/*  →  host.docker.internal:3000  (Next.js dev)
+#   https://dev.balikha.art:8443/*    →  host.docker.internal:3000  (same — pretty URL)
+#
+# The dev.balikha.art URL exists because Google OAuth rejects *.localhost
+# redirect URIs but accepts public-TLD subdomains. Point dev.balikha.art at
+# 127.0.0.1 via a Cloudflare A record (DNS only) or /etc/hosts.
 #
 # Cert source: Caddy's built-in internal PKI mints a leaf cert under a local
 # root CA. The root cert lives at /data/caddy/pki/authorities/local/root.crt
@@ -43,6 +48,29 @@ https://balikha.localhost:8443 {
 
 		# WebSocket / HMR support — without these, Next's dev overlay and
 		# fast-refresh socket disconnect on every keystroke.
+		header_up Upgrade {http.request.header.Upgrade}
+		header_up Connection {http.request.header.Connection}
+	}
+}
+
+# Same config as above — kept as a second block (rather than a snippet)
+# because Caddy v2.11 doesn't accept tls+reverse_proxy together in a snippet
+# body with this directive shape. If a third URL ever needs the same proxy,
+# revisit (Caddy snippet semantics may have improved by then).
+https://dev.balikha.art:8443 {
+	tls {
+		issuer internal {
+			lifetime 30d
+		}
+	}
+
+	reverse_proxy host.docker.internal:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote}
+		header_up X-Forwarded-For {remote}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Port 8443
+		header_up X-Request-Id {http.request.uuid}
 		header_up Upgrade {http.request.header.Upgrade}
 		header_up Connection {http.request.header.Connection}
 	}

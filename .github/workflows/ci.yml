@@ -116,3 +116,5 @@ jobs:
           S3_SECRET_ACCESS_KEY: 'ci-dummy-secret'
           S3_BUCKET: 'ci-dummy-bucket'
           S3_PUBLIC_URL_BASE: 'http://localhost:9000/ci-dummy-bucket'
+          EMAIL_FROM: 'ci-dummy@example.com'
+          EMAIL_REPLY_TO: 'ci-dummy@example.com'
