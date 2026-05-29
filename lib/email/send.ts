@@ -59,6 +59,39 @@ export async function sendEmail(opts: SendEmailOptions): Promise<Result<SendEmai
   // Override both at once by setting NODE_ENV=production AND RESEND_API_KEY
   // in the invoking shell. Used for AC1a verification.
   if (env.NODE_ENV !== 'production' || resend === null) {
+    // Surface the tokenized auth links so they can be clicked straight from the
+    // terminal to exercise the real verify/reset token flow without a send.
+    const links = Array.from(html.matchAll(/href="([^"]+)"/g))
+      .map((m) => m[1])
+      .filter(
+        (href): href is string => !!href && /verify-email|reset-password|\/api\/auth\//.test(href),
+      );
+
+    // Dump the full rendered HTML to a gitignored file so the real branded email
+    // (with working button links) can be opened in a browser. node:fs is
+    // dynamically imported inside this dev-only branch so it never enters a
+    // prod/edge bundle. The dump is auxiliary — a write failure is logged but
+    // does not fail the dev no-op send.
+    let previewFile: string | null = null;
+    try {
+      const { writeFile, mkdir } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      const dir = join(process.cwd(), '.dev-mail');
+      await mkdir(dir, { recursive: true });
+      const slug = opts.subject
+        .replace(/[^a-z0-9]+/gi, '-')
+        .toLowerCase()
+        .slice(0, 60);
+      previewFile = join(dir, `${Date.now()}-${slug}.html`);
+      await writeFile(previewFile, html, 'utf8');
+    } catch (e) {
+      logger.warn(
+        { err: e, to: opts.to, subject: opts.subject },
+        'Email DEV MODE — could not write preview file',
+      );
+      previewFile = null;
+    }
+
     logger.info(
       {
         to: opts.to,
@@ -67,7 +100,8 @@ export async function sendEmail(opts: SendEmailOptions): Promise<Result<SendEmai
         subject: opts.subject,
         htmlBytes: html.length,
         textBytes: text.length,
-        htmlPreview: html.slice(0, 200),
+        links,
+        previewFile,
       },
       'Email DEV MODE — would have sent',
     );
