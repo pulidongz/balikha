@@ -57,11 +57,8 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
   }
 
   // Mode 2: verified-with-error (Better Auth appended &error=<CODE> on failure).
-  // ★ Round-2 (Issue 8): USER_NOT_FOUND (deleted/recreated account) is NOT
-  // "expired or already used" — give it its own copy and a Sign-up CTA so we
-  // don't loop the user back into a re-verify dead end. TOKEN_EXPIRED /
-  // INVALID_TOKEN (the 99% case) and any unknown future code fall through to
-  // the default expired/used message. (Codes: email-verification.mjs:163-164,172.)
+  // USER_NOT_FOUND gets its own copy + Sign-up CTA to avoid a re-verify dead end.
+  // TOKEN_EXPIRED / INVALID_TOKEN and unknown codes fall through to the generic message.
   if (status === 'verified' && error) {
     const isMissingAccount = error === 'USER_NOT_FOUND';
     const title = isMissingAccount ? 'Account not found' : 'Link expired or invalid';

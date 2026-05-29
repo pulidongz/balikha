@@ -8,10 +8,6 @@ export const metadata = {
 };
 
 export default async function BecomeSellerPage() {
-  // Redirects to /sign-in if unauthenticated, or to
-  // /verify-email?status=pending if the email isn't verified yet — before
-  // the form is ever shown. Replaces the prior getCurrentSession() +
-  // redirect('/sign-in') guard.
   await requireVerifiedEmail();
 
   // If they already have a profile, send them to the seller dashboard.

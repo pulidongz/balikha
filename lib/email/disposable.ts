@@ -7,15 +7,11 @@
 
 import disposableDomains from 'disposable-email-domains';
 
-// ★ Round-3 (Issue 3): fail LOUD if the import didn't resolve to the
-// expected string[]. The package's main is a JSON array; under this repo's
-// bundler resolution + esModuleInterop the default import should be the
-// array, but if it ever resolves to a namespace wrapper, new Set(...) would
-// silently build an empty/useless set and isDisposableEmail would return
-// false for EVERYTHING — AC4 fails open (disposable emails accepted) while
-// still passing `npm run check`. A startup throw turns that silent
-// fail-open into an obvious crash. (If this throws after install, switch to
-// `import * as disposableDomains` or the correct named import.)
+// Fail loud if the import didn't resolve to a string[]. If it ever resolves
+// to a namespace wrapper, new Set(...) would silently produce an empty set
+// and isDisposableEmail would return false for everything — disposable emails
+// accepted with no error. A startup throw makes that a visible crash instead.
+// (If this throws after install, switch to `import * as disposableDomains`.)
 if (!Array.isArray(disposableDomains)) {
   throw new Error(
     'disposable-email-domains did not resolve to a string[] — check the import shape (default vs `import *`).',

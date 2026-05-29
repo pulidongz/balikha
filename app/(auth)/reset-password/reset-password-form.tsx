@@ -11,10 +11,8 @@ export function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  // ★ Round-2 (Issue 3): an expired/invalid reset link lands here as
-  // /reset-password?error=INVALID_TOKEN with NO ?token= param
-  // (password.mjs:115-117). We must branch on ?error= BEFORE the
-  // missing-token check below — otherwise an expired link would misreport
+  // Expired/invalid links arrive as ?error=INVALID_TOKEN with no ?token=.
+  // Branch on ?error= first — otherwise an expired link would misreport
   // as "missing its token" instead of "expired or already used".
   const errorCode = searchParams.get('error');
   const [password, setPassword] = useState('');
@@ -38,8 +36,6 @@ export function ResetPasswordForm() {
     );
   }
 
-  // token is narrowed to string by the `if (!token)` guard above — this
-  // binding gives the closure a type-safe handle without a non-null assertion.
   const resetToken = token;
 
   async function submit() {

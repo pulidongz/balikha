@@ -109,11 +109,9 @@ export const EMAIL_NOT_VERIFIED_MESSAGE =
   'Please verify your email before continuing. Check your inbox for the verification link.';
 
 // For action sites — non-throwing, returns Result. Takes the already-loaded
-// user object (no extra DB roundtrip). Action sites use:
+// user object (no extra DB roundtrip). Usage:
 //   const verified = assertVerifiedEmail(buyer);
 //   if (!verified.ok) return err(verified.error);
-// Re-wrapping with err() matches the existing early-return idiom
-// (messaging.ts:324/445, orders.ts:1035) — see Round-2 Issue 11.
 export function assertVerifiedEmail(user: { emailVerified: boolean }): Result<true> {
   if (!user.emailVerified) {
     return err(EMAIL_NOT_VERIFIED_MESSAGE);
@@ -122,15 +120,10 @@ export function assertVerifiedEmail(user: { emailVerified: boolean }): Result<tr
 }
 
 // For page sites — redirects (mirrors requireSellerProfile's page-level
-// redirect pattern). Uses the NON-throwing getCurrentUser() so an
-// unauthenticated visitor is sent to /sign-in rather than thrown into
-// Next's error boundary. ★ Round-2 correction (Issue 2): an earlier draft
-// called requireUser(), which THROWS UnauthorizedError — that would
-// regress the /dashboard/become-seller redirect-to-sign-in flow. redirect()
-// returns `never`, so `user` narrows to non-null after each guard.
-// Calling code:
-//   await requireVerifiedEmail();
-// returns the User if verified; redirects otherwise (does not return).
+// redirect pattern). Uses non-throwing getCurrentUser() so an unauthenticated
+// visitor is redirected to /sign-in rather than thrown into Next's error
+// boundary. redirect() returns `never`, so `user` narrows to non-null after
+// each guard.
 export async function requireVerifiedEmail() {
   const user = await getCurrentUser();
   if (!user) {

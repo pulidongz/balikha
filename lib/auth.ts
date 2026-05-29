@@ -35,17 +35,13 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: true,
     resetPasswordTokenExpiresIn: 3600, // 1h — Better Auth default; explicit for clarity
-    // Verified present in Better Auth 1.6.9 (Issue 10): typed at
-    // @better-auth/core .../init-options.d.mts:622, consumed at
-    // password.mjs:164 (deleteSessions(userId)). The reset email's
-    // "signs you out of all other devices" note depends on this.
+    // Revokes all other sessions after a successful reset — the reset email's
+    // "signs you out of all other devices" note depends on this being true.
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }, request) => {
-      // Skip internal/programmatic calls (request === undefined). No seed
-      // path triggers a reset today, but the guard keeps the two send
-      // callbacks symmetric and prevents any future server-side
-      // auth.api.requestPasswordReset from silently dispatching mail.
-      // Logged (not silent) so it stays observable. (Round-2 Issue 6)
+      // Skip internal/programmatic calls (request === undefined) — guards
+      // against server-side auth.api calls dispatching real mail. Logged so
+      // it stays observable.
       if (!request) {
         logger.info(
           { event: 'email.reset.skipped_internal_call', userId: user.id },
@@ -53,20 +49,14 @@ export const auth = betterAuth({
         );
         return;
       }
-      // createElement avoids needing a .tsx extension on this config —
-      // the React tree is constructed in-place and immediately passed to
-      // renderEmail inside sendEmail().
       const result = await sendEmail({
         to: user.email,
         subject: 'Reset your Balikha password',
         react: createElement(ResetPasswordEmail, { resetUrl: url }),
       });
       if (!result.ok) {
-        // Better Auth's runInBackgroundOrAwait swallows this throw (see
-        // node_modules/better-auth/dist/context/create-context.mjs:211-221).
-        // Throwing anyway is harmless and the structured event below is
-        // our observability hook — future Sentry/error-tracker (item 8A)
-        // will alert on this event name.
+        // Better Auth swallows this throw; the structured logger.error is
+        // the real observability hook for alerting on send failures.
         logger.error(
           { event: 'email.reset.send_failed', userId: user.id, errMessage: result.error },
           'Failed to send password-reset email',
@@ -79,12 +69,10 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     expiresIn: 86400, // 24h — longer than Better Auth's 1h default; verification is idempotent so replay is harmless
     sendVerificationEmail: async ({ user, url }, request) => {
-      // Skip internal/programmatic creation (request === undefined). The
-      // seed creates ~15+ users via auth.api.signUpEmail(), which would
-      // otherwise fire one verification email each (log spam in dev; real
-      // sends if ever run with prod creds). Internal auth.api calls pass
-      // no request (to-auth-endpoints.mjs:56-67); HTTP signups always do.
-      // Logged (not silent) so it stays observable. (Round-2 Issue 6)
+      // Skip internal/programmatic calls (request === undefined). The seed
+      // creates many users via auth.api.signUpEmail() — without this guard
+      // each would dispatch a real email. HTTP signups always have a request.
+      // Logged so it stays observable.
       if (!request) {
         logger.info(
           { event: 'email.verification.skipped_internal_call', userId: user.id },
@@ -98,8 +86,7 @@ export const auth = betterAuth({
         react: createElement(VerifyEmail, { verifyUrl: url }),
       });
       if (!result.ok) {
-        // Same swallow caveat as sendResetPassword above. The structured
-        // event is the observability hook; the throw is symbolic.
+        // Same swallow caveat as sendResetPassword above.
         logger.error(
           { event: 'email.verification.send_failed', userId: user.id, errMessage: result.error },
           'Failed to send verification email',
@@ -131,22 +118,11 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        // Signature is (user, context) — context is GenericEndpointContext | null.
-        // We don't need context here, so the underscore prefix signals
-        // "param exists but intentionally unused" for future contributors.
         before: async (user, _ctx) => {
           if (isDisposableEmail(user.email)) {
-            // ★ Round-2 (Issue 1): throw APIError, NOT a plain Error.
-            // The sign-up handler (sign-up.mjs:217-231) re-throws ONLY
-            // APIError instances and replaces every other throw with a
-            // generic FAILED_TO_CREATE_USER ("Failed to create user") —
-            // a plain Error would hide our message and break AC4's
-            // clear-message contract. APIError surfaces `message` to the
-            // sign-up form's existing role="alert" render. For Google
-            // OAuth the user is bounced through consent first; a throw
-            // here lands them on the existing errorCallbackURL
-            // ('/sign-in?error=oauth') with a generic message (acceptable
-            // for v1 — disposable Google addresses are rare).
+            // Must throw APIError, NOT a plain Error — Better Auth re-throws
+            // only APIError instances; any other throw is replaced with a
+            // generic "Failed to create user" that hides our message.
             throw new APIError('BAD_REQUEST', {
               message: DISPOSABLE_EMAIL_MESSAGE,
               code: 'DISPOSABLE_EMAIL',

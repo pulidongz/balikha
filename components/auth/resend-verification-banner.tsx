@@ -16,11 +16,8 @@ export function ResendVerificationBanner({ email }: ResendVerificationBannerProp
   async function resend() {
     setError(null);
     setLoading(true);
-    // callbackURL: '/account' so post-click the user lands back on the
-    // account page (where they were signed in already). The banner will
-    // disappear once emailVerified flips. If the click happens in a
-    // different browser, Better Auth redirects there per its callback,
-    // which is fine — the user can navigate back to their account.
+    // callbackURL: '/account' — post-click the user lands back here where
+    // the banner will disappear once emailVerified flips.
     const result = await sendVerificationEmail({
       email,
       callbackURL: '/account',

@@ -36,19 +36,11 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   async function attemptSignUp() {
     setError(null);
     setLoading(true);
-    // callbackURL is where Better Auth's /api/auth/verify-email route
-    // redirects after the user clicks the email link. On success the URL
-    // arrives as /verify-email?status=verified; on failure Better Auth
-    // appends &error=<CODE>. Without an explicit callbackURL, Better Auth
-    // defaults to '/' (homepage) — no "you're verified" confirmation.
-    //
-    // ★ Round-2 (Issue 4): the deep-link `next` is encoded INTO the
-    // callbackURL, NOT into the pending-state URL below. The verification
-    // click usually happens on a different surface (phone, another tab) than
-    // the signup tab, so a `next` left only on the pending URL is lost the
-    // moment the user crosses the email boundary. Carrying it through
-    // callbackURL means Better Auth redirects the verified user straight to
-    // where they were headed.
+    // callbackURL is where Better Auth redirects after the user clicks the
+    // email link. The deep-link `next` is encoded here (not in the
+    // pending-state URL below) because the click often happens in a different
+    // browser tab or device — encoding it in callbackURL ensures the verified
+    // user lands where they were originally headed.
     const callbackURL =
       next !== '/account'
         ? `/verify-email?status=verified&next=${encodeURIComponent(next)}`
@@ -59,11 +51,8 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
       setError(result.error.message ?? 'Sign-up failed');
       return;
     }
-    // Better Auth ran emailVerification.sendOnSignUp — the user has an
-    // account row with emailVerified=false and a verification email on the
-    // way. Route them to the "check your inbox" page. No `next` here: it
-    // rides on the email's callbackURL above; this tab's user reaches their
-    // destination after clicking the link (or on next navigation).
+    // Route to the "check your inbox" page. `next` is not needed here — it
+    // rides in the email's callbackURL and takes effect when the link is clicked.
     router.push(`/verify-email?status=pending&email=${encodeURIComponent(email)}`);
     router.refresh();
   }

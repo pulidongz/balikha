@@ -22,13 +22,8 @@ export function ForgotPasswordForm() {
     });
     setLoading(false);
     if (result.error) {
-      // Enumeration protection preserves the friendly message regardless,
-      // but log endpoint-level errors (network, RESET_PASSWORD_DISABLED,
-      // rate limits) so the dev sees them and so future Sentry can catch
-      // them. NOTE: Resend send failures don't surface here — they're
-      // swallowed by Better Auth's runInBackgroundOrAwait. Those surface
-      // only via the server-side logger.error in lib/auth.ts under the
-      // event name 'email.reset.send_failed'.
+      // Always show success (enumeration protection), but log endpoint-level
+      // errors (network, rate limits, disabled reset) so they're visible in dev.
       console.error('requestPasswordReset failed:', result.error);
     }
     setSent(true);
