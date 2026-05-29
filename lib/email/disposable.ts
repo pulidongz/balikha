@@ -28,6 +28,10 @@ const DISPOSABLE_SET = new Set<string>(disposableDomains);
 export function isDisposableEmail(email: string): boolean {
   const at = email.lastIndexOf('@');
   if (at === -1) return false; // Not our concern here — Zod / Better Auth shape-validate the address first
-  const domain = email.slice(at + 1).toLowerCase();
+  // strip a trailing dot — user@x.com. is DNS-equivalent to user@x.com
+  const domain = email
+    .slice(at + 1)
+    .toLowerCase()
+    .replace(/\.$/, '');
   return DISPOSABLE_SET.has(domain);
 }

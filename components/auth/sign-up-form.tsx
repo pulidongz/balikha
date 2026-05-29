@@ -8,17 +8,8 @@ import { Label } from '@/components/ui/label';
 import { signUp } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
 import { checkDisposableEmail } from '@/lib/actions/auth';
-
-// Same open-redirect guard as sign-in: same-origin paths only.
-function safeNextOr(next: string | null, fallback: string): string {
-  if (!next) return fallback;
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
-  // Body characters: only same-origin path/query chars. Rejects CR/LF (\r, \n),
-  // encoded variants (%0d, %0a), whitespace, @ smuggles, and other smuggle
-  // vectors that could end up in a Location: header via Better Auth's redirect.
-  if (!/^[A-Za-z0-9_\-/?&=.+,#]*$/.test(next.slice(1))) return fallback;
-  return next;
-}
+import { safeNextOr } from '@/lib/safe-next';
+import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
 
 interface SignUpFormProps {
   googleEnabled: boolean;
@@ -81,7 +72,7 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
     if (!email) return;
     const isDisp = await checkDisposableEmail(email);
     if (isDisp) {
-      setError('Please use a permanent email address. Disposable email providers are not allowed.');
+      setError(DISPOSABLE_EMAIL_MESSAGE);
     }
   }
 

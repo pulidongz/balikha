@@ -8,20 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signIn } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
-
-// Reject anything that isn't a same-origin path. Required: starts with `/`,
-// not protocol-relative (`//foo.com`), not a backslash-trick. This blocks
-// the open-redirect attack where ?next=https://evil.example sends a freshly
-// signed-in user off-site.
-function safeNextOr(next: string | null, fallback: string): string {
-  if (!next) return fallback;
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
-  // Body characters: only same-origin path/query chars. Rejects CR/LF (\r, \n),
-  // encoded variants (%0d, %0a), whitespace, @ smuggles, and other smuggle
-  // vectors that could end up in a Location: header via Better Auth's redirect.
-  if (!/^[A-Za-z0-9_\-/?&=.+,#]*$/.test(next.slice(1))) return fallback;
-  return next;
-}
+import { safeNextOr } from '@/lib/safe-next';
 
 interface SignInFormProps {
   googleEnabled: boolean;

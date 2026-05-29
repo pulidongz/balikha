@@ -38,6 +38,10 @@ export function ResetPasswordForm() {
     );
   }
 
+  // token is narrowed to string by the `if (!token)` guard above — this
+  // binding gives the closure a type-safe handle without a non-null assertion.
+  const resetToken = token;
+
   async function submit() {
     setError(null);
     if (password.length < 8) {
@@ -49,9 +53,7 @@ export function ResetPasswordForm() {
       return;
     }
     setLoading(true);
-    // token is guaranteed non-null here: the `if (!token)` guard above
-    // returns early before this function can be called.
-    const result = await resetPassword({ newPassword: password, token: token! });
+    const result = await resetPassword({ newPassword: password, token: resetToken });
     setLoading(false);
     if (result.error) {
       setError(result.error.message ?? 'Could not reset password. The link may have expired.');

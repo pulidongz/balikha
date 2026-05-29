@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { safeNextOr } from '@/lib/safe-next';
 
 export const metadata = {
   title: 'Verify your email',
@@ -89,6 +90,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
 
   // Mode 3: verified success (no error param).
   if (status === 'verified') {
+    const safeNext = safeNextOr(params.next ?? null, '/account');
     return (
       <Card>
         <CardHeader>
@@ -96,11 +98,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
           <CardDescription>You can now place orders and become a seller.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button
-            size="lg"
-            className="h-11 w-full"
-            render={<Link href={params.next ?? '/account'} />}
-          >
+          <Button size="lg" className="h-11 w-full" render={<Link href={safeNext} />}>
             Continue to your account
           </Button>
         </CardContent>

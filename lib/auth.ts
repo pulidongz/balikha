@@ -9,6 +9,7 @@ import { VerifyEmail } from '@/lib/email/templates/verify-email';
 import { ResetPasswordEmail } from '@/lib/email/templates/reset-password';
 import { logger } from '@/lib/logger';
 import { isDisposableEmail } from '@/lib/email/disposable';
+import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
 
 // Surface "is Google sign-in available?" to server components without
 // requiring a NEXT_PUBLIC_ env var. The auth pages read this and pass
@@ -147,8 +148,7 @@ export const auth = betterAuth({
             // ('/sign-in?error=oauth') with a generic message (acceptable
             // for v1 — disposable Google addresses are rare).
             throw new APIError('BAD_REQUEST', {
-              message:
-                'Please use a permanent email address. Disposable email providers are not allowed.',
+              message: DISPOSABLE_EMAIL_MESSAGE,
               code: 'DISPOSABLE_EMAIL',
             });
           }
