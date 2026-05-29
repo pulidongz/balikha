@@ -76,6 +76,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
             variant="outline"
             size="lg"
             className="h-11 w-full"
+            nativeButton={false}
             render={<Link href={isMissingAccount ? '/sign-up' : '/sign-in'} />}
           >
             {isMissingAccount ? 'Sign up' : 'Sign in'}
@@ -95,7 +96,12 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
           <CardDescription>You can now place orders and become a seller.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button size="lg" className="h-11 w-full" render={<Link href={safeNext} />}>
+          <Button
+            size="lg"
+            className="h-11 w-full"
+            nativeButton={false}
+            render={<Link href={safeNext} />}
+          >
             Continue to your account
           </Button>
         </CardContent>
@@ -111,7 +117,12 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
         <CardDescription>Sign up or sign in to receive a verification link.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Button size="lg" className="h-11 w-full" render={<Link href="/sign-in" />}>
+        <Button
+          size="lg"
+          className="h-11 w-full"
+          nativeButton={false}
+          render={<Link href="/sign-in" />}
+        >
           Sign in
         </Button>
       </CardContent>
