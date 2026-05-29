@@ -15,7 +15,7 @@ import {
   products,
   userAddresses,
 } from '@/db/schema';
-import { requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -148,6 +148,9 @@ export async function placeOrder(
   // cached "Not authenticated" forever).
   const buyer = await requireUser().catch(() => null);
   if (!buyer) return err('Not authenticated');
+
+  const verified = assertVerifiedEmail(buyer);
+  if (!verified.ok) return err(verified.error);
 
   return withIdempotency({
     key: parsed.data.idempotencyKey,
@@ -883,6 +886,9 @@ export async function cancelAsBuyer(input: unknown): Promise<Result<{ orderId: s
   const buyer = await requireUser().catch(() => null);
   if (!buyer) return err('Not authenticated');
 
+  const verified = assertVerifiedEmail(buyer);
+  if (!verified.ok) return err(verified.error);
+
   return transitionOrder({
     orderId: parsed.data.orderId,
     // Buyer can self-cancel up to payment_received (per the transition
@@ -912,6 +918,9 @@ export async function markReceived(input: unknown): Promise<Result<{ orderId: st
 
   const buyer = await requireUser().catch(() => null);
   if (!buyer) return err('Not authenticated');
+
+  const verified = assertVerifiedEmail(buyer);
+  if (!verified.ok) return err(verified.error);
 
   return transitionOrder({
     orderId: parsed.data.orderId,
@@ -968,6 +977,8 @@ export async function fileDispute(input: unknown): Promise<Result<{ disputeId: s
   let filedByRole: 'buyer' | 'seller';
   if (order.buyerUserId === filer.id) {
     filedByRole = 'buyer';
+    const verified = assertVerifiedEmail(filer); // gate buyers only
+    if (!verified.ok) return err(verified.error);
   } else {
     const [a] = await db
       .select({ id: artisanProfiles.id })

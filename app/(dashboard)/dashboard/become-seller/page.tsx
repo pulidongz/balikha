@@ -1,15 +1,18 @@
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BecomeSellerForm } from '@/components/dashboard/become-seller-form';
-import { getCurrentArtisanProfile, getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentArtisanProfile, requireVerifiedEmail } from '@/lib/auth-helpers';
 
 export const metadata = {
   title: 'Become a seller',
 };
 
 export default async function BecomeSellerPage() {
-  const session = await getCurrentSession();
-  if (!session) redirect('/sign-in');
+  // Redirects to /sign-in if unauthenticated, or to
+  // /verify-email?status=pending if the email isn't verified yet — before
+  // the form is ever shown. Replaces the prior getCurrentSession() +
+  // redirect('/sign-in') guard.
+  await requireVerifiedEmail();
 
   // If they already have a profile, send them to the seller dashboard.
   const profile = await getCurrentArtisanProfile();
