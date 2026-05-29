@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUp } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
+import { checkDisposableEmail } from '@/lib/actions/auth';
 
 // Same open-redirect guard as sign-in: same-origin paths only.
 function safeNextOr(next: string | null, fallback: string): string {
@@ -76,6 +77,14 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
     router.refresh();
   }
 
+  async function handleEmailBlur() {
+    if (!email) return;
+    const isDisp = await checkDisposableEmail(email);
+    if (isDisp) {
+      setError('Please use a permanent email address. Disposable email providers are not allowed.');
+    }
+  }
+
   return (
     <div className="space-y-4">
       {googleEnabled && (
@@ -115,7 +124,11 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             name="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
+            onBlur={handleEmailBlur}
             required
             autoComplete="email"
             className="h-11"

@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { APIError } from 'better-auth/api';
 import { createElement } from 'react';
 import { db } from '@/db';
 import { env } from '@/env';
@@ -7,6 +8,7 @@ import { sendEmail } from '@/lib/email/send';
 import { VerifyEmail } from '@/lib/email/templates/verify-email';
 import { ResetPasswordEmail } from '@/lib/email/templates/reset-password';
 import { logger } from '@/lib/logger';
+import { isDisposableEmail } from '@/lib/email/disposable';
 
 // Surface "is Google sign-in available?" to server components without
 // requiring a NEXT_PUBLIC_ env var. The auth pages read this and pass
@@ -123,6 +125,36 @@ export const auth = betterAuth({
       // level). Adding an UNVERIFIED provider to this list is an
       // account-takeover vector — review carefully before extending.
       trustedProviders: ['google'],
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Signature is (user, context) — context is GenericEndpointContext | null.
+        // We don't need context here, so the underscore prefix signals
+        // "param exists but intentionally unused" for future contributors.
+        before: async (user, _ctx) => {
+          if (isDisposableEmail(user.email)) {
+            // ★ Round-2 (Issue 1): throw APIError, NOT a plain Error.
+            // The sign-up handler (sign-up.mjs:217-231) re-throws ONLY
+            // APIError instances and replaces every other throw with a
+            // generic FAILED_TO_CREATE_USER ("Failed to create user") —
+            // a plain Error would hide our message and break AC4's
+            // clear-message contract. APIError surfaces `message` to the
+            // sign-up form's existing role="alert" render. For Google
+            // OAuth the user is bounced through consent first; a throw
+            // here lands them on the existing errorCallbackURL
+            // ('/sign-in?error=oauth') with a generic message (acceptable
+            // for v1 — disposable Google addresses are rare).
+            throw new APIError('BAD_REQUEST', {
+              message:
+                'Please use a permanent email address. Disposable email providers are not allowed.',
+              code: 'DISPOSABLE_EMAIL',
+            });
+          }
+          return { data: user };
+        },
+      },
     },
   },
   // All three local-dev origins need to pass Better Auth's CSRF Origin check:
