@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -92,13 +93,12 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="signin-password">Password</Label>
-            <a
-              href="#"
+            <Link
+              href="/forgot-password"
               className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-              aria-label="Forgot password (coming soon)"
             >
               Forgot password?
-            </a>
+            </Link>
           </div>
           <Input
             id="signin-password"
