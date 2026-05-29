@@ -44,13 +44,35 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   async function attemptSignUp() {
     setError(null);
     setLoading(true);
-    const result = await signUp.email({ email, password, name });
+    // callbackURL is where Better Auth's /api/auth/verify-email route
+    // redirects after the user clicks the email link. On success the URL
+    // arrives as /verify-email?status=verified; on failure Better Auth
+    // appends &error=<CODE>. Without an explicit callbackURL, Better Auth
+    // defaults to '/' (homepage) — no "you're verified" confirmation.
+    //
+    // ★ Round-2 (Issue 4): the deep-link `next` is encoded INTO the
+    // callbackURL, NOT into the pending-state URL below. The verification
+    // click usually happens on a different surface (phone, another tab) than
+    // the signup tab, so a `next` left only on the pending URL is lost the
+    // moment the user crosses the email boundary. Carrying it through
+    // callbackURL means Better Auth redirects the verified user straight to
+    // where they were headed.
+    const callbackURL =
+      next !== '/account'
+        ? `/verify-email?status=verified&next=${encodeURIComponent(next)}`
+        : '/verify-email?status=verified';
+    const result = await signUp.email({ email, password, name, callbackURL });
     setLoading(false);
     if (result.error) {
       setError(result.error.message ?? 'Sign-up failed');
       return;
     }
-    router.push(next);
+    // Better Auth ran emailVerification.sendOnSignUp — the user has an
+    // account row with emailVerified=false and a verification email on the
+    // way. Route them to the "check your inbox" page. No `next` here: it
+    // rides on the email's callbackURL above; this tab's user reaches their
+    // destination after clicking the link (or on next navigation).
+    router.push(`/verify-email?status=pending&email=${encodeURIComponent(email)}`);
     router.refresh();
   }
 
