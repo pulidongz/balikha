@@ -17,6 +17,7 @@ import { requireUser, requireArtisan } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 import { assertThreadAccess, getBlockState, getWriteState } from '@/lib/messaging/access';
 import { fanOutMessageNotification } from '@/lib/messaging/fan-out';
 import {
@@ -82,7 +83,7 @@ export async function createPrePurchaseThread(
       try {
         type TxResult =
           | { kind: 'cached'; cached: Result<{ threadId: string }> }
-          | { kind: 'fresh'; threadId: string };
+          | { kind: 'fresh'; threadId: string; artisanProfileId: string };
 
         const result: TxResult = await db.transaction(async (tx) => {
           // Advisory lock keyed on the (required) idempotency key, so
@@ -271,7 +272,7 @@ export async function createPrePurchaseThread(
             })
             .onConflictDoNothing();
 
-          return { kind: 'fresh' as const, threadId };
+          return { kind: 'fresh' as const, threadId, artisanProfileId: threadRow.artisanProfileId };
         });
 
         if (result.kind === 'cached') {
@@ -291,6 +292,14 @@ export async function createPrePurchaseThread(
         // refresh on next render — invalidate the layouts.
         revalidatePath('/dashboard', 'layout');
         revalidatePath('/account', 'layout');
+
+        await logAnalyticsEvent({
+          type: 'thread_started',
+          userId: buyer.id,
+          artisanProfileId: result.artisanProfileId,
+          entityType: 'thread',
+          entityId: result.threadId,
+        });
 
         return ok({ threadId: result.threadId });
       } catch (e) {

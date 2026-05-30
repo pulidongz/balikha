@@ -8,6 +8,7 @@ import { artisanFollows } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 
 const toggleSchema = z.object({
   artisanProfileId: z.string().uuid(),
@@ -36,6 +37,13 @@ export async function toggleFollowAction(input: unknown): Promise<Result<{ follo
       .values({ userId: current.id, artisanProfileId })
       .onConflictDoNothing();
     log.info({ userId: current.id, artisanProfileId }, 'Artisan follow');
+    await logAnalyticsEvent({
+      type: 'artisan_followed',
+      userId: current.id,
+      artisanProfileId,
+      entityType: 'artisan',
+      entityId: artisanProfileId,
+    });
   } else {
     await db
       .delete(artisanFollows)

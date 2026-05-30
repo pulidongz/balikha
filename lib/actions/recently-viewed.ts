@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { recentlyViewed } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 
 const recordSchema = z.object({
   productId: z.string().uuid(),
@@ -58,4 +59,16 @@ export async function recordRecentlyViewedAction(input: unknown): Promise<void> 
     logger.error({ err: e, userId: current.id }, 'recordRecentlyViewed failed');
     // Intentionally swallow — never break the product page render.
   }
+
+  // Funnel telemetry: product_viewed (authenticated viewers only —
+  // anonymous viewers returned early above). Separate best-effort call;
+  // the helper owns its try/catch so it cannot break the page render.
+  // artisanProfileId is left null here (the action only receives a
+  // productId); per-artisan view rollups can JOIN products on entity_id.
+  await logAnalyticsEvent({
+    type: 'product_viewed',
+    userId: current.id,
+    entityType: 'product',
+    entityId: parsed.data.productId,
+  });
 }

@@ -22,6 +22,7 @@ import {
   productUpdateSchema,
   type ProductStatus,
 } from '@/lib/validators/product';
+import { logArtisanMilestoneOnce } from '@/lib/analytics/log';
 
 // Build the structured input object the schema expects, from a FormData
 // whose fields are flat strings. Materials becomes an array; dimensions
@@ -210,15 +211,17 @@ export async function updateProductAction(
 // running the notification fan-out the single-product path has always
 // had: follower new-listing on a transition into `published`, and
 // wishlist back-in-stock when a sold-out/zero-stock product becomes
-// available. Returns false when the product is not found or not owned by
-// `profile` (ownership is enforced in the WHERE) so a bulk caller can
-// skip it without failing the whole batch.
+// available. Returns `{ found: false, published: false }` when the
+// product is not found or not owned by `profile` (ownership is enforced
+// in the WHERE) so a bulk caller can skip it without failing the whole
+// batch. `published` is true iff this call moved the product INTO the
+// published state — the seller-funnel signal for `first_listing`.
 async function applyProductStatusInTx(
   tx: Tx,
   profile: { id: string; shopName: string; shopSlug: string },
   productId: string,
   status: ProductStatus,
-): Promise<boolean> {
+): Promise<{ found: boolean; published: boolean }> {
   // Read existing row with ownership constraint baked into the WHERE —
   // IDOR-safe even before any write happens.
   const [existing] = await tx
@@ -232,17 +235,22 @@ async function applyProductStatusInTx(
     .from(products)
     .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)))
     .limit(1);
-  if (!existing) return false;
+  if (!existing) return { found: false, published: false };
 
   await tx
     .update(products)
     .set({ status, updatedAt: new Date() })
     .where(eq(products.id, productId));
 
+  // True iff this call moves the product INTO published from any other
+  // status — the seller-funnel publish signal. (Already-published →
+  // published is a no-op and does not count.)
+  const published = existing.status !== 'published' && status === 'published';
+
   // Notification fan-out: only when the product transitions INTO the
   // published state from anywhere else. Already-published → published
   // is a no-op and intentionally doesn't re-notify.
-  if (existing.status !== 'published' && status === 'published') {
+  if (published) {
     const followers = await tx
       .select({ userId: artisanFollows.userId })
       .from(artisanFollows)
@@ -279,7 +287,7 @@ async function applyProductStatusInTx(
     });
   }
 
-  return true;
+  return { found: true, published };
 }
 
 export async function setProductStatusAction(
@@ -294,13 +302,26 @@ export async function setProductStatusAction(
 
   // Wrapped in a transaction so the notification fan-out commits with the
   // status change or rolls back together.
-  const found = await db.transaction((tx) =>
+  const result = await db.transaction((tx) =>
     applyProductStatusInTx(tx, profile, productId, parsedStatus.data),
   );
-  if (!found) return err('Product not found or not owned.');
+  if (!result.found) return err('Product not found or not owned.');
 
   revalidatePath('/dashboard/catalogs');
   revalidateTag(FACET_TAG, 'max');
+
+  if (result.published) {
+    // Lifetime milestone — the helper no-ops if this artisan has ever
+    // had a first_listing recorded, so sell-out/republish never
+    // re-fires it.
+    await logArtisanMilestoneOnce({
+      type: 'first_listing',
+      artisanProfileId: profile.id,
+      userId: profile.userId,
+      entityType: 'product',
+      entityId: productId,
+    });
+  }
   return ok(null);
 }
 
@@ -327,18 +348,32 @@ export async function setProductsStatusAction(
     return err('Too many products selected at once. Select 200 or fewer.');
   }
 
+  const publishedIds: string[] = [];
   const updated = await db.transaction(async (tx) => {
-    let count = 0;
+    let countUpdated = 0;
     for (const id of productIds) {
-      if (await applyProductStatusInTx(tx, profile, id, parsedStatus.data)) {
-        count += 1;
+      const r = await applyProductStatusInTx(tx, profile, id, parsedStatus.data);
+      if (r.found) {
+        countUpdated += 1;
+        if (r.published) publishedIds.push(id);
       }
     }
-    return count;
+    return countUpdated;
   });
 
   revalidatePath('/dashboard/catalogs');
   revalidateTag(FACET_TAG, 'max');
+
+  const firstPublishedId = publishedIds[0];
+  if (firstPublishedId) {
+    await logArtisanMilestoneOnce({
+      type: 'first_listing',
+      artisanProfileId: profile.id,
+      userId: profile.userId,
+      entityType: 'product',
+      entityId: firstPublishedId,
+    });
+  }
   return ok({ updated });
 }
 

@@ -209,6 +209,68 @@ export const searchEvents = pgTable(
   ],
 );
 
+// Generic behavioural event log — generalises `search_events` for the
+// marketplace + seller funnels. Append-only. Deliberately decoupled
+// from the user lifecycle: `user_id` is nullable text with NO foreign
+// key (mirrors `idempotencyKeys.userId`) so an analytics row survives
+// account deletion as anonymisable history. `entity_type` + `entity_id`
+// are a polymorphic reference to the event's subject (product / order /
+// thread / dispute / wishlist_item / artisan); `artisan_profile_id` is
+// promoted to a first-class column because both funnels are
+// artisan-centric and per-seller rollups must be indexable. `metadata`
+// carries event-specific overflow (actorRole, etc.).
+//
+// Privacy stance: consistent with `search_events` — no PII in any
+// column or in `metadata`. `request_id` correlates to the per-request
+// id propagated through proxy.ts for debugging cross-reference.
+//
+// Aggregation contract: `first_listing` and `first_order` are
+// at-least-once per artisan (detected via a non-atomic existence check
+// against this log — see logArtisanMilestoneOnce). A concurrent
+// first-time action can double-emit; downstream rollups MUST treat
+// them as at-least-once and aggregate by DISTINCT artisan_profile_id.
+export const analyticsEventType = pgEnum('analytics_event_type', [
+  'product_viewed',
+  'wishlist_added',
+  'artisan_followed',
+  'thread_started',
+  'order_placed',
+  'order_accepted',
+  'payment_received',
+  'order_completed',
+  'dispute_filed',
+  'seller_signup',
+  'first_listing',
+  'first_order',
+]);
+
+export const analyticsEvents = pgTable(
+  'analytics_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: analyticsEventType('type').notNull(),
+    // Nullable, NO FK — see table docblock.
+    userId: text('user_id'),
+    // Cross-cutting funnel dimension. Nullable, no FK.
+    artisanProfileId: uuid('artisan_profile_id'),
+    // Polymorphic subject reference.
+    entityType: text('entity_type'),
+    entityId: uuid('entity_id'),
+    // Event-specific overflow. Never store PII here.
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    requestId: text('request_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Core aggregation: counts per event type over a time window.
+    index('analytics_events_type_created_idx').on(t.type, t.createdAt),
+    // Global time-range scans.
+    index('analytics_events_created_at_idx').on(t.createdAt),
+    // Per-artisan seller-funnel rollups.
+    index('analytics_events_artisan_idx').on(t.artisanProfileId),
+  ],
+);
+
 // Idempotency cache. Mutating server actions accept an optional client-
 // generated UUID; on retry within 24h the cached response is returned
 // instead of re-executing. The expires_at index supports the periodic

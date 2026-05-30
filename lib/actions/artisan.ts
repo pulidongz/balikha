@@ -12,6 +12,7 @@ import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { withIdempotency } from '@/lib/idempotency';
 import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 
 const ALLOWED_BANNER_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_BANNER_BYTES = 8 * 1024 * 1024; // 8 MB — banners are larger than product images
@@ -83,7 +84,7 @@ export async function becomeArtisanAction(
         return Boolean(row);
       });
 
-      const firstCatalogSlug = await db.transaction(async (tx) => {
+      const { profileId, firstCatalogSlug } = await db.transaction(async (tx) => {
         const [profile] = await tx
           .insert(artisanProfiles)
           .values({ userId: user.id, shopName, shopSlug })
@@ -100,11 +101,18 @@ export async function becomeArtisanAction(
           })
           .returning({ slug: catalogs.slug });
         if (!catalog) throw new Error('Failed to create default catalog.');
-        return catalog.slug;
+        return { profileId: profile.id, firstCatalogSlug: catalog.slug };
       });
 
       log.info({ userId: user.id, shopSlug }, 'Artisan profile created');
       revalidatePath('/dashboard');
+      await logAnalyticsEvent({
+        type: 'seller_signup',
+        userId: user.id,
+        artisanProfileId: profileId,
+        entityType: 'artisan',
+        entityId: profileId,
+      });
       return ok({ shopSlug, firstCatalogSlug });
     },
   });
