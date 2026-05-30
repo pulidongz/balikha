@@ -8,6 +8,7 @@ import { wishlistItems } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 
 const toggleSchema = z.object({
   productId: z.string().uuid(),
@@ -37,6 +38,12 @@ export async function toggleWishlistAction(
     // shouldn't error, the row already exists.
     await db.insert(wishlistItems).values({ userId: current.id, productId }).onConflictDoNothing();
     log.info({ userId: current.id, productId }, 'Wishlist add');
+    await logAnalyticsEvent({
+      type: 'wishlist_added',
+      userId: current.id,
+      entityType: 'product',
+      entityId: productId,
+    });
   } else {
     await db
       .delete(wishlistItems)
