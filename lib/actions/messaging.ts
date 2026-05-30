@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -18,6 +19,7 @@ import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
+import { dispatchMessageEmail, type MessageEmailDispatch } from '@/lib/email/notifications';
 import { assertThreadAccess, getBlockState, getWriteState } from '@/lib/messaging/access';
 import { fanOutMessageNotification } from '@/lib/messaging/fan-out';
 import {
@@ -83,7 +85,12 @@ export async function createPrePurchaseThread(
       try {
         type TxResult =
           | { kind: 'cached'; cached: Result<{ threadId: string }> }
-          | { kind: 'fresh'; threadId: string; artisanProfileId: string };
+          | {
+              kind: 'fresh';
+              threadId: string;
+              artisanProfileId: string;
+              emailDispatch: MessageEmailDispatch | null;
+            };
 
         const result: TxResult = await db.transaction(async (tx) => {
           // Advisory lock keyed on the (required) idempotency key, so
@@ -252,7 +259,7 @@ export async function createPrePurchaseThread(
 
           // Fan-out the seller notification — pass the row returned by
           // the INSERT directly; no re-SELECT.
-          await fanOutMessageNotification(tx, threadRow, 'buyer', {
+          const emailDispatch = await fanOutMessageNotification(tx, threadRow, 'buyer', {
             body: parsed.data.initialMessage,
           });
 
@@ -272,7 +279,12 @@ export async function createPrePurchaseThread(
             })
             .onConflictDoNothing();
 
-          return { kind: 'fresh' as const, threadId, artisanProfileId: threadRow.artisanProfileId };
+          return {
+            kind: 'fresh' as const,
+            threadId,
+            artisanProfileId: threadRow.artisanProfileId,
+            emailDispatch,
+          };
         });
 
         if (result.kind === 'cached') {
@@ -300,6 +312,11 @@ export async function createPrePurchaseThread(
           entityType: 'thread',
           entityId: result.threadId,
         });
+
+        if (result.emailDispatch) {
+          const dispatch = result.emailDispatch;
+          after(() => dispatchMessageEmail(dispatch));
+        }
 
         return ok({ threadId: result.threadId });
       } catch (e) {
@@ -387,7 +404,7 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
   }
 
   try {
-    const messageId = await db.transaction(async (tx) => {
+    const txResult = await db.transaction(async (tx) => {
       const [m] = await tx
         .insert(messages)
         .values({
@@ -405,9 +422,11 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
         .set({ updatedAt: new Date() })
         .where(eq(messageThreads.id, thread.id));
 
-      await fanOutMessageNotification(tx, thread, role, { body: parsed.data.body });
+      const emailDispatch = await fanOutMessageNotification(tx, thread, role, {
+        body: parsed.data.body,
+      });
 
-      return m.id;
+      return { messageId: m.id, emailDispatch };
     });
 
     log.info(
@@ -415,11 +434,15 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
       'message sent',
     );
 
-    // Refresh both audience layouts so badges and inboxes stay in sync.
     revalidatePath('/dashboard', 'layout');
     revalidatePath('/account', 'layout');
 
-    return ok({ messageId });
+    if (txResult.emailDispatch) {
+      const dispatch = txResult.emailDispatch;
+      after(() => dispatchMessageEmail(dispatch));
+    }
+
+    return ok({ messageId: txResult.messageId });
   } catch (e) {
     log.error({ err: e, threadId: thread.id }, 'sendMessage failed');
     throw e;

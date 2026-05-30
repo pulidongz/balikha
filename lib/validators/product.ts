@@ -36,7 +36,8 @@ export const productCreateSchema = z.object({
   title: z
     .string()
     .min(2, 'Title must be at least 2 characters')
-    .max(200, 'Title must be 200 characters or fewer'),
+    .max(200, 'Title must be 200 characters or fewer')
+    .regex(/^[^\x00-\x1F\x7F]*$/, 'Title must not contain control characters'),
   description: z.string().max(5000).optional().nullable(),
   price: priceField,
   currency: z.string().length(3).default('PHP'),
@@ -47,7 +48,11 @@ export const productCreateSchema = z.object({
 });
 
 export const productUpdateSchema = z.object({
-  title: z.string().min(2).max(200),
+  title: z
+    .string()
+    .min(2)
+    .max(200)
+    .regex(/^[^\x00-\x1F\x7F]*$/, 'Title must not contain control characters'),
   description: z.string().max(5000).optional().nullable(),
   price: priceField,
   currency: z.string().length(3).default('PHP'),

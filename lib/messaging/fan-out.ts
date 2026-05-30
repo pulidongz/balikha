@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { Tx } from '@/db';
 import { artisanProfiles, notifications } from '@/db/schema';
 import { getRequestLogger } from '@/lib/logger-context';
+import type { MessageEmailDispatch } from '@/lib/email/notifications';
 import type { MessageSenderRole, MessageThread } from './types';
 
 const PREVIEW_MAX_CHARS = 120;
@@ -21,7 +22,7 @@ export async function fanOutMessageNotification(
   thread: MessageThread,
   senderRole: MessageSenderRole,
   message: { body: string },
-): Promise<void> {
+): Promise<MessageEmailDispatch | null> {
   // Recipient is the other party.
   let recipientUserId: string;
   let recipientUrl: string;
@@ -43,7 +44,7 @@ export async function fanOutMessageNotification(
         { threadId: thread.id, artisanProfileId: thread.artisanProfileId },
         'fanOutMessageNotification: seller artisan profile missing — message committed without notification',
       );
-      return;
+      return null;
     }
     recipientUserId = artisan.userId;
     recipientUrl = thread.orderId
@@ -67,7 +68,7 @@ export async function fanOutMessageNotification(
       ? `${message.body.slice(0, PREVIEW_MAX_CHARS - 1)}…`
       : message.body;
 
-  await tx
+  const inserted = await tx
     .insert(notifications)
     .values({
       userId: recipientUserId,
@@ -81,5 +82,20 @@ export async function fanOutMessageNotification(
         url: recipientUrl,
       },
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: notifications.id });
+
+  // Per-thread email dedup, riding entirely on the in-app unread-suppression
+  // (the notifications_user_thread_unread_idx partial unique index). If the
+  // insert was suppressed (length 0), the recipient still has an UNREAD
+  // notification for this thread — i.e. they haven't caught up — so we send
+  // NO fresh email. A fresh row ⇒ email. #16 / AC3.
+  if (inserted.length === 0) return null;
+
+  return {
+    recipientUserId,
+    heading: title,
+    preview,
+    url: recipientUrl,
+  };
 }

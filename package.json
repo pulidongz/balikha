@@ -22,6 +22,7 @@
     "db:seed": "tsx --env-file=.env.development db/seed/index.ts",
     "db:reset": "drizzle-kit push --force && tsx --env-file=.env.development db/seed/index.ts",
     "email:test": "tsx --env-file=.env.development db/scripts/send-test-email.tsx",
+    "email:preview:notifications": "tsx --env-file=.env.development db/scripts/preview-notification-emails.tsx",
     "orders:tick": "tsx --env-file=.env.development db/scripts/orders-tick.ts",
     "admin:promote": "tsx --env-file=.env.development db/scripts/promote-admin.ts",
     "admin:demote": "tsx --env-file=.env.development db/scripts/demote-admin.ts"
