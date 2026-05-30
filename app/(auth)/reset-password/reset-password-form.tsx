@@ -1,11 +1,37 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AuthMark } from '@/components/auth/auth-mark';
 import { resetPassword } from '@/lib/auth-client';
+
+// Shared dead-end view for an expired / incomplete reset link: a calm mark
+// (driftwood, not alarm-red — an expired link isn't a destructive event) plus
+// a real way forward.
+function ResetLinkError({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="space-y-5" role="alert">
+      <AuthMark variant="alert" />
+      <div className="space-y-2">
+        <p className="text-foreground font-serif text-xl tracking-tight">{title}</p>
+        <p className="text-muted-foreground text-sm leading-relaxed">{body}</p>
+      </div>
+      <Button
+        variant="outline"
+        size="lg"
+        className="h-11 w-full"
+        nativeButton={false}
+        render={<Link href="/forgot-password" />}
+      >
+        Request a new link
+      </Button>
+    </div>
+  );
+}
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -22,17 +48,19 @@ export function ResetPasswordForm() {
 
   if (errorCode) {
     return (
-      <p role="alert" className="text-destructive text-sm">
-        This reset link has expired or has already been used. Please request a new one.
-      </p>
+      <ResetLinkError
+        title="Link expired or used"
+        body="This reset link has expired or has already been used. Request a new one to continue."
+      />
     );
   }
 
   if (!token) {
     return (
-      <p role="alert" className="text-destructive text-sm">
-        This reset link is missing its token. Please request a new one.
-      </p>
+      <ResetLinkError
+        title="Link is incomplete"
+        body="This reset link is missing its token. Request a new one to continue."
+      />
     );
   }
 

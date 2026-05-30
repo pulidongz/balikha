@@ -1,13 +1,7 @@
 import Link from 'next/link';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AuthMark } from '@/components/auth/auth-mark';
 import { safeNextOr } from '@/lib/safe-next';
 
 export const metadata = {
@@ -27,31 +21,28 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
   if (status === 'pending') {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="font-serif text-2xl">Check your email</CardTitle>
-          <CardDescription>
-            We&rsquo;ve sent a verification link to{' '}
-            {params.email ? <span className="text-foreground">{params.email}</span> : 'your inbox'}.
-            Click the link to finish creating your account. The link is valid for 24 hours.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
+        <CardContent className="space-y-5 pt-1">
+          <AuthMark variant="mail" />
+          <div className="space-y-2">
+            <h1 className="font-serif text-2xl tracking-tight">Check your email</h1>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              We&rsquo;ve sent a verification link to{' '}
+              {params.email ? (
+                <span className="text-foreground font-medium">{params.email}</span>
+              ) : (
+                'your inbox'
+              )}
+              . Click it to finish setting up your account. The link is valid for 24 hours.
+            </p>
+          </div>
+          <p className="text-muted-foreground border-border border-t pt-4 text-sm leading-relaxed">
             Didn&rsquo;t get it? Check your spam folder, or{' '}
             <Link href="/sign-in" className="text-foreground underline-offset-4 hover:underline">
               sign in
             </Link>{' '}
-            and request a new one from your account page.
+            to request a new one from your account page.
           </p>
         </CardContent>
-        <CardFooter>
-          <p className="text-muted-foreground text-sm">
-            Already verified?{' '}
-            <Link href="/sign-in" className="text-foreground underline-offset-4 hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </CardFooter>
       </Card>
     );
   }
@@ -63,15 +54,16 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
     const isMissingAccount = error === 'USER_NOT_FOUND';
     const title = isMissingAccount ? 'Account not found' : 'Link expired or invalid';
     const description = isMissingAccount
-      ? "We couldn't find an account for this verification link. The account may have been deleted — please sign up again."
+      ? "We couldn't find an account for this verification link. The account may have been deleted, so please sign up again."
       : 'This verification link has expired or has already been used. Sign in and request a new one from your account page.';
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="font-serif text-2xl">{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5 pt-1">
+          <AuthMark variant="alert" />
+          <div className="space-y-2">
+            <h1 className="font-serif text-2xl tracking-tight">{title}</h1>
+            <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
+          </div>
           <Button
             variant="outline"
             size="lg"
@@ -86,16 +78,23 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
     );
   }
 
-  // Mode 3: verified success (no error param).
+  // Mode 3: verified success (no error param) — the brand moment.
   if (status === 'verified') {
     const safeNext = safeNextOr(params.next ?? null, '/account');
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="font-serif text-2xl">Your email is verified</CardTitle>
-          <CardDescription>You can now place orders and become a seller.</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6 pt-1">
+          <AuthMark variant="success" />
+          <div className="space-y-3">
+            <h1 className="font-serif text-3xl leading-tight tracking-tight">
+              Your email is verified
+            </h1>
+            {/* Vermilion editorial tick — decorative, the one earned brand accent. */}
+            <div className="bg-accent h-[3px] w-8 rounded-full" aria-hidden />
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              You&rsquo;re all set. You can now place orders and open a shop of your own.
+            </p>
+          </div>
           <Button
             size="lg"
             className="h-11 w-full"
@@ -112,11 +111,14 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
   // Fallback: direct navigation without a status param.
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="font-serif text-2xl">Verify your email</CardTitle>
-        <CardDescription>Sign up or sign in to receive a verification link.</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-5 pt-1">
+        <AuthMark variant="mail" />
+        <div className="space-y-2">
+          <h1 className="font-serif text-2xl tracking-tight">Verify your email</h1>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Sign up or sign in to receive a verification link.
+          </p>
+        </div>
         <Button
           size="lg"
           className="h-11 w-full"

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AuthMark } from '@/components/auth/auth-mark';
 import { requestPasswordReset } from '@/lib/auth-client';
 
 export function ForgotPasswordForm() {
@@ -31,10 +32,16 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <p className="text-muted-foreground text-sm" role="status">
-        If an account exists for <span className="text-foreground">{email}</span>, a password reset
-        link is on its way. The link is valid for 1 hour.
-      </p>
+      <div className="space-y-4" role="status">
+        <AuthMark variant="mail" />
+        <div className="space-y-2">
+          <p className="text-foreground font-serif text-xl tracking-tight">Check your inbox</p>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            If an account exists for <span className="text-foreground font-medium">{email}</span>, a
+            password reset link is on its way. The link is valid for 1 hour.
+          </p>
+        </div>
+      </div>
     );
   }
 
