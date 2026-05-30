@@ -8,12 +8,17 @@ export const artisanProfileCreateSchema = z.object({
   shopName: z
     .string()
     .min(2, 'Shop name must be at least 2 characters')
-    .max(80, 'Shop name must be 80 characters or fewer'),
+    .max(80, 'Shop name must be 80 characters or fewer')
+    .regex(/^[^\x00-\x1F\x7F]*$/, 'Shop name must not contain control characters'),
   idempotencyKey: idempotencyKeyField,
 });
 
 export const artisanProfileUpdateSchema = z.object({
-  shopName: z.string().min(2).max(80),
+  shopName: z
+    .string()
+    .min(2)
+    .max(80)
+    .regex(/^[^\x00-\x1F\x7F]*$/, 'Shop name must not contain control characters'),
   bio: z.string().max(2000).optional().nullable(),
   location: z.string().max(120).optional().nullable(),
   policies: z.string().max(5000).optional().nullable(),
