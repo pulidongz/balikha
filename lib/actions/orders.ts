@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidateTag } from 'next/cache';
+import { after } from 'next/server';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db, type Tx } from '@/db';
 import {
@@ -24,6 +25,11 @@ import {
 } from '@/lib/analytics/log';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
+import {
+  dispatchOrderEmail,
+  type OrderEmailDispatch,
+  type OrderEmailKind,
+} from '@/lib/email/notifications';
 import { pivotPrePurchaseThreadToOrder } from '@/lib/messaging/pivot';
 import { generateOrderReference } from '@/lib/orders/reference';
 import { returnStockIfPreShipment } from '@/lib/orders/stock';
@@ -592,6 +598,7 @@ export async function transitionOrder(
   opts: TransitionOrderOpts,
 ): Promise<Result<{ orderId: string }>> {
   let artisanProfileId: string;
+  let emailDispatches: OrderEmailDispatch[] = [];
 
   try {
     artisanProfileId = await db.transaction(async (tx) => {
@@ -644,7 +651,12 @@ export async function transitionOrder(
       //    audit event together — atomicity per Phase 4.5 / Issue 7.
       //    System events are skipped here (notifications gate ≠ cache
       //    gate); buyer, seller, and admin transitions all fan out.
-      await fanOutTransitionNotification(tx, order, opts.toStatus, opts.actorRole);
+      emailDispatches = await fanOutTransitionNotification(
+        tx,
+        order,
+        opts.toStatus,
+        opts.actorRole,
+      );
 
       // 7. Side-effect hook (stock return, dispute-row insert, etc.).
       if (opts.onTransition) {
@@ -678,6 +690,13 @@ export async function transitionOrder(
       entityId: opts.orderId,
       metadata: { actorRole: opts.actorRole, orderEventType: opts.eventType },
     });
+  }
+  if (emailDispatches.length > 0) {
+    const dispatches = emailDispatches;
+    // Admin force-actions email BOTH parties; send them concurrently
+    // after the response (plan review Issues 3 + 4). Each dispatcher
+    // swallows its own errors, so Promise.all never rejects.
+    after(() => Promise.all(dispatches.map((d) => dispatchOrderEmail(d))));
   }
   return ok({ orderId: opts.orderId });
 }
@@ -717,12 +736,10 @@ async function fanOutTransitionNotification(
   order: Order,
   toStatus: OrderStatus,
   actorRole: ActorRole,
-): Promise<void> {
-  // System events skip notification fan-out (deferred to the messaging
-  // plan); buyer, seller, and admin transitions all notify.
-  if (actorRole === 'system') return;
+): Promise<OrderEmailDispatch[]> {
+  // System events skip notification fan-out (deferred to the messaging plan).
+  if (actorRole === 'system') return [];
 
-  // Decide recipient + copy from the (toStatus, actorRole) pair.
   type Recipient = { userId: string; url: string };
 
   async function sellerRecipient(): Promise<Recipient | null> {
@@ -738,18 +755,29 @@ async function fanOutTransitionNotification(
     return { userId: order.buyerUserId, url: `/account/orders/${order.id}` };
   }
 
-  // Admin force-actions (force-cancel, force-complete, dispute
-  // resolution) change an order out from under both parties — notify
-  // each. Copy is keyed on the resulting status.
+  const dispatches: OrderEmailDispatch[] = [];
+  function queueEmail(r: Recipient, kind: OrderEmailKind) {
+    dispatches.push({
+      recipientUserId: r.userId,
+      kind,
+      orderReference: order.reference,
+      productTitle: order.productTitleSnapshot,
+      url: r.url,
+    });
+  }
+
+  // Admin force-actions notify BOTH parties.
   if (actorRole === 'admin') {
     let adminTitle: string;
+    let adminKind: OrderEmailKind;
     if (toStatus === 'cancelled_by_seller') {
       adminTitle = 'Your order was cancelled by Balikha support';
+      adminKind = 'order_admin_cancelled';
     } else if (toStatus === 'completed') {
       adminTitle = 'Your order was completed by Balikha support';
+      adminKind = 'order_admin_completed';
     } else {
-      // No other status is reachable from an admin transition.
-      return;
+      return [];
     }
     const buyer = buyerRecipient();
     const seller = await sellerRecipient();
@@ -760,53 +788,53 @@ async function fanOutTransitionNotification(
         type: 'order_status_changed',
         title: adminTitle,
         body: `Order ${order.reference}`,
-        target: {
-          kind: 'order',
-          id: order.id,
-          url: r.url,
-        },
+        target: { kind: 'order', id: order.id, url: r.url },
       });
+      queueEmail(r, adminKind);
     }
-    return;
+    return dispatches;
   }
 
   let recipient: Recipient | null = null;
   let title = '';
+  let kind: OrderEmailKind | null = null;
 
   if (toStatus === 'pending_payment_arrangement' && actorRole === 'seller') {
     recipient = buyerRecipient();
     title = 'Your order was accepted';
+    kind = 'order_accepted';
   } else if (toStatus === 'shipped' && actorRole === 'seller') {
     recipient = buyerRecipient();
     title = 'Your order is on the way';
+    kind = 'order_shipped';
   } else if (toStatus === 'completed' && actorRole === 'buyer') {
     recipient = await sellerRecipient();
     title = 'Order completed';
+    kind = 'order_completed';
   } else if (toStatus === 'disputed' && actorRole === 'buyer') {
     recipient = await sellerRecipient();
     title = 'Dispute filed on your order';
+    kind = 'order_disputed';
   } else if (toStatus === 'disputed' && actorRole === 'seller') {
     recipient = buyerRecipient();
     title = 'Dispute filed on your order';
+    kind = 'order_disputed';
   } else {
-    // Not in the matrix — silently skip. Cancellation notifications and
-    // other states deferred to the messaging plan.
-    return;
+    // Not in the matrix — no in-app notification and no email.
+    return [];
   }
 
-  if (!recipient) return; // seller lookup failed; bail out without an error.
+  if (!recipient || !kind) return [];
 
   await tx.insert(notifications).values({
     userId: recipient.userId,
     type: 'order_status_changed',
     title,
     body: `Order ${order.reference}`,
-    target: {
-      kind: 'order',
-      id: order.id,
-      url: recipient.url,
-    },
+    target: { kind: 'order', id: order.id, url: recipient.url },
   });
+  queueEmail(recipient, kind);
+  return dispatches;
 }
 
 // -----------------------------------------------------------------------------
