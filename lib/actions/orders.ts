@@ -184,6 +184,8 @@ export async function placeOrder(
               orderId: string;
               reference: string;
               artisanProfileId: string;
+              sellerUserId: string;
+              productTitle: string;
               threadLinkSkipped: boolean;
             };
 
@@ -440,6 +442,8 @@ export async function placeOrder(
             orderId: order.id,
             reference,
             artisanProfileId: artisan.id,
+            sellerUserId: artisan.userId,
+            productTitle: order.productTitleSnapshot,
             threadLinkSkipped,
           };
         });
@@ -480,6 +484,15 @@ export async function placeOrder(
           entityType: 'order',
           entityId: result.orderId,
         });
+
+        const sellerEmail: OrderEmailDispatch = {
+          recipientUserId: result.sellerUserId,
+          kind: 'new_order',
+          orderReference: result.reference,
+          productTitle: result.productTitle,
+          url: `/dashboard/orders/${result.orderId}`,
+        };
+        after(() => dispatchOrderEmail(sellerEmail));
 
         return ok({
           orderId: result.orderId,
