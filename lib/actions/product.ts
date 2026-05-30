@@ -364,13 +364,14 @@ export async function setProductsStatusAction(
   revalidatePath('/dashboard/catalogs');
   revalidateTag(FACET_TAG, 'max');
 
-  for (const id of publishedIds) {
+  const firstPublishedId = publishedIds[0];
+  if (firstPublishedId) {
     await logArtisanMilestoneOnce({
       type: 'first_listing',
       artisanProfileId: profile.id,
       userId: profile.userId,
       entityType: 'product',
-      entityId: id,
+      entityId: firstPublishedId,
     });
   }
   return ok({ updated });
