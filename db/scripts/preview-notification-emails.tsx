@@ -7,7 +7,7 @@ import { OrderNotificationEmail } from '@/lib/email/templates/order-notification
 // sendEmail; in dev (NODE_ENV !== 'production') this writes branded HTML to
 // .dev-mail/ rather than sending. Run: npm run email:preview:notifications
 async function main() {
-  const to = process.argv[2] ?? 'preview@balikha.art';
+  const to = process.argv[2] ?? 'preview@example.invalid';
 
   const message = await sendEmail({
     to,
