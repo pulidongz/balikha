@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AuthMark } from '@/components/auth/auth-mark';
+import { AuthStatus } from '@/components/auth/auth-status';
 import { resetPassword } from '@/lib/auth-client';
 
 // Shared dead-end view for an expired / incomplete reset link: a calm mark
@@ -14,23 +14,28 @@ import { resetPassword } from '@/lib/auth-client';
 // a real way forward.
 function ResetLinkError({ title, body }: { title: string; body: string }) {
   return (
-    <div className="space-y-5" role="alert">
-      <AuthMark variant="alert" className="auth-rise" />
-      <div className="auth-rise space-y-2" style={{ animationDelay: '90ms' }}>
-        <p className="text-foreground font-serif text-xl tracking-tight">{title}</p>
-        <p className="text-muted-foreground text-sm leading-relaxed">{body}</p>
-      </div>
-      <div className="auth-rise" style={{ animationDelay: '180ms' }}>
-        <Button
-          variant="outline"
-          size="lg"
-          className="h-11 w-full"
-          nativeButton={false}
-          render={<Link href="/forgot-password" />}
-        >
-          Request a new link
-        </Button>
-      </div>
+    <div role="alert">
+      <AuthStatus
+        mark="alert"
+        title={title}
+        description={body}
+        action={
+          <Button
+            variant="outline"
+            size="lg"
+            className="h-11 w-full"
+            nativeButton={false}
+            render={<Link href="/forgot-password" />}
+          >
+            Request a new link
+          </Button>
+        }
+        footer={
+          <Link href="/sign-in" className="text-foreground underline-offset-4 hover:underline">
+            Back to sign in
+          </Link>
+        }
+      />
     </div>
   );
 }
@@ -89,50 +94,63 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form
-      noValidate
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void submit();
-      }}
-    >
-      <div className="space-y-2">
-        <Label htmlFor="reset-password">New password</Label>
-        <Input
-          id="reset-password"
-          name="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          minLength={8}
-          className="h-11"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="reset-confirm">Confirm new password</Label>
-        <Input
-          id="reset-confirm"
-          name="confirm"
-          type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          required
-          autoComplete="new-password"
-          minLength={8}
-          className="h-11"
-        />
-      </div>
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
+    <div className="space-y-6">
+      <div className="space-y-1.5">
+        <h1 className="font-serif text-2xl tracking-tight">Choose a new password</h1>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Enter a new password for your account. The link you clicked is single-use.
         </p>
-      )}
-      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
-        {loading ? 'Resetting…' : 'Reset password'}
-      </Button>
-    </form>
+      </div>
+      <form
+        noValidate
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="reset-password">New password</Label>
+          <Input
+            id="reset-password"
+            name="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            minLength={8}
+            className="h-11"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="reset-confirm">Confirm new password</Label>
+          <Input
+            id="reset-confirm"
+            name="confirm"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+            autoComplete="new-password"
+            minLength={8}
+            className="h-11"
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+        <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+          {loading ? 'Resetting…' : 'Reset password'}
+        </Button>
+      </form>
+      <p className="text-muted-foreground text-sm">
+        <Link href="/sign-in" className="text-foreground underline-offset-4 hover:underline">
+          Back to sign in
+        </Link>
+      </p>
+    </div>
   );
 }
