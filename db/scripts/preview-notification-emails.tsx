@@ -47,4 +47,9 @@ async function main() {
   logger.info({}, 'Previews captured to .dev-mail/ (dev no-send mode).');
 }
 
-void main();
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    logger.error({ err: e }, 'preview-notification-emails script crashed');
+    process.exit(1);
+  });
