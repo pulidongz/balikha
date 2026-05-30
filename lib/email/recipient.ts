@@ -6,7 +6,7 @@ export interface EmailRecipient {
   email: string;
 }
 
-// Look up a recipient's email + display name by user id. Returns null when
+// Look up a recipient's email address by user id. Returns null when
 // the user no longer exists (e.g. the account was deleted between the
 // notification insert and the post-commit email dispatch). Callers skip the
 // send on null — they never substitute a fallback address (CLAUDE.md: no
