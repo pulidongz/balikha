@@ -17,7 +17,11 @@ import {
 } from '@/db/schema';
 import { assertVerifiedEmail, requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
-import { logAnalyticsEvent, logArtisanMilestoneOnce } from '@/lib/analytics/log';
+import {
+  logAnalyticsEvent,
+  logArtisanMilestoneOnce,
+  type AnalyticsEventType,
+} from '@/lib/analytics/log';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { pivotPrePurchaseThreadToOrder } from '@/lib/messaging/pivot';
@@ -544,6 +548,21 @@ interface TransitionOrderOpts {
   skipRevalidation?: boolean;
 }
 
+// Maps an order_events.type to its funnel analytics event. Only the
+// four ticketed transitions are present; everything else is omitted on
+// purpose. Centralising here means completions reached via the CLI
+// orders:tick auto-complete sweep are captured too (they matter for the
+// completed-orders north-star) — logAnalyticsEvent reads request_id
+// defensively so the headers()-less CLI caller does not throw.
+const ANALYTICS_EVENT_BY_ORDER_EVENT: Partial<
+  Record<TransitionOrderOpts['eventType'], AnalyticsEventType>
+> = {
+  accepted: 'order_accepted',
+  payment_received: 'payment_received',
+  completed: 'order_completed',
+  disputed: 'dispute_filed',
+};
+
 /**
  * Canonical chokepoint for every order-status mutation. Every accept,
  * decline, ship, cancel, dispute filing, admin force-action, and system
@@ -646,6 +665,17 @@ export async function transitionOrder(
   //    skipRevalidation and rely on the 5-minute cache TTL instead.
   if (!opts.skipRevalidation) {
     revalidateTag(`reputation:${artisanProfileId}`, 'max');
+  }
+  const analyticsType = ANALYTICS_EVENT_BY_ORDER_EVENT[opts.eventType];
+  if (analyticsType) {
+    await logAnalyticsEvent({
+      type: analyticsType,
+      userId: opts.actorUserId ?? null,
+      artisanProfileId,
+      entityType: 'order',
+      entityId: opts.orderId,
+      metadata: { actorRole: opts.actorRole },
+    });
   }
   return ok({ orderId: opts.orderId });
 }
