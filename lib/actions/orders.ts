@@ -666,7 +666,9 @@ export async function transitionOrder(
   if (!opts.skipRevalidation) {
     revalidateTag(`reputation:${artisanProfileId}`, 'max');
   }
-  const analyticsType = ANALYTICS_EVENT_BY_ORDER_EVENT[opts.eventType];
+  const analyticsType =
+    ANALYTICS_EVENT_BY_ORDER_EVENT[opts.eventType] ??
+    (opts.toStatus === 'completed' ? 'order_completed' : undefined);
   if (analyticsType) {
     await logAnalyticsEvent({
       type: analyticsType,
@@ -674,7 +676,7 @@ export async function transitionOrder(
       artisanProfileId,
       entityType: 'order',
       entityId: opts.orderId,
-      metadata: { actorRole: opts.actorRole },
+      metadata: { actorRole: opts.actorRole, orderEventType: opts.eventType },
     });
   }
   return ok({ orderId: opts.orderId });
