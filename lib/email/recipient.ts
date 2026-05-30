@@ -4,7 +4,6 @@ import { user } from '@/db/schema';
 
 export interface EmailRecipient {
   email: string;
-  name: string;
 }
 
 // Look up a recipient's email + display name by user id. Returns null when
@@ -14,7 +13,7 @@ export interface EmailRecipient {
 // fallback logic). The `user` table is Better Auth's (db/schema/auth.ts).
 export async function getEmailRecipient(userId: string): Promise<EmailRecipient | null> {
   const [row] = await db
-    .select({ email: user.email, name: user.name })
+    .select({ email: user.email })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1);
