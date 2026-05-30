@@ -14,7 +14,10 @@ const VARIANT_COLOR: Record<AuthMarkVariant, string> = {
 
 export function AuthMark({ variant, className }: { variant: AuthMarkVariant; className?: string }) {
   return (
-    <span className={cn('inline-flex', VARIANT_COLOR[variant], className)} aria-hidden="true">
+    <span
+      className={cn('flex w-fit shrink-0', VARIANT_COLOR[variant], className)}
+      aria-hidden="true"
+    >
       <svg
         width="40"
         height="40"
@@ -24,6 +27,7 @@ export function AuthMark({ variant, className }: { variant: AuthMarkVariant; cla
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        style={{ display: 'block' }}
       >
         {variant === 'mail' && (
           <>
