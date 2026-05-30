@@ -50,3 +50,6 @@ next-env.d.ts
 # planning docs — kept locally, not source-controlled
 /docs/plans/
 
+# dev-mode rendered emails (captured by sendEmail's no-send path)
+/.dev-mail/
+

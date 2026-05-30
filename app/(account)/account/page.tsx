@@ -8,6 +8,7 @@ import { WishlistPreview } from '@/components/account/wishlist-preview';
 import { NotificationsPreview } from '@/components/account/notifications-preview';
 import { FirstTimeBuyerWelcome } from '@/components/account/first-time-buyer-welcome';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
+import { ResendVerificationBanner } from '@/components/auth/resend-verification-banner';
 
 export const metadata = {
   title: 'Your account',
@@ -46,11 +47,17 @@ export default async function AccountHome() {
     notificationItems.length === 0;
 
   if (isFirstTime) {
-    return <FirstTimeBuyerWelcome name={current.name} />;
+    return (
+      <div className="space-y-8">
+        {!current.emailVerified && <ResendVerificationBanner email={current.email} />}
+        <FirstTimeBuyerWelcome name={current.name} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-12">
+      {!current.emailVerified && <ResendVerificationBanner email={current.email} />}
       <header>
         <h1 className="font-serif text-3xl">Hi, {firstName(current.name)}</h1>
       </header>

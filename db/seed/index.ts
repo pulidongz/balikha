@@ -25,7 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DeleteObjectsCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { account, session, user, verification } from '@/db/schema/auth';
@@ -539,15 +539,23 @@ async function seed() {
   let imagePoolCursor = 0;
   const nextImage = (): Buffer => imagePool[imagePoolCursor++ % imagePool.length]!;
 
+  const seededUserIds: string[] = [];
+
   // Admin (no artisan profile) — special password per the spec
   logger.info({ email: ADMIN.email }, 'Creating admin account…');
   const adminUser = await createUser(ADMIN.email, ADMIN.password, ADMIN.name);
+  seededUserIds.push(adminUser.id);
   await db.update(user).set({ isAdmin: true }).where(eq(user.id, adminUser.id));
 
   // Buyer accounts (no artisan profile)
   logger.info({ count: NUM_BUYERS }, 'Creating buyer accounts…');
   for (let i = 1; i <= NUM_BUYERS; i++) {
-    await createUser(`buyer${i}@balikha.test`, TEST_PASSWORD, faker.person.fullName());
+    const buyer = await createUser(
+      `buyer${i}@balikha.test`,
+      TEST_PASSWORD,
+      faker.person.fullName(),
+    );
+    seededUserIds.push(buyer.id);
   }
 
   // Sellers
@@ -559,6 +567,7 @@ async function seed() {
     logger.info({ shop: seller.shopName, idx: s + 1, total: SELLERS.length }, 'Seeding seller…');
 
     const created = await createUser(seller.email, TEST_PASSWORD, seller.name);
+    seededUserIds.push(created.id);
 
     // Promote Maria to admin so /admin is reachable immediately after seeding.
     if (seller.email === 'maria@balikha.test') {
@@ -667,6 +676,12 @@ async function seed() {
       }
     }
   }
+
+  await db.update(user).set({ emailVerified: true }).where(inArray(user.id, seededUserIds));
+  logger.info(
+    { count: seededUserIds.length },
+    'Marked seeded accounts as email-verified for local dev gating.',
+  );
 
   logger.info(
     {

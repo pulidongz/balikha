@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { artisanProfiles, user } from '@/db/schema';
 import { logger } from '@/lib/logger';
+import { ok, err, type Result } from '@/lib/result';
 
 // --- Error classes ----------------------------------------------------------
 // Server actions throw these and convert them to Result.err at the boundary
@@ -97,6 +98,41 @@ export async function requireSellerProfile() {
   const profile = await getCurrentArtisanProfile();
   if (!profile) redirect('/dashboard');
   return profile;
+}
+
+// --- Email verification helpers ---------------------------------------------
+
+// Single source of truth for the user-facing rejection string. Consumed by
+// assertVerifiedEmail() and exported for any UI that needs to display the
+// same message (resend banner, future page-level error renders, etc.).
+export const EMAIL_NOT_VERIFIED_MESSAGE =
+  'Please verify your email before continuing. Check your inbox for the verification link.';
+
+// For action sites — non-throwing, returns Result. Takes the already-loaded
+// user object (no extra DB roundtrip). Usage:
+//   const verified = assertVerifiedEmail(buyer);
+//   if (!verified.ok) return err(verified.error);
+export function assertVerifiedEmail(user: { emailVerified: boolean }): Result<true> {
+  if (!user.emailVerified) {
+    return err(EMAIL_NOT_VERIFIED_MESSAGE);
+  }
+  return ok(true);
+}
+
+// For page sites — redirects (mirrors requireSellerProfile's page-level
+// redirect pattern). Uses non-throwing getCurrentUser() so an unauthenticated
+// visitor is redirected to /sign-in rather than thrown into Next's error
+// boundary. redirect() returns `never`, so `user` narrows to non-null after
+// each guard.
+export async function requireVerifiedEmail() {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/sign-in');
+  }
+  if (!user.emailVerified) {
+    redirect(`/verify-email?status=pending&email=${encodeURIComponent(user.email)}`);
+  }
+  return user;
 }
 
 // --- Generic ownership guard ------------------------------------------------

@@ -14,4 +14,12 @@ import { createAuthClient } from 'better-auth/react';
 // a separate concern from the client's fetch target.
 export const authClient = createAuthClient();
 
-export const { signIn, signUp, signOut, useSession } = authClient;
+export const {
+  signIn,
+  signUp,
+  signOut,
+  useSession,
+  requestPasswordReset,
+  resetPassword,
+  sendVerificationEmail,
+} = authClient;

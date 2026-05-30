@@ -53,12 +53,47 @@ export async function sendEmail(opts: SendEmailOptions): Promise<Result<SendEmai
     return err(`Failed to render email template: ${message}`);
   }
 
-  // Dev-mode condition: any of the following triggers the no-send path:
-  //   1. NODE_ENV !== 'production'  (default for local dev)
-  //   2. resend client is null      (RESEND_API_KEY not set)
-  // Override both at once by setting NODE_ENV=production AND RESEND_API_KEY
-  // in the invoking shell. Used for AC1a verification.
-  if (env.NODE_ENV !== 'production' || resend === null) {
+  // Dev no-send path: render-and-capture instead of transmitting. Gated on
+  // NODE_ENV alone (NOT `resend === null`) — a production deploy missing
+  // RESEND_API_KEY must fail loudly below, never silently capture live tokens to
+  // disk/logs. Set NODE_ENV=production (with a real key) for AC1a real sends.
+  if (env.NODE_ENV !== 'production') {
+    // Surface the tokenized auth links so they can be clicked straight from the
+    // terminal to exercise the real verify/reset token flow without a send.
+    const links = Array.from(html.matchAll(/href="([^"]+)"/g))
+      .map((m) => m[1])
+      .filter(
+        (href): href is string => !!href && /verify-email|reset-password|\/api\/auth\//.test(href),
+      )
+      // Hrefs come from rendered HTML, where react-email entity-encodes `&` as
+      // `&amp;`; decode so the logged link is directly clickable from a terminal.
+      .map((href) => href.replace(/&amp;/g, '&'));
+
+    // Dump the full rendered HTML to a gitignored file so the real branded email
+    // (with working button links) can be opened in a browser. node:fs is
+    // dynamically imported inside this dev-only branch so it never enters a
+    // prod/edge bundle. The dump is auxiliary — a write failure is logged but
+    // does not fail the dev no-op send.
+    let previewFile: string | null = null;
+    try {
+      const { writeFile, mkdir } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      const dir = join(process.cwd(), '.dev-mail');
+      await mkdir(dir, { recursive: true });
+      const slug = opts.subject
+        .replace(/[^a-z0-9]+/gi, '-')
+        .toLowerCase()
+        .slice(0, 60);
+      previewFile = join(dir, `${Date.now()}-${slug}.html`);
+      await writeFile(previewFile, html, 'utf8');
+    } catch (e) {
+      logger.warn(
+        { err: e, to: opts.to, subject: opts.subject },
+        'Email DEV MODE — could not write preview file',
+      );
+      previewFile = null;
+    }
+
     logger.info(
       {
         to: opts.to,
@@ -67,7 +102,8 @@ export async function sendEmail(opts: SendEmailOptions): Promise<Result<SendEmai
         subject: opts.subject,
         htmlBytes: html.length,
         textBytes: text.length,
-        htmlPreview: html.slice(0, 200),
+        links,
+        previewFile,
       },
       'Email DEV MODE — would have sent',
     );
@@ -75,6 +111,18 @@ export async function sendEmail(opts: SendEmailOptions): Promise<Result<SendEmai
     // that logs / persists the ID can tell at a glance whether the message
     // actually went over the wire.
     return ok({ messageId: `dev-mode-${Date.now()}` });
+  }
+
+  // Production with no provider configured: fail loud rather than fall through
+  // to the dev capture above, which would write live single-use tokens to disk
+  // and logs. Returning err() fires the caller's send_failed path instead of a
+  // silent fake-success.
+  if (resend === null) {
+    logger.error(
+      { to: opts.to, subject: opts.subject },
+      'RESEND_API_KEY missing in production — cannot send email',
+    );
+    return err('Email provider not configured');
   }
 
   // Production path. Pass both html and text — see plainText render above.

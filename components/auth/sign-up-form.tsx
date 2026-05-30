@@ -7,17 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUp } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
-
-// Same open-redirect guard as sign-in: same-origin paths only.
-function safeNextOr(next: string | null, fallback: string): string {
-  if (!next) return fallback;
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return fallback;
-  // Body characters: only same-origin path/query chars. Rejects CR/LF (\r, \n),
-  // encoded variants (%0d, %0a), whitespace, @ smuggles, and other smuggle
-  // vectors that could end up in a Location: header via Better Auth's redirect.
-  if (!/^[A-Za-z0-9_\-/?&=.+,#]*$/.test(next.slice(1))) return fallback;
-  return next;
-}
+import { checkDisposableEmail } from '@/lib/actions/auth';
+import { safeNextOr } from '@/lib/safe-next';
+import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
 
 interface SignUpFormProps {
   googleEnabled: boolean;
@@ -44,14 +36,33 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   async function attemptSignUp() {
     setError(null);
     setLoading(true);
-    const result = await signUp.email({ email, password, name });
+    // callbackURL is where Better Auth redirects after the user clicks the
+    // email link. The deep-link `next` is encoded here (not in the
+    // pending-state URL below) because the click often happens in a different
+    // browser tab or device — encoding it in callbackURL ensures the verified
+    // user lands where they were originally headed.
+    const callbackURL =
+      next !== '/account'
+        ? `/verify-email?status=verified&next=${encodeURIComponent(next)}`
+        : '/verify-email?status=verified';
+    const result = await signUp.email({ email, password, name, callbackURL });
     setLoading(false);
     if (result.error) {
       setError(result.error.message ?? 'Sign-up failed');
       return;
     }
-    router.push(next);
+    // Route to the "check your inbox" page. `next` is not needed here — it
+    // rides in the email's callbackURL and takes effect when the link is clicked.
+    router.push(`/verify-email?status=pending&email=${encodeURIComponent(email)}`);
     router.refresh();
+  }
+
+  async function handleEmailBlur() {
+    if (!email) return;
+    const isDisp = await checkDisposableEmail(email);
+    if (isDisp) {
+      setError(DISPOSABLE_EMAIL_MESSAGE);
+    }
   }
 
   return (
@@ -93,7 +104,11 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             name="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
+            onBlur={handleEmailBlur}
             required
             autoComplete="email"
             className="h-11"

@@ -7,7 +7,7 @@ import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, catalogs } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
-import { getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { withIdempotency } from '@/lib/idempotency';
@@ -32,6 +32,9 @@ export async function becomeArtisanAction(
   const log = await getRequestLogger();
   const user = await getCurrentUser();
   if (!user) return err('You must be signed in.');
+
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   const parsed = artisanProfileCreateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {

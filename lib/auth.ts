@@ -1,7 +1,15 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { APIError } from 'better-auth/api';
+import { createElement } from 'react';
 import { db } from '@/db';
 import { env } from '@/env';
+import { sendEmail } from '@/lib/email/send';
+import { VerifyEmail } from '@/lib/email/templates/verify-email';
+import { ResetPasswordEmail } from '@/lib/email/templates/reset-password';
+import { logger } from '@/lib/logger';
+import { isDisposableEmail } from '@/lib/email/disposable';
+import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
 
 // Surface "is Google sign-in available?" to server components without
 // requiring a NEXT_PUBLIC_ env var. The auth pages read this and pass
@@ -26,6 +34,66 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    resetPasswordTokenExpiresIn: 3600, // 1h — Better Auth default; explicit for clarity
+    // Revokes all other sessions after a successful reset — the reset email's
+    // "signs you out of all other devices" note depends on this being true.
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }, request) => {
+      // Skip internal/programmatic calls (request === undefined) — guards
+      // against server-side auth.api calls dispatching real mail. Logged so
+      // it stays observable.
+      if (!request) {
+        logger.info(
+          { event: 'email.reset.skipped_internal_call', userId: user.id },
+          'Skipped reset email for internal (non-HTTP) call',
+        );
+        return;
+      }
+      const result = await sendEmail({
+        to: user.email,
+        subject: 'Reset your Balikha password',
+        react: createElement(ResetPasswordEmail, { resetUrl: url }),
+      });
+      if (!result.ok) {
+        // Better Auth swallows this throw; the structured logger.error is
+        // the real observability hook for alerting on send failures.
+        logger.error(
+          { event: 'email.reset.send_failed', userId: user.id, errMessage: result.error },
+          'Failed to send password-reset email',
+        );
+        throw new Error(`sendResetPassword failed: ${result.error}`);
+      }
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    expiresIn: 86400, // 24h — longer than Better Auth's 1h default; verification is idempotent so replay is harmless
+    sendVerificationEmail: async ({ user, url }, request) => {
+      // Skip internal/programmatic calls (request === undefined). The seed
+      // creates many users via auth.api.signUpEmail() — without this guard
+      // each would dispatch a real email. HTTP signups always have a request.
+      // Logged so it stays observable.
+      if (!request) {
+        logger.info(
+          { event: 'email.verification.skipped_internal_call', userId: user.id },
+          'Skipped verification email for internal (non-HTTP) call',
+        );
+        return;
+      }
+      const result = await sendEmail({
+        to: user.email,
+        subject: 'Verify your email — Balikha',
+        react: createElement(VerifyEmail, { verifyUrl: url }),
+      });
+      if (!result.ok) {
+        // Same swallow caveat as sendResetPassword above.
+        logger.error(
+          { event: 'email.verification.send_failed', userId: user.id, errMessage: result.error },
+          'Failed to send verification email',
+        );
+        throw new Error(`sendVerificationEmail failed: ${result.error}`);
+      }
+    },
   },
   socialProviders,
   account: {
@@ -45,6 +113,24 @@ export const auth = betterAuth({
       // level). Adding an UNVERIFIED provider to this list is an
       // account-takeover vector — review carefully before extending.
       trustedProviders: ['google'],
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user, _ctx) => {
+          if (isDisposableEmail(user.email)) {
+            // Must throw APIError, NOT a plain Error — Better Auth re-throws
+            // only APIError instances; any other throw is replaced with a
+            // generic "Failed to create user" that hides our message.
+            throw new APIError('BAD_REQUEST', {
+              message: DISPOSABLE_EMAIL_MESSAGE,
+              code: 'DISPOSABLE_EMAIL',
+            });
+          }
+          return { data: user };
+        },
+      },
     },
   },
   // All three local-dev origins need to pass Better Auth's CSRF Origin check:
