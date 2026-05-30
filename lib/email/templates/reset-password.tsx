@@ -9,16 +9,18 @@ export function ResetPasswordEmail({ resetUrl }: ResetPasswordEmailProps) {
   return (
     <EmailLayout preview="Reset your Balikha password." heading="Reset your password">
       <Section style={{ margin: '0 0 28px' }}>
-        <Text style={{ fontSize: '16px', lineHeight: 1.65, margin: '0 0 16px' }}>
+        <Text style={{ fontSize: '16px', lineHeight: 1.65, margin: 0 }}>
           We received a request to reset your Balikha password. Choose a new one using the button
           below.
         </Text>
-        <Text style={{ fontSize: '16px', lineHeight: 1.65, margin: 0 }}>
-          The link is valid for 1 hour and can only be used once.
-        </Text>
       </Section>
-      <Section style={{ margin: '0 0 36px' }}>
+      <Section style={{ margin: '0 0 14px' }}>
         <EmailButton href={resetUrl}>Reset password</EmailButton>
+      </Section>
+      <Section style={{ margin: '0 0 32px' }}>
+        <Text style={{ fontSize: '13px', lineHeight: 1.5, margin: 0, color: '#52616F' }}>
+          This link expires in 1 hour and can be used once.
+        </Text>
       </Section>
       <FallbackUrl url={resetUrl} />
       <Section style={{ margin: '28px 0 0' }}>

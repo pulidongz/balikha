@@ -22,8 +22,8 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
     return (
       <Card>
         <CardContent className="space-y-5 pt-1">
-          <AuthMark variant="mail" />
-          <div className="space-y-2">
+          <AuthMark variant="mail" className="auth-rise" />
+          <div className="auth-rise space-y-2" style={{ animationDelay: '90ms' }}>
             <h1 className="font-serif text-2xl tracking-tight">Check your email</h1>
             <p className="text-muted-foreground text-sm leading-relaxed">
               We&rsquo;ve sent a verification link to{' '}
@@ -35,7 +35,10 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
               . Click it to finish setting up your account. The link is valid for 24 hours.
             </p>
           </div>
-          <p className="text-muted-foreground border-border border-t pt-4 text-sm leading-relaxed">
+          <p
+            className="text-muted-foreground auth-rise border-border border-t pt-4 text-sm leading-relaxed"
+            style={{ animationDelay: '180ms' }}
+          >
             Didn&rsquo;t get it? Check your spam folder, or{' '}
             <Link href="/sign-in" className="text-foreground underline-offset-4 hover:underline">
               sign in
@@ -59,20 +62,22 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
     return (
       <Card>
         <CardContent className="space-y-5 pt-1">
-          <AuthMark variant="alert" />
-          <div className="space-y-2">
+          <AuthMark variant="alert" className="auth-rise" />
+          <div className="auth-rise space-y-2" style={{ animationDelay: '90ms' }}>
             <h1 className="font-serif text-2xl tracking-tight">{title}</h1>
             <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
           </div>
-          <Button
-            variant="outline"
-            size="lg"
-            className="h-11 w-full"
-            nativeButton={false}
-            render={<Link href={isMissingAccount ? '/sign-up' : '/sign-in'} />}
-          >
-            {isMissingAccount ? 'Sign up' : 'Sign in'}
-          </Button>
+          <div className="auth-rise" style={{ animationDelay: '180ms' }}>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-11 w-full"
+              nativeButton={false}
+              render={<Link href={isMissingAccount ? '/sign-up' : '/sign-in'} />}
+            >
+              {isMissingAccount ? 'Sign up' : 'Sign in'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -84,25 +89,27 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
     return (
       <Card>
         <CardContent className="space-y-6 pt-1">
-          <AuthMark variant="success" />
-          <div className="space-y-3">
+          <AuthMark variant="success" className="auth-rise auth-check" />
+          <div className="auth-rise space-y-3" style={{ animationDelay: '90ms' }}>
             <h1 className="font-serif text-3xl leading-tight tracking-tight">
               Your email is verified
             </h1>
             {/* Vermilion editorial tick — decorative, the one earned brand accent. */}
-            <div className="bg-accent h-[3px] w-8 rounded-full" aria-hidden />
+            <div className="bg-accent auth-tick h-[3px] w-8 rounded-full" aria-hidden />
             <p className="text-muted-foreground text-sm leading-relaxed">
               You&rsquo;re all set. You can now place orders and open a shop of your own.
             </p>
           </div>
-          <Button
-            size="lg"
-            className="h-11 w-full"
-            nativeButton={false}
-            render={<Link href={safeNext} />}
-          >
-            Continue to your account
-          </Button>
+          <div className="auth-rise" style={{ animationDelay: '180ms' }}>
+            <Button
+              size="lg"
+              className="h-11 w-full"
+              nativeButton={false}
+              render={<Link href={safeNext} />}
+            >
+              Continue to your account
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -112,21 +119,23 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
   return (
     <Card>
       <CardContent className="space-y-5 pt-1">
-        <AuthMark variant="mail" />
-        <div className="space-y-2">
+        <AuthMark variant="mail" className="auth-rise" />
+        <div className="auth-rise space-y-2" style={{ animationDelay: '90ms' }}>
           <h1 className="font-serif text-2xl tracking-tight">Verify your email</h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
             Sign up or sign in to receive a verification link.
           </p>
         </div>
-        <Button
-          size="lg"
-          className="h-11 w-full"
-          nativeButton={false}
-          render={<Link href="/sign-in" />}
-        >
-          Sign in
-        </Button>
+        <div className="auth-rise" style={{ animationDelay: '180ms' }}>
+          <Button
+            size="lg"
+            className="h-11 w-full"
+            nativeButton={false}
+            render={<Link href="/sign-in" />}
+          >
+            Sign in
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

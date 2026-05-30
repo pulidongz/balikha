@@ -33,8 +33,8 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <div className="space-y-4" role="status">
-        <AuthMark variant="mail" />
-        <div className="space-y-2">
+        <AuthMark variant="mail" className="auth-rise" />
+        <div className="auth-rise space-y-2" style={{ animationDelay: '90ms' }}>
           <p className="text-foreground font-serif text-xl tracking-tight">Check your inbox</p>
           <p className="text-muted-foreground text-sm leading-relaxed">
             If an account exists for <span className="text-foreground font-medium">{email}</span>, a

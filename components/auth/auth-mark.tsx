@@ -38,7 +38,9 @@ export function AuthMark({ variant, className }: { variant: AuthMarkVariant; cla
         {variant === 'success' && (
           <>
             <circle cx="18" cy="18" r="13.5" />
-            <path d="M11.5 18.5l4.5 4.5 8.5-9.5" />
+            {/* pathLength normalizes the draw animation (.auth-check) regardless
+                of the real path length. */}
+            <path pathLength={1} d="M11.5 18.5l4.5 4.5 8.5-9.5" />
           </>
         )}
         {variant === 'alert' && (

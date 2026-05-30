@@ -15,20 +15,22 @@ import { resetPassword } from '@/lib/auth-client';
 function ResetLinkError({ title, body }: { title: string; body: string }) {
   return (
     <div className="space-y-5" role="alert">
-      <AuthMark variant="alert" />
-      <div className="space-y-2">
+      <AuthMark variant="alert" className="auth-rise" />
+      <div className="auth-rise space-y-2" style={{ animationDelay: '90ms' }}>
         <p className="text-foreground font-serif text-xl tracking-tight">{title}</p>
         <p className="text-muted-foreground text-sm leading-relaxed">{body}</p>
       </div>
-      <Button
-        variant="outline"
-        size="lg"
-        className="h-11 w-full"
-        nativeButton={false}
-        render={<Link href="/forgot-password" />}
-      >
-        Request a new link
-      </Button>
+      <div className="auth-rise" style={{ animationDelay: '180ms' }}>
+        <Button
+          variant="outline"
+          size="lg"
+          className="h-11 w-full"
+          nativeButton={false}
+          render={<Link href="/forgot-password" />}
+        >
+          Request a new link
+        </Button>
+      </div>
     </div>
   );
 }
