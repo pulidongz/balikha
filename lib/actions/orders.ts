@@ -17,6 +17,7 @@ import {
 } from '@/db/schema';
 import { assertVerifiedEmail, requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
+import { logAnalyticsEvent, logArtisanMilestoneOnce } from '@/lib/analytics/log';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { pivotPrePurchaseThreadToOrder } from '@/lib/messaging/pivot';
@@ -451,6 +452,24 @@ export async function placeOrder(
         // fulfillment rate, dispute rate). Per-artisan tag avoids
         // invalidating every other seller's cache on every order.
         revalidateTag(`reputation:${result.artisanProfileId}`, 'max');
+
+        await logAnalyticsEvent({
+          type: 'order_placed',
+          userId: buyer.id,
+          artisanProfileId: result.artisanProfileId,
+          entityType: 'order',
+          entityId: result.orderId,
+          metadata: { reference: result.reference },
+        });
+        // Seller-funnel lifetime milestone — the helper checks the log and
+        // no-ops if this artisan has ever received an order before.
+        await logArtisanMilestoneOnce({
+          type: 'first_order',
+          artisanProfileId: result.artisanProfileId,
+          userId: buyer.id,
+          entityType: 'order',
+          entityId: result.orderId,
+        });
 
         return ok({
           orderId: result.orderId,
