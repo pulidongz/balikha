@@ -1,0 +1,4 @@
+# Operators may drop a local public key or env file here while running;
+# never commit them.
+*.pub
+*.env
