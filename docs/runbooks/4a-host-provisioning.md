@@ -349,6 +349,144 @@ picks up the unchanged config cleanly.
 
 ---
 
+## Step 50 — unattended security updates
+
+Script: `infra/provision/50-autoupdates.sh`
+
+### What it does
+
+1. Writes `/etc/apt/apt.conf.d/20auto-upgrades` — enables daily package-list
+   refresh (`Update-Package-Lists "1"`) and daily unattended upgrade runs
+   (`Unattended-Upgrade "1"`).
+2. Writes `/etc/apt/apt.conf.d/52balikha-unattended` — enables automatic
+   reboot after a security update (`Automatic-Reboot "true"`) with a reboot
+   window of **03:30 UTC** (`Automatic-Reboot-Time "03:30"`).
+3. `systemctl enable unattended-upgrades` — ensures the unit starts on boot.
+
+> **Why `enable` only, not `restart`?** `unattended-upgrades.service` is a
+> oneshot/shutdown-triggered unit. Calling `restart` on a oneshot unit can
+> exit non-zero and abort the provisioning run under `set -e`. Scheduling is
+> handled by `apt-daily.timer` and `apt-daily-upgrade.timer` — those are
+> already active on Ubuntu 24.04; there is nothing to restart here.
+
+### Auto-reboot window
+
+Security updates that require a reboot (kernel, libc, openssh) will trigger
+an automatic reboot at **03:30 UTC** (11:30 Philippine Standard Time). At
+pre-launch traffic levels this is acceptable. To **disable** the auto-reboot
+without removing automatic updates:
+
+```bash
+sudo sed -i 's|^Unattended-Upgrade::Automatic-Reboot "true";|Unattended-Upgrade::Automatic-Reboot "false";|' \
+  /etc/apt/apt.conf.d/52balikha-unattended
+```
+
+Or edit the file directly and set `Automatic-Reboot "false"`.
+
+To verify that security updates are actually selecting the right origin (not
+just that the timer is on):
+
+```bash
+sudo unattended-upgrade --dry-run --debug 2>&1 | tail -n 30
+# Should list the Ubuntu security origin as an allowed source.
+```
+
+---
+
+## Step 60 — 2 GB swap file (AC4)
+
+Script: `infra/provision/60-swap.sh`
+
+### What it does
+
+1. **Idempotency guard:** checks `swapon --show` — if `/swapfile` is already
+   listed, the creation block is skipped entirely.
+2. Creates `/swapfile` (2 GB) with `fallocate -l 2G`. If `fallocate` fails
+   (some Linode kernels or filesystem types reject it), falls back to
+   `dd if=/dev/zero of=/swapfile bs=1M count=2048` — and removes any partial
+   file `fallocate` may have left before retrying.
+3. Sets permissions to `600` (root-only read/write — required for a valid
+   swap file), then `mkswap` + `swapon`.
+4. Adds `/swapfile none swap sw 0 0` to `/etc/fstab` via `ensure_line`
+   (idempotent: re-running never duplicates the fstab entry).
+5. Writes `/etc/sysctl.d/99-balikha-swap.conf`:
+   - `vm.swappiness = 10` — the kernel uses RAM first; swap is a last resort,
+     not an extension of RAM.
+   - `vm.vfs_cache_pressure = 50` — slightly favours keeping directory/inode
+     cache in RAM (useful for a Next.js server with many small files).
+6. `sysctl --system` — applies the new settings immediately without a reboot.
+7. Prints `swapon --show` so the active swap is visible in the log.
+
+### Sizing rationale
+
+The box has 1 GB RAM. Rough memory budget:
+
+| Component                   | Estimate        |
+| --------------------------- | --------------- |
+| PostgreSQL 16 (1 GB tuning) | 150–250 MB      |
+| `next start` idle           | 150–300 MB      |
+| OS, journald, fail2ban      | 150–250 MB      |
+| **Total at idle**           | **~450–800 MB** |
+
+Under load (SSR bursts, migrations), resident set can spike past 1 GB. The
+2 GB swap file is insurance, not a substitute for RAM. The **objective
+resize trigger** is recurring OOM-killer entries in the journal:
+
+```bash
+journalctl -k | grep -i oom
+```
+
+If OOM kills appear under normal traffic, resize the Linode to 2 GB from the
+dashboard (see the "Resizing up" section below).
+
+### Verification (on-server)
+
+```bash
+swapon --show
+# Expected: /swapfile   file   2G   0B   -2
+grep swapfile /etc/fstab
+# Expected: /swapfile none swap sw 0 0   (appears exactly once)
+sysctl vm.swappiness vm.vfs_cache_pressure
+# Expected: vm.swappiness = 10 / vm.vfs_cache_pressure = 50
+```
+
+**AC4** satisfied once `/swapfile` appears in `swapon --show`.
+
+---
+
+## Step 70 — NTP time synchronisation
+
+Script: `infra/provision/70-timesync.sh`
+
+### What it does
+
+1. `timedatectl set-ntp true` — enables NTP synchronisation via the system's
+   configured NTP client (which is `systemd-timesyncd` on Ubuntu 24.04).
+2. `systemctl enable --now systemd-timesyncd` — enables the timesyncd unit at
+   boot and starts it immediately if not already running.
+3. Prints `timedatectl show-timesync` and `timedatectl status` so the NTP
+   state is visible in the provisioning log.
+
+### Verification (on-server)
+
+```bash
+timedatectl status
+# Expected lines (exact wording may vary by Ubuntu release):
+#   NTP service: active
+#   System clock synchronized: yes   (may show "no" for a few seconds on a
+#                                     fresh box -- wait and re-check)
+timedatectl show-timesync --property=NTPSynchronized
+# Expected: NTPSynchronized=yes
+```
+
+> **Note:** `System clock synchronized: yes` can legitimately show `no` for
+> a few seconds immediately after first enable, while timesyncd completes its
+> first poll. `99-verify.sh` asserts that the NTP _service_ is active (a
+> deterministic state), not that the clock is already synchronised (which
+> would be a race on a freshly booted box).
+
+---
+
 ## Verification
 
 <!-- Filled by Task 6.1 -->
