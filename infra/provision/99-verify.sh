@@ -8,7 +8,7 @@ fail=0
 # text to stderr (Issue 7).
 check() { # check "label" "command" "expected-extended-regex"
   local label="$1" out rc
-  out="$(eval "$2" 2>/dev/null)"; rc=$?
+  out="$(eval "$2" 2>/dev/null)" && rc=0 || rc=$?
   if [ "$rc" -eq 0 ] && grep -qiE "$3" <<<"$out"; then
     log "PASS: $label"
   else
