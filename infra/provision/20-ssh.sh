@@ -2,7 +2,6 @@
 source "$(dirname "$0")/lib/common.sh"
 require_root
 
-DEPLOY_USER="${DEPLOY_USER:-deploy}"
 DROPIN=/etc/ssh/sshd_config.d/10-balikha-hardening.conf
 
 log "Writing SSH hardening drop-in: $DROPIN"

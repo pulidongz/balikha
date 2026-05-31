@@ -3,7 +3,6 @@ source "$(dirname "$0")/lib/common.sh"
 require_root
 require_ubuntu_2404
 
-DEPLOY_USER="${DEPLOY_USER:-deploy}"
 # No fallback: the public key is required. Refuse to create a passwordless,
 # keyless sudo user (that would be a backdoor).
 : "${DEPLOY_PUBKEY:?Set DEPLOY_PUBKEY to the deploy user PUBLIC SSH key, e.g. DEPLOY_PUBKEY=\$(cat ~/.ssh/id_ed25519.pub)}"

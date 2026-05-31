@@ -33,3 +33,6 @@ confirm() {
   read -r -p "$prompt [yes/no] " reply
   [ "$reply" = "yes" ]
 }
+
+DEPLOY_USER="${DEPLOY_USER:-deploy}"
+export DEPLOY_USER

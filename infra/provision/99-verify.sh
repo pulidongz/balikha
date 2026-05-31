@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/lib/common.sh"
 require_root
-DEPLOY_USER="${DEPLOY_USER:-deploy}"
 fail=0
 # check: command MUST exit 0 AND its stdout must match the regex. stderr is
 # NOT folded in, so an errored command can't false-PASS by printing matching
