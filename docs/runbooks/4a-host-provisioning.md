@@ -121,6 +121,63 @@ regardless of SSH state.
 
 ---
 
+## Step 10 — OS baseline & deploy user
+
+Script: `infra/provision/10-base.sh`
+
+### What it does
+
+1. Sets the system timezone to **UTC**.
+2. Runs `apt-get update && apt-get full-upgrade` (all available security and
+   package updates applied before anything else is configured).
+3. Installs base packages: `openssh-server ufw fail2ban unattended-upgrades
+ca-certificates curl gnupg acl htop`. `openssh-server` is installed
+   explicitly (not assumed) so the `OpenSSH` ufw app profile is guaranteed
+   present when `30-firewall.sh` runs.
+4. Creates the **`deploy`** non-root user (`--disabled-password`) if it does
+   not already exist (idempotent: skipped on re-run). Adds it to the `sudo`
+   group.
+5. Writes and **validates** a NOPASSWD sudoers drop-in
+   `/etc/sudoers.d/90-deploy` via `printf`, `chmod 440`, and `visudo -cf`. If
+   `visudo` rejects the rule, the drop-in is removed and the script dies loudly
+   — it never leaves an invalid sudoers file on disk.
+6. Installs the deploy user's `authorized_keys` from `$DEPLOY_PUBKEY`
+   (idempotent via `ensure_line`: re-running never duplicates the key line).
+   Sets `.ssh` to `700` and `authorized_keys` to `600`.
+7. Creates `/etc/balikha` (`root:root`, mode `700`) — reserved for 4B secrets.
+   **4A places no secrets here.**
+
+### Required input
+
+`DEPLOY_PUBKEY` must be set to the **public** key (the contents of
+`~/.ssh/id_ed25519.pub`), not the private key. The script dies immediately if
+this variable is absent or empty — it will never create a passwordless,
+keyless sudo user (that would be an open backdoor).
+
+```bash
+export DEPLOY_PUBKEY="$(cat ~/.ssh/id_ed25519.pub)"
+```
+
+Override the username via `DEPLOY_USER` (default: `deploy`).
+
+### NOPASSWD posture
+
+Because the `deploy` user is created with `--disabled-password`, password-based
+`sudo` is unusable. The validated NOPASSWD drop-in makes `sudo` actually work.
+The trade-off: **the SSH private key becomes the sole gate to root**. This is an
+accepted posture for a single-operator box — it raises the stakes on the
+key-only login, fail2ban, and password-auth-off hardening applied in later
+steps.
+
+### `/etc/balikha` — reserved for 4B
+
+The directory `/etc/balikha` is created root-owned, mode `700`. No secrets are
+placed here by 4A. In 4B, the deployment step will write
+`/etc/balikha/production.env` (chmod 600) containing the runtime env vars from
+`env.ts` (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `S3_*`, `EMAIL_*`, etc.).
+
+---
+
 ## Verification
 
 <!-- Filled by Task 6.1 -->
