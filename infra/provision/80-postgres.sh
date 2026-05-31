@@ -55,11 +55,15 @@ systemctl enable postgresql
 systemctl restart postgresql
 
 log "Ensuring role '${DB_USER}' and database '${DB_NAME}' (idempotent)."
-sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" \
-  | grep -q 1 || sudo -u postgres psql -c \
-  "CREATE ROLE ${DB_USER} LOGIN PASSWORD '${DB_PASSWORD}';"
-# Always reset the password so a re-run with a rotated secret converges.
-sudo -u postgres psql -c "ALTER ROLE ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
+if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1; then
+  sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+CREATE ROLE ${DB_USER} LOGIN PASSWORD '${DB_PASSWORD}';
+SQL
+fi
+# Converge on a rotated secret on every run:
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+ALTER ROLE ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';
+SQL
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" \
   | grep -q 1 || sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
 
