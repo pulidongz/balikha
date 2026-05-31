@@ -12,6 +12,6 @@ Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-Time "03:30";
 EOF
 # Enable only -- the unattended-upgrades unit is oneshot/shutdown-triggered, so
-# `restart` can exit nonzero and abort the run under set -e (Issue 3 r2). The
+# `restart` can exit nonzero and abort the run under set -e. The
 # apt-daily{,-upgrade}.timer units drive scheduling; 99-verify checks the timer.
 systemctl enable unattended-upgrades

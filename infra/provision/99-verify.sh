@@ -5,7 +5,7 @@ DEPLOY_USER="${DEPLOY_USER:-deploy}"
 fail=0
 # check: command MUST exit 0 AND its stdout must match the regex. stderr is
 # NOT folded in, so an errored command can't false-PASS by printing matching
-# text to stderr (Issue 7).
+# text to stderr.
 check() { # check "label" "command" "expected-extended-regex"
   local label="$1" out rc
   out="$(eval "$2" 2>/dev/null)" && rc=0 || rc=$?
@@ -17,12 +17,12 @@ check() { # check "label" "command" "expected-extended-regex"
 }
 
 # No inner | grep in command strings: rc must reflect the real command, not
-# grep's exit, so the success/match separation doesn't depend on pipefail (Issue 2 r2).
+# grep's exit, so the success/match separation doesn't depend on pipefail.
 check "AC1 password auth off"   "sshd -T"                                     "^passwordauthentication no"
 check "AC1 pubkey auth on"      "sshd -T"                                     "^pubkeyauthentication yes"
 check "AC2 ufw active"          "ufw status verbose"                          "Status: active"
 check "AC2 ufw default deny in" "ufw status verbose"                          "deny \(incoming\)"
-# The most dangerous rule to be missing -- assert SSH is allowed (Issue 4).
+# The most dangerous rule to be missing -- assert SSH is allowed.
 check "AC2 SSH allowed"         "ufw status"                                  "(OpenSSH|(^|[^0-9])22/tcp).*ALLOW"
 check "AC2 80 allowed"          "ufw status"                                  "(^|[^0-9])80/tcp +ALLOW"
 check "AC2 443 allowed"         "ufw status"                                  "(^|[^0-9])443/tcp +ALLOW"
@@ -40,19 +40,19 @@ fi
 check "AC4 swap active"         "swapon --show"                               "/swapfile"
 check "AC5 deploy in sudo grp"  "id $DEPLOY_USER"                             "(^| )sudo( |$|,)|\(sudo\)"
 # Prove sudo is actually USABLE -- NOPASSWD only. A password-required grant on a
-# --disabled-password user is the unusable state Issue 8 closed, so do NOT accept
-# a bare "(ALL) ALL" alternative (it would false-PASS that broken state -- Issue 10 r2).
+# --disabled-password user is an unusable state, so do NOT accept
+# a bare "(ALL) ALL" alternative (it would false-PASS that broken state).
 check "AC5 deploy sudo usable"  "sudo -n -l -U $DEPLOY_USER"                  "NOPASSWD"
 check "fail2ban sshd jail"      "fail2ban-client status sshd"                 "Status"
 # Auto-update SCHEDULING is deterministic via the timers (the unattended-upgrades
 # unit is oneshot). The actual security-origin resolution is proven by the runbook's
-# unattended-upgrade --dry-run, not a meaningless apt-config grep (Issues 1 & 3 r2).
+# unattended-upgrade --dry-run, not a meaningless apt-config grep.
 check "unattended enabled"      "systemctl is-enabled unattended-upgrades"    "enabled"
 check "apt-daily-upgrade timer" "systemctl is-enabled apt-daily-upgrade.timer" "enabled"
 # NTP: assert the SERVICE is active (deterministic once enabled). "synchronized"
-# can legitimately be 'no' for seconds on a fresh box, so don't gate on it (Issue 7).
+# can legitimately be 'no' for seconds on a fresh box, so don't gate on it.
 check "ntp service active"      "timedatectl"                                 "NTP service: active|System clock synchronized: yes"
-# Root key backstop: WARN (not FAIL) if absent -- recovery then relies on LISH only (Issue 12).
+# Root key backstop: WARN (not FAIL) if absent -- recovery then relies on LISH only.
 [ -s /root/.ssh/authorized_keys ] && log "INFO: root key backstop present." \
   || warn "INFO: no /root/.ssh/authorized_keys -- root recovery is LISH-console only."
 

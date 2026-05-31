@@ -7,7 +7,7 @@ if swapon --show | grep -q "$SWAPFILE"; then
   log "Swap already active at $SWAPFILE -- skipping creation."
 else
   log "Creating a 2 GB swapfile at $SWAPFILE."
-  # On the dd fallback, remove any partial file fallocate may have left (Issue 10).
+  # On the dd fallback, remove any partial file fallocate may have left.
   fallocate -l 2G "$SWAPFILE" || { rm -f "$SWAPFILE"; dd if=/dev/zero of="$SWAPFILE" bs=1M count=2048; }
   chmod 600 "$SWAPFILE"
   mkswap "$SWAPFILE"

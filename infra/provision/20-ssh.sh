@@ -22,7 +22,7 @@ chmod 644 "$DROPIN"
 
 # `sshd -t` validates; 99-verify uses `sshd -T` to dump effective config.
 # `sshd -T` needs no -C here because there are no Match blocks -- if any are
-# added later, the dump must pass -C user=...,host=...,addr=... (Issue 5).
+# added later, the dump must pass -C user=...,host=...,addr=...
 log "Validating sshd config."
 sshd -t || die "sshd config invalid -- NOT reloading. Fix $DROPIN."
 

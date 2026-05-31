@@ -19,7 +19,7 @@ apt-get install -y --no-install-recommends \
   openssh-server ufw fail2ban unattended-upgrades ca-certificates curl gnupg \
   acl htop
 # openssh-server is explicit (not assumed) so the ufw `OpenSSH` app profile
-# is guaranteed present in 30-firewall.sh (Issue 4).
+# is guaranteed present in 30-firewall.sh.
 
 if id "$DEPLOY_USER" >/dev/null 2>&1; then
   log "User '$DEPLOY_USER' already exists -- skipping creation."
@@ -30,7 +30,7 @@ fi
 usermod -aG sudo "$DEPLOY_USER"
 
 # Key-only user -> password sudo is unusable, so grant passwordless sudo via
-# a VALIDATED drop-in (Issue 8, resolved with user). The SSH key is therefore
+# a VALIDATED drop-in. The SSH key is therefore
 # the sole gate to root -- acceptable for a single-operator deploy user.
 SUDOERS="/etc/sudoers.d/90-${DEPLOY_USER}"
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$DEPLOY_USER" > "$SUDOERS"
