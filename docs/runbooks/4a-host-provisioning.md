@@ -84,7 +84,7 @@ run the orchestrator:
 ```bash
 cd /root/provision
 export DEPLOY_PUBKEY="$(cat ~/.ssh/id_ed25519.pub)"
-export DB_PASSWORD='<strong-generated-password>'
+read -rs DB_PASSWORD && export DB_PASSWORD   # no echo, not written to shell history
 sudo --preserve-env=DEPLOY_PUBKEY,DB_PASSWORD ./provision.sh
 ```
 
@@ -499,7 +499,7 @@ variable is absent or empty — it will never create a role without an explicit
 password.
 
 ```bash
-export DB_PASSWORD='<strong-generated-password>'
+read -rs DB_PASSWORD && export DB_PASSWORD   # no echo, not written to shell history
 ```
 
 Store the value in your secrets manager before you start. This is the same
