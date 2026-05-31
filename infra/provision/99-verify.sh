@@ -37,11 +37,11 @@ else
   log "PASS: AC3 pg bound to loopback only"
 fi
 check "AC4 swap active"         "swapon --show"                               "/swapfile"
-check "AC5 deploy in sudo grp"  "id $DEPLOY_USER"                             "(^| )sudo( |$|,)|\(sudo\)"
+check "AC5 deploy in sudo grp"  "id \"$DEPLOY_USER\""                         "(^| )sudo( |$|,)|\(sudo\)"
 # Prove sudo is actually USABLE -- NOPASSWD only. A password-required grant on a
 # --disabled-password user is an unusable state, so do NOT accept
 # a bare "(ALL) ALL" alternative (it would false-PASS that broken state).
-check "AC5 deploy sudo usable"  "sudo -n -l -U $DEPLOY_USER"                  "NOPASSWD"
+check "AC5 deploy sudo usable"  "sudo -n -l -U \"$DEPLOY_USER\""               "NOPASSWD"
 check "fail2ban sshd jail"      "fail2ban-client status sshd"                 "Status"
 # Auto-update SCHEDULING is deterministic via the timers (the unattended-upgrades
 # unit is oneshot). The actual security-origin resolution is proven by the runbook's
