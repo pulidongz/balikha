@@ -83,7 +83,7 @@ run the orchestrator:
 
 ```bash
 cd /root/provision
-export DEPLOY_PUBKEY="$(cat ~/.ssh/id_ed25519.pub)"
+export DEPLOY_PUBKEY="$(cat /root/.ssh/authorized_keys)"   # your workstation key, seeded by Linode at creation
 read -rs DB_PASSWORD && export DB_PASSWORD   # no echo, not written to shell history
 sudo --preserve-env=DEPLOY_PUBKEY,DB_PASSWORD ./provision.sh
 ```
@@ -149,13 +149,19 @@ ca-certificates curl gnupg acl htop`. `openssh-server` is installed
 
 ### Required input
 
-`DEPLOY_PUBKEY` must be set to the **public** key (the contents of
-`~/.ssh/id_ed25519.pub`), not the private key. The script dies immediately if
-this variable is absent or empty — it will never create a passwordless,
-keyless sudo user (that would be an open backdoor).
+`DEPLOY_PUBKEY` must be set to **your workstation's public key** — the one you
+will use to `ssh deploy@<ip>`, not the private key. Because the `export` runs
+**on the box**, source it from `/root/.ssh/authorized_keys`, where Linode
+already seeded your workstation key when you added it at creation (section 0).
+Do **not** use the box's own `~/.ssh/id_ed25519.pub` — on the server that path
+is root's key (usually absent), not yours. If you added more than one key at
+creation, paste the specific line instead: `export DEPLOY_PUBKEY='ssh-ed25519
+AAAA… you@host'`. The script dies immediately if this variable is absent or
+empty — it will never create a passwordless, keyless sudo user (that would be
+an open backdoor).
 
 ```bash
-export DEPLOY_PUBKEY="$(cat ~/.ssh/id_ed25519.pub)"
+export DEPLOY_PUBKEY="$(cat /root/.ssh/authorized_keys)"   # your workstation key, seeded by Linode at creation
 ```
 
 Override the username via `DEPLOY_USER` (default: `deploy`).
