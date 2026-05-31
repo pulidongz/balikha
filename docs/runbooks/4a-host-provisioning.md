@@ -487,6 +487,114 @@ timedatectl show-timesync --property=NTPSynchronized
 
 ---
 
+## Step 80 — PostgreSQL 16
+
+Script: `infra/provision/80-postgres.sh`
+
+### Required input
+
+`DB_PASSWORD` **must** be set before running this script (or before running
+`provision.sh`, which passes it through). The script dies immediately if the
+variable is absent or empty — it will never create a role without an explicit
+password.
+
+```bash
+export DB_PASSWORD='<strong-generated-password>'
+```
+
+Store the value in your secrets manager before you start. This is the same
+password that goes into `DATABASE_URL` in 4B.
+
+Override the role/database name via `DB_NAME` and `DB_USER` (both default to
+`balikha`).
+
+### What it does
+
+1. **Installs PostgreSQL 16** from the official PGDG apt repository — only if
+   `psql` is not already on the PATH. The installer uses the maintained
+   `postgresql-common` package plus the
+   `/usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y` script, which
+   provisions both the apt repo and the current signing key. No hardcoded key
+   URL.
+2. **Guards the cluster path:** fails loudly with `die` if
+   `/etc/postgresql/16/main` does not exist after installation — a missing
+   cluster means the install did not complete, and writing config there would
+   mask the error.
+3. **Writes `10-balikha.conf`** into `conf.d/`:
+   - `listen_addresses = 'localhost'` — binds PostgreSQL to loopback only
+     (AC3). Combined with the firewall never opening 5432, this is
+     defence-in-depth.
+   - `max_connections = 20` — ample for a single `next start` instance
+     (postgres.js pools ~10); caps the `work_mem` blast radius on 1 GB.
+   - `shared_buffers = 128MB`, `effective_cache_size = 384MB`,
+     `work_mem = 8MB`, `maintenance_work_mem = 64MB` — tuned to coexist with
+     `next start` on 1 GB RAM.
+   - `wal_compression = on` — reduces write I/O on the Nanode's shared disk.
+4. **Adds `include_dir = 'conf.d'`** to `postgresql.conf` via `ensure_line`
+   (idempotent).
+5. **Writes `pg_hba.conf`** with localhost-only authentication:
+   - `local all postgres peer` — the `postgres` system role uses OS peer auth.
+   - `local all all scram-sha-256` — all other roles on the local socket use
+     scram.
+   - `host all all 127.0.0.1/32 scram-sha-256` — loopback TCP (IPv4).
+   - `host all all ::1/128 scram-sha-256` — loopback TCP (IPv6).
+   - **No non-loopback host line** — connections from any external IP are not
+     authenticated; they simply cannot reach the port.
+6. `systemctl enable postgresql` + `systemctl restart postgresql` — starts
+   the service with the new config.
+7. **Idempotent role + db creation:**
+   - Creates the role only if it does not exist.
+   - **Always** runs `ALTER ROLE ... WITH PASSWORD` — so re-running with a
+     rotated `DB_PASSWORD` converges the secret without error.
+   - Creates the database (owned by the role) only if it does not exist.
+8. Logs the `DATABASE_URL` shape for 4B with `<password>` as a placeholder
+   (the real password is never printed).
+
+### DATABASE_URL for 4B
+
+```
+postgres://balikha:<password>@127.0.0.1:5432/balikha
+```
+
+4B will write this (with the real password substituted) into
+`/etc/balikha/production.env` as `DATABASE_URL`. The `DB_PASSWORD` you set
+here is the value that goes in place of `<password>`.
+
+### Localhost-only guarantee
+
+PostgreSQL is bound to `localhost` by two independent controls:
+
+| Control                        | Where                               |
+| ------------------------------ | ----------------------------------- |
+| `listen_addresses='localhost'` | `conf.d/10-balikha.conf`            |
+| 5432 never opened in firewall  | `30-firewall.sh` (ufw default deny) |
+
+Even if one control regresses, the other still blocks external access (AC3).
+
+### Verification (on-server)
+
+```bash
+# Confirm PostgreSQL is bound to loopback only:
+sudo -u postgres psql -c 'SHOW listen_addresses;'
+# Expected: localhost
+
+ss -ltnp | grep 5432
+# Expected: 127.0.0.1:5432 and/or [::1]:5432 -- never 0.0.0.0
+
+# Confirm role and database exist:
+sudo -u postgres psql -tAc "\du balikha"
+sudo -u postgres psql -tAc "\l balikha"
+
+# From a different host -- must fail/time out (AC3):
+psql "postgres://balikha@<public-ip>:5432/balikha"
+```
+
+Re-running the script is safe: the role already exists (creation is guarded),
+the password is updated to the current `DB_PASSWORD`, the database is not
+recreated, and `ensure_line` does not duplicate the `include_dir` line.
+
+---
+
 ## Verification
 
 <!-- Filled by Task 6.1 -->
