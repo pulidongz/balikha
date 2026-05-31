@@ -597,22 +597,234 @@ recreated, and `ensure_line` does not duplicate the `include_dir` line.
 
 ## Verification
 
-<!-- Filled by Task 6.1 -->
+Run this on the server after `provision.sh` completes:
+
+```bash
+cd /root/provision
+sudo ./99-verify.sh
+```
+
+Every AC check prints either `PASS:` or `FAIL:` with a diagnostic. On
+success the script exits 0 and prints `ALL CHECKS PASSED.`; on any failure
+it exits non-zero so the output is unambiguous in a terminal or CI log.
+
+### What the script checks
+
+| Check                       | AC  | Method                                                           |
+| --------------------------- | --- | ---------------------------------------------------------------- |
+| Password auth off           | AC1 | `sshd -T` output matches `^passwordauthentication no`            |
+| Pubkey auth on              | AC1 | `sshd -T` output matches `^pubkeyauthentication yes`             |
+| ufw status active           | AC2 | `ufw status verbose` matches `Status: active`                    |
+| ufw default deny inbound    | AC2 | `ufw status verbose` matches `deny (incoming)`                   |
+| SSH rule present            | AC2 | `ufw status` matches `(OpenSSH\|22/tcp).*ALLOW`                  |
+| 80/tcp open                 | AC2 | `ufw status` matches anchored `80/tcp.*ALLOW`                    |
+| 443/tcp open                | AC2 | `ufw status` matches anchored `443/tcp.*ALLOW`                   |
+| 5432 **not** open           | AC2 | Negative assert — `ufw status` must NOT match `5432`             |
+| pg `listen_addresses`       | AC3 | `SHOW listen_addresses` returns `localhost`                      |
+| pg loopback bind            | AC3 | `ss -ltn` port 5432 lines are `127.0.0.1`/`[::1]` only           |
+| Swap active                 | AC4 | `swapon --show` lists `/swapfile`                                |
+| deploy in sudo group        | AC5 | `id deploy` shows `sudo`                                         |
+| deploy sudo actually usable | AC5 | `sudo -n -l -U deploy` shows `NOPASSWD`                          |
+| fail2ban sshd jail          | —   | `fail2ban-client status sshd` returns `Status`                   |
+| unattended-upgrades enabled | —   | `systemctl is-enabled unattended-upgrades` returns `enabled`     |
+| apt-daily-upgrade timer on  | —   | `systemctl is-enabled apt-daily-upgrade.timer` returns `enabled` |
+| NTP service active          | —   | `timedatectl` shows `NTP service: active`                        |
+| root key backstop           | —   | `WARN` (not FAIL) if `/root/.ssh/authorized_keys` is empty       |
+
+> **Note on the `check()` helper:** the script captures stdout and rc
+> separately (`out="$(eval "$2" 2>/dev/null)"; rc=$?`). A command that exits
+> non-zero can never false-PASS by printing matching text to stderr. No inner
+> `| grep` is used in command strings so `rc` always reflects the real command,
+> not a downstream grep.
+
+### REQUIRED: external port probe (AC3)
+
+`99-verify.sh` confirms PostgreSQL is bound to loopback from _inside_ the box.
+AC3 is "not reachable from the public internet" — verify it from **your
+workstation**:
+
+```bash
+# Must be refused or time out -- not connect:
+nc -zv <public-ip> 5432
+
+# These must succeed (for comparison):
+nc -zv <public-ip> 22
+nc -zv <public-ip> 80
+nc -zv <public-ip> 443
+```
+
+A refused or timed-out connection on 5432 confirms the firewall + bind
+combination is working. A successful connection is a critical misconfiguration.
+
+### Confirm security updates select the right origin
+
+The `99-verify.sh` timer check confirms scheduling is on. To confirm the
+_Ubuntu security origin_ is actually selected (not just that the timer fires):
+
+```bash
+sudo unattended-upgrade --dry-run --debug 2>&1 | tail -n 20
+# Should list "Ubuntu:24.04/noble-security" as an allowed source.
+# No packages need to be pending -- the origin line is what matters.
+```
+
+### NTP service vs. clock-synchronised
+
+`99-verify.sh` asserts `NTP service: active` — a deterministic state once
+`systemd-timesyncd` is enabled. The `System clock synchronized: yes` flag can
+legitimately read `no` for a few seconds immediately after first boot while
+timesyncd completes its initial poll. If the NTP check fails, confirm the
+service is running:
+
+```bash
+systemctl status systemd-timesyncd
+timedatectl status
+```
 
 ---
 
 ## Resizing up when traction appears
 
-<!-- Filled by Task 6.2 -->
+The box starts as a **Nanode 1 GB ($5/mo)**. Builds run in CI (never on this
+host), so 1 GB + a 2 GB swap file is sufficient for `next start` + PostgreSQL
+at low traffic. The objective trigger to resize is **recurring OOM-killer
+entries** in the journal under normal traffic:
+
+```bash
+journalctl -k | grep -i oom
+```
+
+Sustained swap use under load is a softer signal — check with `swapon --show`
+(the `USED` column).
+
+### Resize procedure
+
+1. **Linode dashboard** → select the Linode → **Resize** tab.
+2. Pick the next plan: **Linode 2 GB ($12/mo)** or **Linode 4 GB ($24/mo)**.
+3. Click **Resize**. The Linode powers off, migrates the disk to the new plan,
+   and reboots — typically a few minutes. The **public IP address and all disk
+   data are preserved**.
+4. SSH back in and confirm the box is healthy:
+
+   ```bash
+   free -h
+   df -h
+   ```
+
+5. Re-run the swap script (the swapfile stays valid; this re-applies sysctl
+   tuning):
+
+   ```bash
+   sudo /root/provision/60-swap.sh
+   ```
+
+6. **Optionally** tune PostgreSQL for the larger RAM. Edit
+   `/etc/postgresql/16/main/conf.d/10-balikha.conf` — proportional values for
+   a 2 GB box:
+
+   ```
+   shared_buffers = 256MB
+   effective_cache_size = 768MB
+   work_mem = 16MB
+   maintenance_work_mem = 128MB
+   ```
+
+   For a 4 GB box, roughly double those again. Then restart PostgreSQL:
+
+   ```bash
+   sudo systemctl restart postgresql
+   ```
+
+7. Re-run `99-verify.sh` to confirm all ACs still pass after the resize.
+
+> **Horizontal scaling** (a second box for staging, or read replicas) uses the
+> same scripts on a new Linode — `provision.sh` is idempotent and
+> host-agnostic. That is a separate decision for when traction justifies the
+> cost.
 
 ---
 
 ## Secrets & handoff to 4B
 
-<!-- Filled by Task 6.2 -->
+### What 4A leaves behind
+
+`10-base.sh` creates `/etc/balikha` owned `root:root`, mode `700`. **No
+secrets are written by any 4A script.** The directory is a reserved mount
+point for the production environment file.
+
+### What 4B writes
+
+In the production deployment step (ticket #19), the deploy pipeline writes:
+
+```
+/etc/balikha/production.env   (owner: app runtime user, mode: 600)
+```
+
+That file contains the server-side variables from `env.ts`:
+
+```bash
+NODE_ENV=production
+DATABASE_URL=postgres://balikha:<pw>@127.0.0.1:5432/balikha
+BETTER_AUTH_SECRET=<secret>
+BETTER_AUTH_URL=https://balikha.art
+NEXT_PUBLIC_APP_URL=https://balikha.art
+S3_ACCESS_KEY_ID=<cloudflare-r2-key>
+S3_SECRET_ACCESS_KEY=<cloudflare-r2-secret>
+S3_BUCKET_NAME=<bucket>
+S3_ENDPOINT_URL=<r2-endpoint>
+EMAIL_FROM=<address>
+EMAIL_REPLY_TO=<address>
+# Optional -- include if Resend and Google OAuth are configured:
+# RESEND_API_KEY=<key>
+# GOOGLE_CLIENT_ID=<id>
+# GOOGLE_CLIENT_SECRET=<secret>
+```
+
+`<pw>` is the `DB_PASSWORD` value set during `80-postgres.sh`. It is the
+password for the `balikha` PostgreSQL role — retrieve it from your secrets
+manager (you saved it at provisioning time).
+
+### SSH access note
+
+`20-ssh.sh` sets `AllowUsers deploy root`. The app's runtime user (set up in
+4B) does **not** need an SSH login — it is a system account that only runs
+`next start` via a systemd unit. No SSH entry for it is required or desired.
 
 ---
 
 ## Rollback
 
-<!-- Filled by Task 6.2 -->
+### Reverting individual hardening steps
+
+| Step                | Reversal command                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| SSH hardening       | `rm /etc/ssh/sshd_config.d/10-balikha-hardening.conf && systemctl reload ssh`                   |
+| ufw                 | `ufw disable`                                                                                   |
+| fail2ban            | `systemctl disable --now fail2ban`                                                              |
+| Swap                | `swapoff /swapfile && sed -i '/swapfile/d' /etc/fstab && rm /swapfile`                          |
+| Unattended upgrades | `systemctl disable unattended-upgrades` and remove the two conf files in `/etc/apt/apt.conf.d/` |
+| PostgreSQL          | `systemctl disable --now postgresql`                                                            |
+
+> **If you remove the SSH hardening drop-in while locked out of SSH**, you must
+> use the **Linode LISH console** (Linode dashboard → your Linode → **LISH
+> Console**). LISH is always available regardless of SSH or firewall state.
+
+### Full rollback — rebuild the Linode
+
+Pre-launch, the host holds **no irreplaceable application data** (no user
+uploads — those go to Cloudflare R2; no production database yet — that comes
+in 4B). The cheapest and most reliable full rollback is:
+
+1. **Delete the Linode** from the dashboard.
+2. **Create a new Linode** following section 0 of this runbook.
+3. **Re-run `provision.sh`** with the same `DEPLOY_PUBKEY` and `DB_PASSWORD`.
+4. **Verify** with `99-verify.sh`.
+
+This is faster than manually unwinding all hardening steps and guarantees a
+clean starting state. Once 4B is complete and real user data exists, this
+option is off the table — at that point, individual step reversals are the
+only path.
+
+### Roadmap note
+
+On completion of all 4A tasks, mark item **4A** in `docs/plans/balikha-roadmap.md`
+as `[x]` and update its Status to "done".
