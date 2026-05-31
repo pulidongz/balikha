@@ -178,6 +178,72 @@ placed here by 4A. In 4B, the deployment step will write
 
 ---
 
+## Step 20 — SSH hardening
+
+Script: `infra/provision/20-ssh.sh`
+
+> **🚨 LOCKOUT REMINDER — do not run this script until you have confirmed
+> key-based login in a separate session.**
+>
+> **Before running `20-ssh.sh` (or allowing `provision.sh` to proceed past the
+> SSH-lockout gate), open a new terminal and run `ssh deploy@<public-ip>`.
+> Confirm you have a working shell as `deploy`. Only then continue.** If you
+> disable password authentication before your key is working, you will be locked
+> out of SSH. Recovery is via the **Linode LISH console** (Linode dashboard →
+> your Linode → **LISH Console**) — it is always available regardless of SSH
+> state.
+
+### What it does
+
+1. Writes `/etc/ssh/sshd_config.d/10-balikha-hardening.conf` — a drop-in that
+   overrides the stock `sshd_config` with hardened settings:
+   - `PasswordAuthentication no` — key-only login; password auth disabled.
+   - `KbdInteractiveAuthentication no` — disables keyboard-interactive
+     (PAM-based) password prompts as a belt-and-suspenders guard.
+   - `PubkeyAuthentication yes` — explicit; never rely on a default.
+   - `PermitRootLogin prohibit-password` — root SSH via key retained as an
+     emergency backstop; password root login off.
+   - `PermitEmptyPasswords no` — no empty-password accounts allowed.
+   - `AllowUsers ${DEPLOY_USER} root` — only the deploy user and root may log
+     in via SSH; all other system accounts are blocked at the sshd level.
+   - `X11Forwarding no` — no X forwarding on a headless server.
+   - `MaxAuthTries 3` — limits brute-force attempts per connection.
+   - `LoginGraceTime 30` — unauthenticated connections time out after 30 s.
+2. Sets the drop-in to `644`.
+3. Runs `sshd -t` to validate the full effective config. If validation fails,
+   the script **dies without reloading** — the existing sshd keeps running with
+   its current (safe) config.
+4. Reloads sshd: `systemctl reload ssh` (Ubuntu 24.04 socket-based service),
+   falling back to `systemctl reload sshd`. Existing sessions are not
+   interrupted; new connections immediately use the hardened config.
+5. Emits a `warn` reminding you to confirm a new key-based session works before
+   closing the current one, and that LISH is the recovery path.
+
+The drop-in approach means re-running the script is idempotent — it rewrites
+the same file with the same content and reloads; no duplication possible.
+
+### Verification
+
+After `20-ssh.sh` completes (or after `provision.sh` passes this step):
+
+```bash
+# Confirm the effective sshd config has password auth off:
+sudo sshd -T | grep -Ei '^(passwordauthentication|permitrootlogin|pubkeyauthentication)'
+# Expected output (order may vary):
+#   passwordauthentication no
+#   pubkeyauthentication yes
+#   permitrootlogin prohibit-password
+
+# Confirm a key-based login still works (from your workstation):
+ssh deploy@<public-ip>
+
+# Confirm a password-based login is rejected:
+ssh -o PreferredAuthentications=password deploy@<public-ip>
+# Expected: "Permission denied (publickey)." -- NOT a password prompt.
+```
+
+---
+
 ## Verification
 
 <!-- Filled by Task 6.1 -->
