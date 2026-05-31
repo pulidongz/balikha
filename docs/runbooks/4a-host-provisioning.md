@@ -244,6 +244,111 @@ ssh -o PreferredAuthentications=password deploy@<public-ip>
 
 ---
 
+## Step 30 — ufw firewall (AC2)
+
+Script: `infra/provision/30-firewall.sh`
+
+### What it does
+
+1. Sets the ufw default policy: **deny all inbound, allow all outbound**.
+2. Allows **`OpenSSH`** (port 22) — **before** enabling the firewall, so the
+   running session cannot be dropped by the enable command.
+3. Allows **`80/tcp`** (HTTP) and **`443/tcp`** (HTTPS).
+4. Runs `ufw --force enable` — the `--force` flag skips the interactive
+   confirmation prompt (safe because SSH is already allowed).
+5. Prints `ufw status verbose` so the applied rules are visible in the
+   provisioning log.
+
+> **Port 5432 is intentionally NOT opened.** PostgreSQL is bound to
+> `localhost` only (`listen_addresses = 'localhost'` in `80-postgres.sh`).
+> Not opening 5432 in the firewall is a second layer of defense — even if the
+> Postgres bind ever regressed to `0.0.0.0`, the firewall would still block
+> external connections. **AC3** is therefore defense-in-depth, not a single
+> control.
+
+### Verification (on-server)
+
+```bash
+sudo ufw status verbose
+# Expected:
+#   Status: active
+#   Default: deny (incoming), allow (outgoing), ...
+#   OpenSSH    ALLOW IN   Anywhere
+#   80/tcp     ALLOW IN   Anywhere
+#   443/tcp    ALLOW IN   Anywhere
+# 5432 must NOT appear.
+```
+
+Re-running the script is a no-op: `ufw allow` silently skips rules that
+already exist; `ufw --force enable` on an already-enabled firewall is safe.
+
+---
+
+## Step 40 — fail2ban sshd jail
+
+Script: `infra/provision/40-fail2ban.sh`
+
+### What it does
+
+1. Writes `/etc/fail2ban/jail.local` with a `[DEFAULT]` stanza
+   (`bantime = 1h`, `findtime = 10m`, `maxretry = 5`, `backend = systemd`)
+   and an `[sshd]` stanza (`enabled = true`). Writing to `jail.local` (not
+   editing `jail.conf`) means package upgrades never clobber the
+   configuration.
+2. `systemctl enable fail2ban` — ensures the jail restarts on reboot.
+3. `systemctl restart fail2ban` — picks up the new `jail.local` immediately.
+4. `fail2ban-client status sshd` — confirms the jail is loaded; emits a
+   `warn` (not a `die`) if it is not yet reporting (the service may take a
+   few seconds to start the first time).
+
+### Verification (on-server)
+
+```bash
+sudo fail2ban-client status sshd
+# Expected output includes:
+#   Jail:                   sshd
+#   Currently failed:       0
+#   Total failed:           0
+#   Currently banned:       0
+#   Total banned:           0
+```
+
+### Active ban test (load-testing the jail, not just its presence)
+
+A loaded jail is not the same as a banning jail. Verify fail2ban actually
+bans after repeated failures:
+
+1. **From a second host** (not your current SSH session — you cannot lock
+   yourself out of a session already open):
+
+   ```bash
+   # Attempt SSH with a bad key 6 times (maxretry = 5).
+   for i in $(seq 1 6); do
+     ssh -o PreferredAuthentications=publickey \
+         -o IdentityFile=/dev/null \
+         deploy@<public-ip> true 2>/dev/null || true
+   done
+   ```
+
+2. **Back on the server**, check that the ban was applied:
+
+   ```bash
+   sudo fail2ban-client status sshd
+   # "Total banned" and/or "Currently banned" should now be non-zero.
+   ```
+
+3. To unban a test IP manually:
+
+   ```bash
+   sudo fail2ban-client set sshd unbanip <ip-of-second-host>
+   ```
+
+Re-running `40-fail2ban.sh` is idempotent: `jail.local` is rewritten
+identically; `systemctl enable` is a no-op if already enabled; `restart`
+picks up the unchanged config cleanly.
+
+---
+
 ## Verification
 
 <!-- Filled by Task 6.1 -->
