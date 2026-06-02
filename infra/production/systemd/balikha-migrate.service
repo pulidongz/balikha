@@ -1,0 +1,14 @@
+[Unit]
+Description=Balikha database migrations (drizzle-kit migrate)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=balikha-app
+Group=balikha-app
+WorkingDirectory=/opt/balikha/current
+EnvironmentFile=/etc/balikha/production.env
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/balikha
+ExecStart=/usr/bin/npm run db:migrate

@@ -1,0 +1,14 @@
+[Unit]
+Description=Balikha order lifecycle sweep (auto-cancel / auto-complete)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=balikha-app
+Group=balikha-app
+WorkingDirectory=/opt/balikha/current
+EnvironmentFile=/etc/balikha/production.env
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/balikha
+ExecStart=/opt/balikha/current/node_modules/.bin/tsx db/scripts/orders-tick.ts

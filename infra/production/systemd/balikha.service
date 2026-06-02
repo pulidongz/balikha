@@ -1,0 +1,30 @@
+[Unit]
+Description=Balikha Next.js production server
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=balikha-app
+Group=balikha-app
+WorkingDirectory=/opt/balikha/current
+EnvironmentFile=/etc/balikha/production.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Bind to loopback only (Issue 3): Caddy proxies 127.0.0.1:3000, so the app
+# must NOT listen on 0.0.0.0. This makes the firewall not the sole control
+# on port 3000 — even if someone runs `ufw allow 3000`, the app stays
+# unreachable raw (no TLS bypass of Caddy).
+Environment=HOSTNAME=127.0.0.1
+# npm/tsx/drizzle-kit write cache/logs to $HOME (Issue 4) — the app user has
+# a real home at /var/lib/balikha (Task 0.7).
+Environment=HOME=/var/lib/balikha
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
