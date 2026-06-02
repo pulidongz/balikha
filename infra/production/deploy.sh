@@ -59,7 +59,10 @@ sudo systemctl restart balikha.service
 sudo systemctl enable --now balikha-orders-tick.timer
 # HARD health gate on the app PROCESS over loopback (Issue 13) — independent
 # of DNS/TLS so a fresh-box ACME delay can't false-fail the deploy.
-curl -fsS --retry 10 --retry-delay 2 http://127.0.0.1:3000/api/health \
+# --retry-connrefused is REQUIRED: plain --retry does NOT retry connection-
+# refused, so without it the gate aborts on the ~0.5s window before next start
+# is listening, even though the app comes up fine moments later.
+curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/api/health \
   || { echo "FATAL: app not healthy on 127.0.0.1:3000"; exit 1; }
 # Prune old releases, keeping the newest \$RELEASES_TO_KEEP (Issue 9).
 ls -1dt "$APP_DIR"/releases/*/ 2>/dev/null | tail -n +\$(( $RELEASES_TO_KEEP + 1 )) \
@@ -67,7 +70,7 @@ ls -1dt "$APP_DIR"/releases/*/ 2>/dev/null | tail -n +\$(( $RELEASES_TO_KEEP + 1
 REMOTE
 
 echo "→ public URL check (soft — Let's Encrypt issuance may lag on a first deploy)"
-if curl -fsS --retry 8 --retry-delay 5 https://balikha.art/api/health; then
+if curl -fsS --retry 8 --retry-delay 5 --retry-connrefused https://balikha.art/api/health; then
   echo; echo "✓ public endpoint healthy"
 else
   echo "⚠️  public URL not healthy yet — app is up on the box (loopback gate"
