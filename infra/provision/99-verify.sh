@@ -55,4 +55,33 @@ check "ntp service active"      "timedatectl"                                 "N
 [ -s /root/.ssh/authorized_keys ] && log "INFO: root key backstop present." \
   || warn "INFO: no /root/.ssh/authorized_keys -- root recovery is LISH-console only."
 
+# ---------------------------------------------------------------------------
+# 4B (Task 0.7) — app-runtime checks: Node >= 22.14.0, Caddy, balikha-app
+# user, and enabled systemd units.
+# ---------------------------------------------------------------------------
+# Node version: `node -v` prints "v22.14.0"; strip the 'v' and compare.
+# The check() helper only does regex match; version comparison is done inline
+# so we can die on mismatch with a useful message rather than a bare FAIL.
+if command -v node >/dev/null 2>&1; then
+  NODE_VER="$(node -v | sed 's/^v//')"
+  NODE_MAJOR="$(printf '%s' "$NODE_VER" | cut -d. -f1)"
+  NODE_MINOR="$(printf '%s' "$NODE_VER" | cut -d. -f2)"
+  NODE_PATCH="$(printf '%s' "$NODE_VER" | cut -d. -f3)"
+  if { [ "${NODE_MAJOR:-0}" -gt 22 ]; } || \
+     { [ "${NODE_MAJOR:-0}" -eq 22 ] && [ "${NODE_MINOR:-0}" -gt 14 ]; } || \
+     { [ "${NODE_MAJOR:-0}" -eq 22 ] && [ "${NODE_MINOR:-0}" -eq 14 ] && [ "${NODE_PATCH:-0}" -ge 0 ]; }; then
+    log "PASS: Node.js ${NODE_VER} >= 22.14.0"
+  else
+    warn "FAIL: Node.js ${NODE_VER} is < 22.14.0 (required by package.json engines)"; fail=1
+  fi
+else
+  warn "FAIL: node not found in PATH"; fail=1
+fi
+
+check "4B caddy active"                "systemctl is-active caddy"                     "^active$"
+check "4B caddy enabled"               "systemctl is-enabled caddy"                    "enabled"
+check "4B balikha-app user exists"     "id balikha-app"                                "balikha-app"
+check "4B balikha.service enabled"     "systemctl is-enabled balikha.service"          "enabled"
+check "4B tick timer enabled"          "systemctl is-enabled balikha-orders-tick.timer" "enabled"
+
 [ "$fail" -eq 0 ] && log "ALL CHECKS PASSED." || die "One or more checks FAILED (see above)."
