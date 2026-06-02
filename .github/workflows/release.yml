@@ -45,11 +45,14 @@ jobs:
           EMAIL_REPLY_TO: 'support@balikha.art'
       - name: Package deploy artifact
         run: |
+          # Write the tarball to RUNNER_TEMP — OUTSIDE the tree being archived.
+          # Writing it into '.' makes tar see '.' change as the archive grows
+          # ("tar: .: file changed as we read it" → exit 1).
           tar --exclude='./.git' --exclude='./node_modules' \
               --exclude='./.env*' --exclude='./.next/cache' \
-              -czf "balikha-deploy-${GITHUB_SHA}.tar.gz" .
+              -czf "${RUNNER_TEMP}/balikha-deploy-${GITHUB_SHA}.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:
           name: balikha-deploy-${{ github.sha }}
-          path: balikha-deploy-${{ github.sha }}.tar.gz
+          path: ${{ runner.temp }}/balikha-deploy-${{ github.sha }}.tar.gz
           retention-days: 14
