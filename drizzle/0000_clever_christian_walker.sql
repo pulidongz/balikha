@@ -1,3 +1,10 @@
+CREATE OR REPLACE FUNCTION immutable_array_to_string(text[], text)
+  RETURNS text
+  LANGUAGE sql
+  IMMUTABLE
+  STRICT
+  PARALLEL SAFE
+  AS $$ SELECT array_to_string($1, $2) $$;--> statement-breakpoint
 CREATE TYPE "public"."cancellation_reason" AS ENUM('seller_no_response', 'buyer_changed_mind', 'seller_unable_to_fulfill', 'item_unavailable', 'payment_disagreement', 'shipping_disagreement', 'other');--> statement-breakpoint
 CREATE TYPE "public"."catalog_status" AS ENUM('draft', 'published', 'archived');--> statement-breakpoint
 CREATE TYPE "public"."dispute_status" AS ENUM('open', 'under_review', 'resolved_for_buyer', 'resolved_for_seller', 'resolved_neutral');--> statement-breakpoint

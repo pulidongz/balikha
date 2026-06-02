@@ -132,7 +132,9 @@ export const products = pgTable(
     // — Postgres marks the built-in as STABLE (locale-dependent for some
     // element types) and rejects STABLE functions in generated column
     // expressions. For text[] the result is deterministic, so we wrap in
-    // an IMMUTABLE function. Defined in drizzle/0004_sharp_nick_fury.sql.
+    // an IMMUTABLE function. Created at the top of the initial migration
+    // drizzle/0000_clever_christian_walker.sql (a drizzle re-baseline dropped
+    // the original 0004_sharp_nick_fury.sql definition, breaking fresh migrates).
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(immutable_array_to_string(materials, ' '), '')), 'B') || setweight(to_tsvector('english', coalesce(description, '')), 'C')`,
     ),
