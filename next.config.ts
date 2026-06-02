@@ -13,11 +13,14 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['dev.balikha.art', 'balikha.localhost'],
   images: {
     remotePatterns: [
-      // Seeded placeholder images. Drop when seeded products migrate to
-      // local/MinIO files.
-      { protocol: 'https', hostname: 'placehold.co' },
-      // MinIO in dev — anything on localhost.
-      { protocol: 'http', hostname: 'localhost' },
+      // Dev-only: placeholder images and local MinIO. Gated out of prod so
+      // the optimizer's SSRF allowlist is minimal in production.
+      ...(process.env.NODE_ENV !== 'production'
+        ? [
+            { protocol: 'https' as const, hostname: 'placehold.co' },
+            { protocol: 'http' as const, hostname: 'localhost' },
+          ]
+        : []),
       // R2 in production — wildcard subdomain pattern.
       { protocol: 'https', hostname: '*.r2.dev' },
       // Production R2 images served via the Cloudflare custom domain.
