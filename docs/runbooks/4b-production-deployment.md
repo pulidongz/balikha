@@ -253,10 +253,14 @@ echo "=== Env file: no dev MinIO (localhost:9000) endpoint ==="
 sudo grep -Ei 'localhost:9000|127\.0\.0\.1:9000' /etc/balikha/production.env \
   && echo "FAIL: dev S3 endpoint detected" \
   || echo "PASS: no dev S3 endpoint"
+echo "=== Env file: no dev credential strings (balikha_dev) ==="
+sudo grep -Ei 'balikha_dev' /etc/balikha/production.env \
+  && echo "FAIL: dev credential string detected" \
+  || echo "PASS: no dev credentials"
 EOF
 ```
 
-Expected output: both checks print `PASS:`.
+Expected output: every check prints `PASS:`.
 
 ---
 
