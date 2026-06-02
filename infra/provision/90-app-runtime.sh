@@ -126,11 +126,7 @@ if [ -n "$UNITS_SRC" ]; then
   systemctl enable balikha.service balikha-orders-tick.timer
   log "Units installed and enabled (not started — no release on disk yet)."
 else
-  warn "Could not find infra/production/systemd/ relative to this script."
-  warn "If the units are already installed, this step is a no-op."
-  warn "To install manually: copy infra/production/systemd/*.{service,timer}"
-  warn "  to /etc/systemd/system/ and run: systemctl daemon-reload &&"
-  warn "  systemctl enable balikha.service balikha-orders-tick.timer"
+  die "infra/production/systemd/ not found at ${CANDIDATE} — ship the full infra/ tree (both provision/ and production/ as siblings). See the runbook Step 1."
 fi
 
 # ---------------------------------------------------------------------------
@@ -162,9 +158,7 @@ if [ -n "$CADDYFILE_SRC" ]; then
   warn "  2. Ports 80 and 443 are open (4A's 30-firewall.sh opens them)."
   warn "  3. The record is grey-cloud (DNS-only) — not proxied through Cloudflare."
 else
-  warn "Could not find infra/production/Caddyfile relative to this script."
-  warn "To install manually: copy infra/production/Caddyfile to /etc/caddy/Caddyfile,"
-  warn "  run caddy validate, then systemctl reload caddy (or enable --now caddy)."
+  die "infra/production/Caddyfile not found at ${CADDY_CANDIDATE} — ship the full infra/ tree (both provision/ and production/ as siblings). See the runbook Step 1."
 fi
 
 # ---------------------------------------------------------------------------

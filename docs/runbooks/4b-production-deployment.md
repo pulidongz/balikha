@@ -44,19 +44,24 @@ Before starting, confirm:
 
 ## Step 1 — Provision the app runtime
 
-Copy the provisioning scripts to the box (or reuse the copy from 4A if it is
-still present at `/root/provision`):
+Ship the full `infra/` tree to the box so the script can resolve
+`../production/` for the systemd units and Caddyfile:
 
 ```bash
-scp -r infra/provision root@<public-ip>:/root/provision
+scp -r infra root@<public-ip>:/root/balikha-infra
 ```
 
 SSH in as root and run the app-runtime step:
 
 ```bash
 ssh root@<public-ip>
-sudo /root/provision/90-app-runtime.sh
+sudo /root/balikha-infra/provision/90-app-runtime.sh
 ```
+
+The script resolves the systemd units at `/root/balikha-infra/production/systemd/`
+and the Caddyfile at `/root/balikha-infra/production/Caddyfile` via the relative
+`../production/` path — both of which exist when the full `infra/` tree is present.
+The script will die loudly if either path is missing.
 
 This script (idempotent — safe to re-run):
 
@@ -73,7 +78,7 @@ This script (idempotent — safe to re-run):
 Run the full verify script to confirm 4A **and** 4B provisioning:
 
 ```bash
-sudo /root/provision/99-verify.sh
+sudo /root/balikha-infra/provision/99-verify.sh
 ```
 
 Expected output: every check prints `PASS:` and the script exits with
