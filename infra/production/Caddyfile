@@ -5,6 +5,14 @@
 
 balikha.art {
 	encode zstd gzip
+	# Baseline security headers. The apex stays grey-cloud (DNS-only) until 4E,
+	# so Caddy is the sole TLS layer — these must be set at the origin.
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 	reverse_proxy 127.0.0.1:3000 {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
