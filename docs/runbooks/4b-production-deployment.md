@@ -240,9 +240,14 @@ echo "=== Caddy config (no 'tls internal', no 'localhost') ==="
 grep -Ei 'tls internal|localhost|minio|balikha_dev' /etc/caddy/Caddyfile \
   && echo "FAIL: dev config found" || echo "PASS: no dev config"
 
-echo "=== Env file (no localhost DB, no MinIO) ==="
-sudo grep -Ei 'localhost.*minio|minio\.localhost|balikha_dev' /etc/balikha/production.env \
-  && echo "FAIL: dev values found" || echo "PASS: no dev values"
+echo "=== Env file: prod S3 endpoint present ==="
+sudo grep -q 'r2.cloudflarestorage.com' /etc/balikha/production.env \
+  && echo "PASS: prod S3 endpoint found" \
+  || echo "FAIL: prod S3 endpoint not set"
+echo "=== Env file: no dev MinIO (localhost:9000) endpoint ==="
+sudo grep -Ei 'localhost:9000|127\.0\.0\.1:9000' /etc/balikha/production.env \
+  && echo "FAIL: dev S3 endpoint detected" \
+  || echo "PASS: no dev S3 endpoint"
 EOF
 ```
 
