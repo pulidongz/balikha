@@ -9,4 +9,9 @@ Run order (orchestrated by `provision.sh`):
 `30-firewall` → `40-fail2ban` → `50-autoupdates` → `60-swap` →
 `70-timesync` → `80-postgres`. Verify with `99-verify.sh`.
 
+`90-app-runtime.sh` is a **4B** step (app runtime: Node, Caddy, systemd units)
+and is deliberately excluded from the orchestrated 4A run. Run it standalone
+from the full `infra/` tree per
+[`docs/runbooks/4b-production-deployment.md`](../../docs/runbooks/4b-production-deployment.md).
+
 Every script is safe to re-run.
