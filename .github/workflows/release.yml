@@ -1,0 +1,55 @@
+name: Release build
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Production build + package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - name: Assert no committed .env would leak into the build
+        run: |
+          # `npm run build` is the bin/build wrapper around `next build`
+          # (package.json:11). bin/build loads the first of
+          # .env / .env.local / .env.development into process.env WITHOUT
+          # clobbering already-set vars — so the env: block below wins in a
+          # fresh CI checkout (none of those files exist). Fail loudly if one
+          # ever gets committed, so it can't silently bake the wrong values.
+          for f in .env .env.local .env.development; do
+            if [ -e "$f" ]; then echo "FATAL: $f present in checkout"; exit 1; fi
+          done
+      - name: Build (production) # npm run build == node bin/build → next build
+        run: npm run build
+        env:
+          # Only NEXT_PUBLIC_* is inlined into the client bundle — it MUST
+          # be the real prod URL. Server vars below are validated by env.ts
+          # at build time but never connected to; real values live in
+          # /etc/balikha/production.env on the box.
+          NEXT_PUBLIC_APP_URL: 'https://balikha.art'
+          BETTER_AUTH_URL: 'https://balikha.art'
+          DATABASE_URL: 'postgres://ci:ci@localhost:5432/ci'
+          BETTER_AUTH_SECRET: 'release-build-dummy-secret-32-chars-minimum'
+          S3_ENDPOINT: 'https://example.r2.cloudflarestorage.com'
+          S3_REGION: 'auto'
+          S3_ACCESS_KEY_ID: 'dummy'
+          S3_SECRET_ACCESS_KEY: 'dummy'
+          S3_BUCKET: 'balikha-prod'
+          S3_PUBLIC_URL_BASE: 'https://images.balikha.art'
+          EMAIL_FROM: 'hello@balikha.art'
+          EMAIL_REPLY_TO: 'support@balikha.art'
+      - name: Package deploy artifact
+        run: |
+          tar --exclude='./.git' --exclude='./node_modules' \
+              --exclude='./.env*' --exclude='./.next/cache' \
+              -czf "balikha-deploy-${GITHUB_SHA}.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: balikha-deploy-${{ github.sha }}
+          path: balikha-deploy-${{ github.sha }}.tar.gz
+          retention-days: 14

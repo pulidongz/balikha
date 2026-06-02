@@ -13,26 +13,30 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['dev.balikha.art', 'balikha.localhost'],
   images: {
     remotePatterns: [
-      // Seeded placeholder images. Drop when seeded products migrate to
-      // local/MinIO files.
-      { protocol: 'https', hostname: 'placehold.co' },
-      // MinIO in dev — anything on localhost.
-      { protocol: 'http', hostname: 'localhost' },
-      // R2 in production — wildcard subdomain pattern. Add a custom domain
-      // entry here once one is configured (e.g. images.balikha.com).
-      { protocol: 'https', hostname: '*.r2.dev' },
+      // Dev-only: placeholder images, local MinIO, and the rate-limited
+      // *.r2.dev URL. All gated out of prod so the optimizer's SSRF allowlist
+      // is minimal in production (prod serves only from the custom domain).
+      ...(process.env.NODE_ENV !== 'production'
+        ? [
+            { protocol: 'https' as const, hostname: 'placehold.co' },
+            { protocol: 'http' as const, hostname: 'localhost' },
+            { protocol: 'https' as const, hostname: '*.r2.dev' },
+          ]
+        : []),
+      // Production R2 images served via the Cloudflare custom domain.
+      { protocol: 'https', hostname: 'images.balikha.art' },
     ],
-    // Disable Next's image optimizer in dev. Two reasons:
-    // 1. Next 16 refuses to fetch images whose hostname resolves to a
-    //    private IP (SSRF defense). MinIO at localhost trips this — there's
-    //    no documented opt-out. With unoptimized:true the browser fetches
-    //    MinIO directly, skipping Next's image proxy entirely.
-    // 2. placehold.co serves SVG by default, which Next blocks unless
-    //    dangerouslyAllowSVG is true.
-    // For production we want the optimizer back on (R2 lives on a public
-    // IP and serves real raster images). Re-enable by removing this flag
-    // when wiring the prod build.
-    unoptimized: true,
+    // Optimizer OFF in dev (MinIO resolves to a private IP that Next's
+    // optimizer SSRF-blocks; placehold.co serves SVG). ON in prod, where
+    // R2 serves public raster images. NODE_ENV is set by the Next CLI —
+    // reading it here is the same outside-Next carve-out as drizzle.config.
+    unoptimized: process.env.NODE_ENV !== 'production',
+    // Conservative settings so a single image doesn't fan out into many
+    // sharp encodes on the 1 GB origin; optimized variants are disk-cached.
+    formats: ['image/webp'],
+    minimumCacheTTL: 86400,
+    deviceSizes: [640, 828, 1080, 1200, 1920],
+    imageSizes: [128, 256, 384],
   },
 };
 

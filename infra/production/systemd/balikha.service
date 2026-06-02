@@ -1,0 +1,28 @@
+[Unit]
+Description=Balikha Next.js production server
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=balikha-app
+Group=balikha-app
+WorkingDirectory=/opt/balikha/current
+EnvironmentFile=/etc/balikha/production.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# npm/tsx/drizzle-kit write cache/logs to $HOME (Issue 4) — the app user has
+# a real home at /var/lib/balikha (Task 0.7).
+Environment=HOME=/var/lib/balikha
+# Bind to loopback only: the -H 127.0.0.1 flag in ExecStart is what enforces
+# this. Caddy proxies 127.0.0.1:3000; raw port 3000 is never reachable
+# externally (4A's ufw does not open it).
+ExecStart=/usr/bin/npm start -- -H 127.0.0.1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
