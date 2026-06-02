@@ -1,3 +1,4 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
 CREATE OR REPLACE FUNCTION immutable_array_to_string(text[], text)
   RETURNS text
   LANGUAGE sql
