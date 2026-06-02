@@ -1,0 +1,26 @@
+{
+	# ACME account email for Let's Encrypt.
+	email admin@balikha.art
+}
+
+balikha.art {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		# Mint a request id at the edge so Caddy + app logs correlate
+		# (proxy.ts reuses x-request-id, else mints its own).
+		header_up X-Request-Id {http.request.uuid}
+	}
+}
+
+# Optional apex canonicalisation — INCLUDE THIS BLOCK ONLY IF the operator
+# created a grey-cloud `www.balikha.art` A record. Caddy obtains a SEPARATE
+# Let's Encrypt cert for `www`, so if the DNS record is absent Caddy will
+# retry ACME and log errors that look like a failure. The runbook (Task
+# 0.10) marks the www record as a prerequisite for keeping this block.
+www.balikha.art {
+	redir https://balikha.art{uri} permanent
+}
