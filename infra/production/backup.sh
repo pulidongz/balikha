@@ -36,7 +36,10 @@ trap 'rm -f "$TMP"' EXIT
 echo "→ dumping balikha (${MODE}) → ${TMP}"
 sudo -u postgres pg_dump -Fc balikha > "$TMP"
 echo "→ validating dump (pg_restore --list)"
-sudo -u postgres pg_restore --list "$TMP" >/dev/null \
+# Run as ROOT, not postgres: `pg_restore --list` only reads the dump's TOC (no
+# DB connection), and $TMP is root-owned 0600 from mktemp — the postgres user
+# can't read it, so `sudo -u postgres pg_restore --list` fails Permission denied.
+pg_restore --list "$TMP" >/dev/null \
   || { echo "FATAL: dump failed validation — not uploading"; exit 1; }
 echo "→ uploading ${PREFIX}/${DUMP}"
 aws_s3 cp "$TMP" "s3://${BACKUP_S3_BUCKET}/${PREFIX}/${DUMP}"

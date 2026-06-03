@@ -23,6 +23,9 @@ TMP="$(mktemp /tmp/balikha-restore.XXXXXX.dump)"
 trap 'rm -f "$TMP"' EXIT
 echo "→ downloading s3://${BACKUP_S3_BUCKET}/${KEY}"
 aws s3 cp "s3://${BACKUP_S3_BUCKET}/${KEY}" "$TMP" --endpoint-url "$BACKUP_S3_ENDPOINT"
+# pg_restore below runs as the postgres user (it connects to the DB), but $TMP
+# is root-owned 0600 from mktemp. Hand it to postgres so it can read the dump.
+chown postgres: "$TMP"
 
 echo "→ (re)creating scratch DB ${TARGET_DB}"
 sudo -u postgres dropdb --if-exists "$TARGET_DB"
