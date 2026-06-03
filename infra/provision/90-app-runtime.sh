@@ -105,6 +105,25 @@ log "Ensuring /opt/balikha/releases (owned balikha-app:balikha-app)."
 install -d -o balikha-app -g balikha-app -m 755 /opt/balikha/releases
 
 # ---------------------------------------------------------------------------
+# 4a. Install backup tooling: postgresql-client-16 + awscli (4D)
+# ---------------------------------------------------------------------------
+# pg_dump is only transitively present; awscli is not installed by any earlier
+# script. Both are required by backup.sh (run as root by balikha-backup.service).
+if ! command -v pg_dump >/dev/null 2>&1; then
+  log "Installing postgresql-client-16 (provides pg_dump/pg_restore)."
+  apt-get install -y postgresql-client-16
+else
+  log "pg_dump already present — skipping postgresql-client-16 install."
+fi
+
+if ! command -v aws >/dev/null 2>&1; then
+  log "Installing awscli."
+  apt-get install -y awscli
+else
+  log "aws already present — skipping awscli install."
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Install systemd units
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -123,7 +142,7 @@ if [ -n "$UNITS_SRC" ]; then
   log "Installing systemd units from ${UNITS_SRC}."
   cp "${UNITS_SRC}/"*.service "${UNITS_SRC}/"*.timer /etc/systemd/system/
   systemctl daemon-reload
-  systemctl enable balikha.service balikha-orders-tick.timer
+  systemctl enable balikha.service balikha-orders-tick.timer balikha-backup.timer
   log "Units installed and enabled (not started — no release on disk yet)."
 else
   die "infra/production/systemd/ not found at ${CANDIDATE} — ship the full infra/ tree (both provision/ and production/ as siblings). See the runbook Step 1."
@@ -170,4 +189,6 @@ else
   die "/etc/balikha does not exist — has 4A (10-base.sh) been run?"
 fi
 
+warn "ACTION REQUIRED (4D): write /etc/balikha/backup.env before the first backup runs."
+warn "  Copy .env.backup.example, fill in the R2 token, then: chmod 600 /etc/balikha/backup.env && chown root:root /etc/balikha/backup.env"
 log "90-app-runtime.sh complete."

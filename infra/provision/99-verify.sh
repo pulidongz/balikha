@@ -84,4 +84,20 @@ check "4B balikha-app user exists"     "id balikha-app"                         
 check "4B balikha.service enabled"     "systemctl is-enabled balikha.service"          "enabled"
 check "4B tick timer enabled"          "systemctl is-enabled balikha-orders-tick.timer" "enabled"
 
+# ---------------------------------------------------------------------------
+# 4D — backup tooling-presence checks (NOT "backups working" — backups cannot
+# run until the operator writes /etc/balikha/backup.env; review Issue 8).
+# ---------------------------------------------------------------------------
+# pg_dump present AND version is 16.x (catches client/server skew; Issue 7).
+if command -v pg_dump >/dev/null 2>&1; then
+  check "4D pg_dump version 16.x" "pg_dump --version" "^pg_dump \(PostgreSQL\) 16\."
+else
+  warn "FAIL: 4D pg_dump not found in PATH (install postgresql-client-16)"; fail=1
+fi
+check "4D aws present"                 "aws --version"                                 "aws-cli"
+check "4D backup timer enabled"        "systemctl is-enabled balikha-backup.timer"     "enabled"
+# INFO warn: backups won't fire until the operator writes backup.env (Issue 8).
+[ -s /etc/balikha/backup.env ] && log "INFO: /etc/balikha/backup.env present." \
+  || warn "INFO: /etc/balikha/backup.env not yet written — write it before the first backup runs (see .env.backup.example)."
+
 [ "$fail" -eq 0 ] && log "ALL CHECKS PASSED." || die "One or more checks FAILED (see above)."
