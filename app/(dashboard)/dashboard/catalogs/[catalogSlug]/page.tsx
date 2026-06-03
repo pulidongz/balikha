@@ -119,6 +119,7 @@ export default async function CatalogDetailPage({
               stockOnHand: p.stockOnHand,
               status: p.status,
             }))}
+            approvalStatus={profile.approvalStatus}
           />
         )}
       </section>

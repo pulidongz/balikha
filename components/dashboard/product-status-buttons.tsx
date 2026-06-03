@@ -7,8 +7,18 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { setProductStatusAction } from '@/lib/actions/product';
 
 type Status = 'draft' | 'published' | 'sold_out' | 'archived';
+type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
-export function ProductStatusButtons({ productId, status }: { productId: string; status: Status }) {
+export function ProductStatusButtons({
+  productId,
+  status,
+  approvalStatus,
+}: {
+  productId: string;
+  status: Status;
+  approvalStatus: ApprovalStatus;
+}) {
+  const canPublish = approvalStatus === 'approved';
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +40,23 @@ export function ProductStatusButtons({ productId, status }: { productId: string;
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {status !== 'published' && (
-          <Button size="sm" onClick={() => setStatus('published')} disabled={isPending}>
-            Publish
-          </Button>
+          <div className="flex flex-col gap-1">
+            <Button
+              size="sm"
+              onClick={() => setStatus('published')}
+              disabled={isPending || !canPublish}
+              title={
+                !canPublish
+                  ? 'Your seller account must be approved before you can publish products.'
+                  : undefined
+              }
+            >
+              Publish
+            </Button>
+            {!canPublish && (
+              <p className="text-muted-foreground text-xs">Account approval required to publish.</p>
+            )}
+          </div>
         )}
         {status !== 'draft' && (
           <Button
