@@ -151,8 +151,12 @@ if [ -n "$UNITS_SRC" ]; then
   log "Installing systemd units from ${UNITS_SRC}."
   cp "${UNITS_SRC}/"*.service "${UNITS_SRC}/"*.timer /etc/systemd/system/
   systemctl daemon-reload
-  systemctl enable balikha.service balikha-orders-tick.timer balikha-backup.timer
-  log "Units installed and enabled (not started — no release on disk yet)."
+  systemctl enable balikha.service balikha-orders-tick.timer
+  # The backup timer is enable --now: nothing else starts it (deploy.sh starts
+  # the app + orders-tick), and a timer only schedules — the backup service it
+  # triggers runs at fire time, by when a release is on disk.
+  systemctl enable --now balikha-backup.timer
+  log "Units installed; app+tick enabled (deploy starts them); backup timer started."
 else
   die "infra/production/systemd/ not found at ${CANDIDATE} — ship the full infra/ tree (both provision/ and production/ as siblings). See the runbook Step 1."
 fi
