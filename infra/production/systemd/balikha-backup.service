@@ -1,0 +1,9 @@
+[Unit]
+Description=Balikha database backup (pg_dump -> private R2)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/balikha/backup.env
+ExecStart=/opt/balikha/current/infra/production/backup.sh
