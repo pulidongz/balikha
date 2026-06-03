@@ -1,12 +1,41 @@
 {
-	# ACME account email for Let's Encrypt.
-	email admin@balikha.art
+	# TLS is served via a Cloudflare Origin Certificate (the `tls` directive in
+	# each site block) — NOT Let's Encrypt. The apex is proxied through
+	# Cloudflare (orange cloud), which intercepts the ACME HTTP-01 challenge on
+	# port 80, so origin ACME no longer works and is intentionally unused.
+	#
+	# Cloudflare is the only thing that talks to this origin. Mark its edge IP
+	# ranges as trusted proxies and read the real visitor IP from the
+	# Cf-Connecting-Ip header it sets. `trusted_proxies_strict` means a client
+	# hitting the origin directly cannot spoof the header — Caddy only honours it
+	# when the TCP peer is a Cloudflare IP. Refresh these ranges from
+	# https://www.cloudflare.com/ips-v4/ and /ips-v6/ TOGETHER WITH
+	# infra/production/lock-origin-firewall.sh.
+	#
+	# LOAD-BEARING INVARIANT: the app trusts X-Real-IP unconditionally
+	# (proxy.ts forwards it; getRequestLogger + Better Auth read it). That is
+	# safe ONLY because Caddy is the sole path to 127.0.0.1:3000 — the Next
+	# server binds loopback and ufw blocks 80/443 to non-Cloudflare sources.
+	# DO NOT expose :3000 directly (no extra published port, no second
+	# reverse proxy bypassing Caddy) or client-spoofed X-Real-IP becomes
+	# trusted.
+	servers {
+		client_ip_headers Cf-Connecting-Ip
+		trusted_proxies static \
+			173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 \
+			141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 \
+			197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 \
+			104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 \
+			2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 \
+			2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		trusted_proxies_strict
+	}
 }
 
 balikha.art {
+	tls /etc/caddy/cloudflare-origin.pem /etc/caddy/cloudflare-origin-key.pem
 	encode zstd gzip
-	# Baseline security headers. The apex stays grey-cloud (DNS-only) until 4E,
-	# so Caddy is the sole TLS layer — these must be set at the origin.
+	# Baseline security headers set at the origin (independent of edge config).
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
@@ -16,19 +45,17 @@ balikha.art {
 	reverse_proxy 127.0.0.1:3000 {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
+		# {client_ip} is the real visitor (Cf-Connecting-Ip), validated against
+		# trusted_proxies above — never Cloudflare's edge IP.
+		header_up X-Real-IP {client_ip}
+		header_up X-Forwarded-For {client_ip}
 		# Mint a request id at the edge so Caddy + app logs correlate
 		# (proxy.ts reuses x-request-id, else mints its own).
 		header_up X-Request-Id {http.request.uuid}
 	}
 }
 
-# Optional apex canonicalisation — INCLUDE THIS BLOCK ONLY IF the operator
-# created a grey-cloud `www.balikha.art` A record. Caddy obtains a SEPARATE
-# Let's Encrypt cert for `www`, so if the DNS record is absent Caddy will
-# retry ACME and log errors that look like a failure. The runbook (Task
-# 0.10) marks the www record as a prerequisite for keeping this block.
 www.balikha.art {
+	tls /etc/caddy/cloudflare-origin.pem /etc/caddy/cloudflare-origin-key.pem
 	redir https://balikha.art{uri} permanent
 }
