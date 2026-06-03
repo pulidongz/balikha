@@ -2,18 +2,22 @@ import { headers } from 'next/headers';
 import { logger } from '@/lib/logger';
 
 const REQUEST_ID_HEADER = 'x-request-id';
+// Caddy sets X-Real-IP to the real visitor IP (the trusted Cf-Connecting-Ip
+// value behind Cloudflare; the direct client when grey-cloud). proxy.ts
+// forwards the inbound headers, so it is readable here via next/headers.
+const CLIENT_IP_HEADER = 'x-real-ip';
 
 /**
- * Returns a Pino child logger pre-tagged with the current request ID.
- * Call this at the top of any server action or server component that does
- * meaningful work — every subsequent log line carries the same `requestId`,
- * so a single log search reconstructs the entire request.
+ * Returns a Pino child logger pre-tagged with the current request ID and
+ * client IP. Call this at the top of any server action or server component
+ * that does meaningful work — every subsequent log line carries the same
+ * `requestId` and `ip`, so a single log search reconstructs the request and
+ * attributes it to a visitor.
  *
- * The ID is set by `proxy.ts` on inbound requests (passing through Caddy's
- * `X-Request-Id` when present, otherwise minting a UUID). If neither path
- * ran (e.g. tests, or a plain script importing this file), we tag the
- * logger with `unknown` rather than throw — observability shouldn't break
- * the request.
+ * The request ID is set by `proxy.ts`; the IP is set by Caddy as X-Real-IP.
+ * If either is absent (e.g. tests, or a plain script importing this file),
+ * we tag `unknown` rather than throw — observability shouldn't break the
+ * request.
  *
  * Use plain `logger` only for one-off scripts (seed, cleanup jobs) where
  * there is no request scope.
@@ -21,5 +25,6 @@ const REQUEST_ID_HEADER = 'x-request-id';
 export async function getRequestLogger() {
   const h = await headers();
   const requestId = h.get(REQUEST_ID_HEADER) ?? 'unknown';
-  return logger.child({ requestId });
+  const ip = h.get(CLIENT_IP_HEADER) ?? 'unknown';
+  return logger.child({ requestId, ip });
 }
