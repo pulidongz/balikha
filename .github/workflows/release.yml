@@ -1,6 +1,12 @@
-name: Release build
+name: Release & deploy
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -56,3 +62,37 @@ jobs:
           name: balikha-deploy-${{ github.sha }}
           path: ${{ runner.temp }}/balikha-deploy-${{ github.sha }}.tar.gz
           retention-days: 14
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    runs-on: ubuntu-latest
+    # Only deploy from main — NEVER from a workflow_dispatch on a feature branch
+    # (review HIGH). Without this, any write-access user could dispatch the
+    # workflow on their own branch and run that branch's deploy.sh as root on
+    # prod (DEPLOY_SSH_KEY has NOPASSWD sudo). The build job still runs on any
+    # ref; only the root-capable deploy is main-gated.
+    if: github.ref == 'refs/heads/main'
+    # Gate the root-capable deploy secrets behind a GitHub Environment
+    # (Issue 3) so secret access is auditable and can require approval —
+    # configure protection rules / required reviewer in GitHub (runbook §2).
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: balikha-deploy-${{ github.sha }}
+          path: ./artifact
+      - name: Set up SSH for the deploy user
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+      - name: Deploy
+        run: |
+          chmod +x infra/production/deploy.sh
+          infra/production/deploy.sh \
+            "${{ secrets.DEPLOY_HOST }}" \
+            "./artifact/balikha-deploy-${{ github.sha }}.tar.gz"
