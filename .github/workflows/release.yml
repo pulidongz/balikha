@@ -67,6 +67,12 @@ jobs:
     name: Deploy to production
     needs: build
     runs-on: ubuntu-latest
+    # Only deploy from main — NEVER from a workflow_dispatch on a feature branch
+    # (review HIGH). Without this, any write-access user could dispatch the
+    # workflow on their own branch and run that branch's deploy.sh as root on
+    # prod (DEPLOY_SSH_KEY has NOPASSWD sudo). The build job still runs on any
+    # ref; only the root-capable deploy is main-gated.
+    if: github.ref == 'refs/heads/main'
     # Gate the root-capable deploy secrets behind a GitHub Environment
     # (Issue 3) so secret access is auditable and can require approval —
     # configure protection rules / required reviewer in GitHub (runbook §2).

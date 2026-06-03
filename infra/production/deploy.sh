@@ -53,13 +53,17 @@ test -x "$RELEASE/node_modules/.bin/drizzle-kit" \
 # Pre-migration backup (4D): snapshot the DB BEFORE flipping the symlink +
 # migrating, so an unattended push-to-deploy migration always has a fresh
 # restore point. Placed before the symlink flip so a backup failure leaves
-# 'current' on the old, good release (no half-deploy).
-# Guard (Issue 1): if 4D box setup (backup.env + 90-app-runtime.sh) wasn't
+# 'current' on the old, good release (no half-deploy). Runs backup.sh in
+# 'predeploy' mode → a SEPARATE predeploy/ R2 prefix, so deploy-time snapshots
+# never evict the nightly daily/ retention pool (review HIGH/MEDIUM).
+# Guard (Issue 1): if 4D box setup (90-app-runtime.sh + backup.env) wasn't
 # completed before the push-to-main trigger was armed, fail loudly HERE —
 # before any state change — rather than stranding a half-applied deploy.
 systemctl cat balikha-backup.service >/dev/null 2>&1 \
   || { echo "FATAL: balikha-backup.service not installed — complete 4D box setup (runbook §1-3) before deploying"; exit 1; }
-sudo systemctl start balikha-backup.service \
+sudo test -f /etc/balikha/backup.env \
+  || { echo "FATAL: /etc/balikha/backup.env missing — complete 4D box setup before deploying"; exit 1; }
+sudo bash -c "set -a; . /etc/balikha/backup.env; set +a; '$RELEASE'/infra/production/backup.sh predeploy" \
   || { echo "FATAL: pre-migration backup failed — aborting before symlink flip"; exit 1; }
 # Flip the symlink BEFORE migrate/restart so the oneshot units (which use
 # WorkingDirectory=/opt/balikha/current) run this release.
