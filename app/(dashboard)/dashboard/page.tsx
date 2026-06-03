@@ -113,6 +113,37 @@ export default async function DashboardPage() {
         <p className="text-muted-foreground text-sm">Managing {profile.shopName}.</p>
       </header>
 
+      {/* Approval status banners — pending and rejected sellers see a
+          clear explanation of their application state. Approved sellers
+          see nothing here (the normal dashboard experience). */}
+      {profile.approvalStatus === 'pending' && (
+        <div
+          className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          role="status"
+        >
+          <p className="font-medium">Your seller application is under review.</p>
+          <p className="mt-1 text-amber-800">
+            You can prepare drafts and set up your shop, but you can&rsquo;t publish products yet.
+            We&rsquo;ll notify you once we&rsquo;ve reviewed your application.
+          </p>
+        </div>
+      )}
+      {profile.approvalStatus === 'rejected' && (
+        <div
+          className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+          role="status"
+        >
+          <p className="font-medium">Your seller application was not approved.</p>
+          {profile.approvalNote ? (
+            <p className="mt-1 whitespace-pre-line text-red-800">{profile.approvalNote}</p>
+          ) : (
+            <p className="mt-1 text-red-800">
+              Unfortunately your application was not approved at this time.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Stat cards */}
       <section aria-label="Shop overview" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
