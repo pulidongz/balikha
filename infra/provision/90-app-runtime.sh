@@ -117,8 +117,17 @@ else
 fi
 
 if ! command -v aws >/dev/null 2>&1; then
-  log "Installing awscli."
-  apt-get install -y awscli
+  # Ubuntu 24.04 has no apt 'awscli' candidate; use the official v2 installer
+  # (also the better R2 client — review Issue 4). Installs /usr/local/bin/aws.
+  log "Installing awscli v2 (official installer)."
+  apt-get install -y unzip curl
+  AWS_TMP="$(mktemp -d)"
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" \
+    -o "$AWS_TMP/awscliv2.zip"
+  unzip -q "$AWS_TMP/awscliv2.zip" -d "$AWS_TMP"
+  "$AWS_TMP/aws/install" --update
+  rm -rf "$AWS_TMP"
+  log "awscli installed: $(aws --version 2>&1)"
 else
   log "aws already present — skipping awscli install."
 fi

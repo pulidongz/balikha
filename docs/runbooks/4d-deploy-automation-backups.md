@@ -235,8 +235,9 @@ curl -fsS https://balikha.art/api/health
 
 ### One-time awscli smoke test
 
-The `apt` package ships `awscli` v1. Before relying on it, confirm v1 streaming
-and the `--endpoint-url` flag work with R2:
+`90-app-runtime.sh` installs **awscli v2** via the official installer (Ubuntu
+24.04 has no `apt` `awscli` candidate). Confirm it talks to R2 before relying on
+it (a quick round-trip — upload, list, delete):
 
 ```bash
 ssh deploy@<ip>
@@ -246,9 +247,8 @@ sudo bash -c 'set -a; source /etc/balikha/backup.env; set +a; \
   && aws s3 rm s3://"$BACKUP_S3_BUCKET"/smoke.txt --endpoint-url "$BACKUP_S3_ENDPOINT"'
 ```
 
-Expected: the upload, listing, and removal all succeed without errors. If awscli
-v1 has R2 compatibility issues, install awscli v2 from the official installer or
-use `rclone` as a fallback.
+Expected: the upload, listing, and removal all succeed without errors. (If you
+ever hit awscli/R2 compatibility issues, `rclone` is the fallback.)
 
 ### Run a real backup
 
