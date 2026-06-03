@@ -583,6 +583,9 @@ async function seed() {
         shopName: seller.shopName,
         bio: seller.bio,
         location: seller.location,
+        // Seeded sellers are approved so their directly-inserted `published`
+        // products below are consistent with the approval gate (Task 1.1).
+        approvalStatus: 'approved',
       })
       .returning();
     if (!profile) throw new Error('Failed to create artisan profile');
