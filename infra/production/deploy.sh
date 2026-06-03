@@ -50,6 +50,17 @@ test -x "$RELEASE/node_modules/.bin/tsx" \
   || { echo "FATAL: tsx missing — did npm ci run with --omit=dev?"; exit 1; }
 test -x "$RELEASE/node_modules/.bin/drizzle-kit" \
   || { echo "FATAL: drizzle-kit missing"; exit 1; }
+# Pre-migration backup (4D): snapshot the DB BEFORE flipping the symlink +
+# migrating, so an unattended push-to-deploy migration always has a fresh
+# restore point. Placed before the symlink flip so a backup failure leaves
+# 'current' on the old, good release (no half-deploy).
+# Guard (Issue 1): if 4D box setup (backup.env + 90-app-runtime.sh) wasn't
+# completed before the push-to-main trigger was armed, fail loudly HERE —
+# before any state change — rather than stranding a half-applied deploy.
+systemctl cat balikha-backup.service >/dev/null 2>&1 \
+  || { echo "FATAL: balikha-backup.service not installed — complete 4D box setup (runbook §1-3) before deploying"; exit 1; }
+sudo systemctl start balikha-backup.service \
+  || { echo "FATAL: pre-migration backup failed — aborting before symlink flip"; exit 1; }
 # Flip the symlink BEFORE migrate/restart so the oneshot units (which use
 # WorkingDirectory=/opt/balikha/current) run this release.
 sudo ln -sfn "$RELEASE" "$APP_DIR/current"
