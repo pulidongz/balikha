@@ -44,9 +44,17 @@ In the Cloudflare dashboard → R2 → Manage API Tokens:
 On the box (as root):
 
 ```bash
-# Copy the committed template and open it in an editor.
-# Keeps secrets out of shell history.
-sudo cp /opt/balikha/current/.env.backup.example /etc/balikha/backup.env
+# Write the template directly, then open it to fill the secrets (keeps them out
+# of shell history). NOTE: do NOT `cp` from /opt/balikha/current — the deploy
+# tarball excludes ./.env*, so `.env.backup.example` is not in the release tree.
+# This heredoc reproduces that template (see .env.backup.example in the repo):
+sudo tee /etc/balikha/backup.env >/dev/null <<'EOF'
+BACKUP_S3_ENDPOINT=https://30d8e334acd6a66be73c7d0442f5a5c9.r2.cloudflarestorage.com
+BACKUP_S3_BUCKET=balikha-backups
+AWS_ACCESS_KEY_ID=<r2 backups access key id>
+AWS_SECRET_ACCESS_KEY=<r2 backups secret access key>
+AWS_DEFAULT_REGION=auto
+EOF
 sudo nano /etc/balikha/backup.env
 ```
 
@@ -96,8 +104,13 @@ ssh deploy@<ip> 'tail -1 ~/.ssh/authorized_keys'
 ### Create the GitHub `production` Environment and set secrets
 
 In the GitHub repository → Settings → Environments → New environment: name it
-`production`. Optionally add a required reviewer so a person must approve each
-production deploy.
+`production`. **Strongly recommended: add a required reviewer** so a person must
+approve each production deploy. The deploy job is also gated to `main` only
+(`if: github.ref == 'refs/heads/main'`, review HIGH), so a `workflow_dispatch`
+from a feature branch builds but will **not** deploy — but the required-reviewer
+rule is the defence-in-depth that makes even a malicious `main` push reviewable
+before it runs `deploy.sh` as root. Treat the reviewer gate as non-optional in
+practice.
 
 Set the three secrets **on the environment** (not repo-wide) — env-scoped secrets
 are only available to jobs that declare `environment: production`, limiting
@@ -186,9 +199,13 @@ gh workflow run release.yml
 > green BEFORE merging the 4D PR to `main`.** Merging arms the push trigger,
 > and the first auto-deploy immediately runs the pre-migration backup. The
 > `deploy.sh` guard (`systemctl cat balikha-backup.service`) will hard-fail the
-> deploy if the box is not ready, stranding the CI run. Recommend a
-> `workflow_dispatch` dry-run from the feature branch first to confirm secrets
-> and SSH auth work before the push trigger is live.
+> deploy if the box is not ready, stranding the CI run. Note the deploy job is
+> `main`-gated, so a `workflow_dispatch` from the feature branch only **builds**
+> (the deploy job is skipped) — it confirms the build but not SSH/deploy. To
+> validate the deploy path before the trigger is live, run the **manual** path
+> once from your workstation (the 4B flow: `gh run download` the artifact →
+> `infra/production/deploy.sh deploy@<ip> <artifact>`); that exercises the same
+> SSH/sudo/backup/migrate sequence CI will use.
 
 > **(Issue 9) Rapid successive merges:** The `concurrency` group
 > (`deploy-production`, `cancel-in-progress: false`) serialises deploys but
@@ -243,10 +260,13 @@ ssh deploy@<ip> 'sudo systemctl start balikha-backup.service && \
 Expected journal output: lines showing the dump, validation, upload, and
 `✓ backup complete: balikha-<ts>.dump`.
 
-Confirm the backup object exists in R2:
+Confirm the backup object exists in R2 (R2 creds live only in root-owned
+`/etc/balikha/backup.env`, so source it — a bare `aws s3 ls` has no credentials
+and fails with an auth error):
 
 ```bash
-aws s3 ls s3://balikha-backups/daily/ --endpoint-url <endpoint>
+ssh deploy@<ip> 'sudo bash -c "set -a; . /etc/balikha/backup.env; set +a; \
+  aws s3 ls s3://\$BACKUP_S3_BUCKET/daily/ --endpoint-url \$BACKUP_S3_ENDPOINT"'
 ```
 
 Check the nightly timer is scheduled:
@@ -292,17 +312,24 @@ successfully into a non-production database.
 
 ## Step 8 — Backup retention
 
-`backup.sh` prunes automatically on every run:
+`backup.sh` prunes automatically on every run, by prefix:
 
-- **Daily:** keeps the **newest 7** dumps at `daily/` in the bucket.
-- **Weekly:** on Sundays (UTC), an additional copy is written to `weekly/`;
-  keeps the **newest 4** weekly dumps.
+- **Daily** (`daily/`): the nightly timer keeps the **newest 7** dumps.
+- **Weekly** (`weekly/`): on Sundays (UTC) the nightly run also copies to
+  `weekly/`; keeps the **newest 4**.
+- **Pre-deploy** (`predeploy/`): each deploy's pre-migration snapshot
+  (`backup.sh predeploy`) writes here and keeps the **newest 10** — a SEPARATE
+  pool, so deploy-heavy days never evict the nightly `daily/` history (review
+  HIGH/MEDIUM).
 
-No manual retention management is needed. To inspect what is retained:
+No manual retention management is needed. To inspect what is retained (source
+the creds — a bare `aws s3 ls` has none):
 
 ```bash
-aws s3 ls s3://balikha-backups/daily/ --endpoint-url <endpoint>
-aws s3 ls s3://balikha-backups/weekly/ --endpoint-url <endpoint>
+ssh deploy@<ip> 'sudo bash -c "set -a; . /etc/balikha/backup.env; set +a; \
+  aws s3 ls s3://\$BACKUP_S3_BUCKET/daily/     --endpoint-url \$BACKUP_S3_ENDPOINT; \
+  aws s3 ls s3://\$BACKUP_S3_BUCKET/weekly/    --endpoint-url \$BACKUP_S3_ENDPOINT; \
+  aws s3 ls s3://\$BACKUP_S3_BUCKET/predeploy/ --endpoint-url \$BACKUP_S3_ENDPOINT"'
 ```
 
 ---
