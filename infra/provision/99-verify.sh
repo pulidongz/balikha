@@ -23,12 +23,12 @@ check "AC2 ufw active"          "ufw status verbose"                          "S
 check "AC2 ufw default deny in" "ufw status verbose"                          "deny \(incoming\)"
 # The most dangerous rule to be missing -- assert SSH is allowed.
 check "AC2 SSH allowed"         "ufw status"                                  "(OpenSSH|(^|[^0-9])22/tcp).*ALLOW"
-# Tolerates both the open form (80/tcp) and the CF-locked combined form
-# (80,443/tcp) produced by infra/production/lock-origin-firewall.sh, so this
-# verifier passes pre- and post-4E. The CF-lock itself is asserted by
-# infra/production/verify-edge.sh, not here.
-check "AC2 80 allowed"          "ufw status"                                  "(^|[^0-9])(80|443)(,[0-9]+)*/tcp.*ALLOW"
-check "AC2 443 allowed"         "ufw status"                                  "(^|[^0-9])(80|443)(,[0-9]+)*/tcp.*ALLOW"
+# Each check matches only its OWN port: the open form (80/tcp or 443/tcp) OR
+# the combined comma form (80,443/tcp or 443,80/tcp) produced by
+# infra/production/lock-origin-firewall.sh, so this verifier passes pre- and
+# post-4E. The CF-lock itself is asserted by infra/production/verify-edge.sh.
+check "AC2 80 allowed"          "ufw status"                                  "(^|[^0-9])(80/tcp|80,443/tcp|443,80/tcp).*ALLOW"
+check "AC2 443 allowed"         "ufw status"                                  "(^|[^0-9])(443/tcp|80,443/tcp|443,80/tcp).*ALLOW"
 # 5432 must NOT be open -- explicit negative assert (avoids grep -c gymnastics).
 if ufw status | grep -qE '(^|[^0-9])5432'; then warn "FAIL: AC2 5432 must NOT be open"; fail=1; else log "PASS: AC2 5432 not open"; fi
 check "AC3 pg listen_addresses" "sudo -u postgres psql -tAc 'SHOW listen_addresses;'" "localhost"

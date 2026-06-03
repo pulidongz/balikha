@@ -48,8 +48,12 @@ Place both on the box (root-owned, 600):
 ```bash
 # On your workstation — write the two files locally first (no secrets in shell
 # history: paste into an editor), then ship them:
-scp cloudflare-origin.pem     root@104.64.213.188:/etc/caddy/cloudflare-origin.pem
-scp cloudflare-origin-key.pem root@104.64.213.188:/etc/caddy/cloudflare-origin-key.pem
+#
+# The cert is public material — scp is fine.
+scp cloudflare-origin.pem root@104.64.213.188:/etc/caddy/cloudflare-origin.pem
+# The private key is written atomically with umask 077 so it is never
+# world-readable even for an instant (no brief open-permissions window).
+ssh root@104.64.213.188 'umask 077; cat > /etc/caddy/cloudflare-origin-key.pem' < cloudflare-origin-key.pem
 ssh root@104.64.213.188 'getent group caddy >/dev/null && grp=caddy || grp=root; chown "root:$grp" /etc/caddy/cloudflare-origin.pem /etc/caddy/cloudflare-origin-key.pem; chmod 640 /etc/caddy/cloudflare-origin.pem; chmod 600 /etc/caddy/cloudflare-origin-key.pem'
 ```
 

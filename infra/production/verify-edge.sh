@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Verify the 4E Cloudflare edge cutover FROM THE BOX. Run as root after
 # lock-origin-firewall.sh. Mirrors the check() pattern from 99-verify.sh.
-set -uo pipefail
 source "$(dirname "$0")/../provision/lib/common.sh"
 require_root
 fail=0
@@ -47,13 +46,13 @@ else
   log "PASS: no broad Anywhere allow on 80/443"
 fi
 
-# Negative assert: ACME must be gone (4E kills the Let's Encrypt time-bomb).
-# The origin serves an explicit Origin Cert via `tls`; a stray global `email`
-# directive would mean Caddy is still attempting ACME for some host.
-if grep -qE '^[[:space:]]*email[[:space:]]' /etc/caddy/Caddyfile; then
-  warn "FAIL: Caddyfile still has an ACME 'email' directive — origin should use explicit tls cert, no ACME"; fail=1
+# ACME must be gone (4E removes the Let's Encrypt time-bomb). Reject the global
+# `email` directive AND per-site ACME signals (acme_ca / acme_dns / `tls user@host`),
+# ignoring comment lines. The origin must use explicit `tls <cert> <key>` files only.
+if grep -vE '^[[:space:]]*#' /etc/caddy/Caddyfile | grep -qE '^[[:space:]]*(email|acme_ca|acme_dns)[[:space:]]|^[[:space:]]*tls[[:space:]]+[^[:space:]]*@'; then
+  warn "FAIL: Caddyfile has an ACME signal (email/acme_ca/acme_dns/tls <email>) — origin must use explicit tls cert files, no ACME"; fail=1
 else
-  log "PASS: no ACME 'email' directive in Caddyfile"
+  log "PASS: no ACME directives in Caddyfile (explicit tls cert only)"
 fi
 
 [ "$fail" -eq 0 ] && log "ALL EDGE CHECKS PASSED (origin-side; see runbook Step 7 for public-edge ACs)." || die "Some edge checks FAILED (see above)."

@@ -2,9 +2,10 @@ import { headers } from 'next/headers';
 import { logger } from '@/lib/logger';
 
 const REQUEST_ID_HEADER = 'x-request-id';
-// Caddy sets X-Real-IP to the real visitor IP (the trusted Cf-Connecting-Ip
-// value behind Cloudflare; the direct client when grey-cloud). proxy.ts
-// forwards the inbound headers, so it is readable here via next/headers.
+// Caddy sets X-Real-IP on the origin request (from the trusted Cf-Connecting-Ip
+// value behind Cloudflare; the direct client when grey-cloud); it reaches here
+// as an inbound header via `next/headers` (proxy.ts passes inbound headers
+// through unchanged).
 const CLIENT_IP_HEADER = 'x-real-ip';
 
 /**

@@ -12,13 +12,14 @@
 	# https://www.cloudflare.com/ips-v4/ and /ips-v6/ TOGETHER WITH
 	# infra/production/lock-origin-firewall.sh.
 	#
-	# LOAD-BEARING INVARIANT: the app trusts X-Real-IP unconditionally
-	# (proxy.ts forwards it; getRequestLogger + Better Auth read it). That is
-	# safe ONLY because Caddy is the sole path to 127.0.0.1:3000 — the Next
-	# server binds loopback and ufw blocks 80/443 to non-Cloudflare sources.
-	# DO NOT expose :3000 directly (no extra published port, no second
-	# reverse proxy bypassing Caddy) or client-spoofed X-Real-IP becomes
-	# trusted.
+	# LOAD-BEARING INVARIANT: the app trusts X-Real-IP unconditionally because
+	# Caddy sets it from the trusted Cf-Connecting-Ip and it reaches server code
+	# as an inbound request header (proxy.ts passes inbound headers through
+	# unchanged); getRequestLogger + Better Auth read it. That is safe ONLY
+	# because Caddy is the sole path to 127.0.0.1:3000 — the Next server binds
+	# loopback and ufw blocks 80/443 to non-Cloudflare sources. DO NOT expose
+	# :3000 directly (no extra published port, no second reverse proxy bypassing
+	# Caddy) or client-spoofed X-Real-IP becomes trusted.
 	servers {
 		client_ip_headers Cf-Connecting-Ip
 		trusted_proxies static \
