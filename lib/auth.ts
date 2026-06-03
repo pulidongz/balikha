@@ -31,6 +31,14 @@ const socialProviders =
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
+  // Behind Cloudflare + Caddy, the socket peer is the proxy. Read the real
+  // visitor IP from X-Real-IP (Caddy sets it to the trusted Cf-Connecting-Ip
+  // value) so session.ip_address records the client, not the edge.
+  advanced: {
+    ipAddress: {
+      ipAddressHeaders: ['x-real-ip'],
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
