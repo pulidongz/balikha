@@ -25,6 +25,7 @@ check() { # check "label" "command" "expected-extended-regex"
 
 check "origin cert present"        "ls -l /etc/caddy/cloudflare-origin.pem"     "cloudflare-origin\.pem"
 check "origin key present"         "ls -l /etc/caddy/cloudflare-origin-key.pem" "cloudflare-origin-key\.pem"
+check "caddy user can read origin key" "sudo -u caddy test -r /etc/caddy/cloudflare-origin-key.pem && echo readable" "readable"
 check "origin cert covers wildcard/www SAN" "openssl x509 -in /etc/caddy/cloudflare-origin.pem -noout -text" "DNS:\*\.balikha\.art|DNS:www\.balikha\.art"
 check "Caddyfile uses origin cert" "cat /etc/caddy/Caddyfile"                   "tls /etc/caddy/cloudflare-origin\.pem"
 check "Caddy trusts CF proxies"    "cat /etc/caddy/Caddyfile"                   "client_ip_headers|trusted_proxies"

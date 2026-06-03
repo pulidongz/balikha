@@ -43,7 +43,7 @@ Cloudflare dashboard → **SSL/TLS → Origin Server → Create Certificate**:
 - Create. Copy the **Origin Certificate** (PEM) and the **Private Key** (shown
   once — save it to the password manager immediately).
 
-Place both on the box (root-owned, 600):
+Place both on the box (root-owned; cert 640, key 640):
 
 ```bash
 # On your workstation — write the two files locally first (no secrets in shell
@@ -54,13 +54,15 @@ scp cloudflare-origin.pem root@104.64.213.188:/etc/caddy/cloudflare-origin.pem
 # The private key is written atomically with umask 077 so it is never
 # world-readable even for an instant (no brief open-permissions window).
 ssh root@104.64.213.188 'umask 077; cat > /etc/caddy/cloudflare-origin-key.pem' < cloudflare-origin-key.pem
-ssh root@104.64.213.188 'getent group caddy >/dev/null && grp=caddy || grp=root; chown "root:$grp" /etc/caddy/cloudflare-origin.pem /etc/caddy/cloudflare-origin-key.pem; chmod 640 /etc/caddy/cloudflare-origin.pem; chmod 600 /etc/caddy/cloudflare-origin-key.pem'
+ssh root@104.64.213.188 'getent group caddy >/dev/null && grp=caddy || grp=root; chown "root:$grp" /etc/caddy/cloudflare-origin.pem /etc/caddy/cloudflare-origin-key.pem; chmod 640 /etc/caddy/cloudflare-origin.pem; chmod 640 /etc/caddy/cloudflare-origin-key.pem'
 ```
 
-> Caddy runs as the `caddy` user; if that group exists, `640`/`root:caddy`
-> lets Caddy read the cert while keeping the key tight. If there is no `caddy`
-> group, Caddy runs as root via systemd — `root:root` + `640`/`600` is fine.
-> The script in Step 5 (`verify-edge.sh`) confirms both files are present.
+> Caddy runs as the `caddy` user (apt package) and must read BOTH the cert
+> AND the key, so both are `640 root:caddy` — group-readable by `caddy`,
+> unreadable by others. If for some reason there is no `caddy` group,
+> `640 root:root` is still fine (Caddy would run as root, which can also read it).
+> The script in Step 5 (`verify-edge.sh`) confirms both files are present and
+> that the `caddy` user can actually read the key.
 
 **Verify the cert covers the wildcard/www SAN before continuing:**
 
