@@ -43,6 +43,13 @@
       "when": 1780503751875,
       "tag": "0005_strong_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780585963956,
+      "tag": "0006_cooing_runaways",
+      "breakpoints": true
     }
   ]
 }
