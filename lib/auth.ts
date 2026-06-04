@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError } from 'better-auth/api';
-import { captcha } from 'better-auth/plugins';
+import { admin, captcha } from 'better-auth/plugins';
 import { createElement } from 'react';
 import { db } from '@/db';
 import { env } from '@/env';
@@ -41,6 +41,15 @@ export const auth = betterAuth({
     captcha({
       provider: 'cloudflare-turnstile',
       secretKey: env.TURNSTILE_SECRET_KEY,
+    }),
+    // Admin plugin (ticket #26). Authorizes off user.role: new users default to
+    // 'user', and 'admin' is the privileged role. Provides banUser/unbanUser
+    // (= suspend/ban), setRole (= promote/demote), at-sign-in ban blocking, and
+    // session revocation on ban. Impersonation is deferred (Decision 7) — the
+    // endpoint exists but no UI is built in #26.
+    admin({
+      defaultRole: 'user',
+      adminRoles: ['admin'],
     }),
   ],
   // Rate limiting using Better Auth's built-in throttle rules. No
