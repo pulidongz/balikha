@@ -48,9 +48,17 @@ export const env = createEnv({
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().email(),
     EMAIL_REPLY_TO: z.string().email(),
+    // Cloudflare Turnstile bot challenge (ticket #25).
+    // Required with no default — a prod deploy missing this key fails at
+    // boot (fail-loud), and the server-side captcha plugin cannot verify
+    // challenge tokens without it.
+    TURNSTILE_SECRET_KEY: z.string().min(1),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
+    // Cloudflare Turnstile site key. NEXT_PUBLIC_ prefix inlines it at
+    // compile time so the client widget can read it without an API call.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
   },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -76,6 +84,8 @@ export const env = createEnv({
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
+    TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   },
   emptyStringAsUndefined: true,
 });
