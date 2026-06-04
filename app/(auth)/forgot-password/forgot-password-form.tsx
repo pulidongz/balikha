@@ -10,7 +10,11 @@ import { TurnstileWidget } from '@/components/auth/turnstile-widget';
 import { requestPasswordReset } from '@/lib/auth-client';
 import type { TurnstileInstance } from '@marsidev/react-turnstile';
 
-const CAPTCHA_ERROR_CODES = new Set(['MISSING_RESPONSE', 'VERIFICATION_FAILED']);
+// UNKNOWN_ERROR is the captcha plugin's fail-closed code (siteverify
+// unreachable or secret missing). Like the other two it is raised before any
+// user lookup, so routing it to the retry branch leaks nothing — and it spares
+// the user a false "check inbox" with no email and no retry signal.
+const CAPTCHA_ERROR_CODES = new Set(['MISSING_RESPONSE', 'VERIFICATION_FAILED', 'UNKNOWN_ERROR']);
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
@@ -21,6 +25,11 @@ export function ForgotPasswordForm() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance | undefined>(undefined);
+
+  function handleTurnstileToken(token: string | null) {
+    setTurnstileToken(token);
+    if (token) setCaptchaError(null);
+  }
 
   async function submit() {
     setCaptchaError(null);
@@ -107,7 +116,15 @@ export function ForgotPasswordForm() {
             {captchaError}
           </p>
         )}
-        <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+        <TurnstileWidget
+          ref={turnstileRef}
+          onToken={handleTurnstileToken}
+          onError={() =>
+            setCaptchaError(
+              'Could not load the verification challenge. Please refresh and try again.',
+            )
+          }
+        />
         <Button
           type="submit"
           disabled={loading || !turnstileToken}
