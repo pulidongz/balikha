@@ -71,7 +71,11 @@ export default async function ProductDetailPage({
             <h1 className="font-serif text-2xl tracking-tight">{product.title}</h1>
             <p className="text-muted-foreground text-sm">/{product.slug}</p>
           </div>
-          <ProductStatusButtons productId={product.id} status={product.status} />
+          <ProductStatusButtons
+            productId={product.id}
+            status={product.status}
+            approvalStatus={profile.approvalStatus}
+          />
         </div>
       </header>
 

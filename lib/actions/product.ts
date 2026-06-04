@@ -14,6 +14,7 @@ import {
 import { uniqueSlug } from '@/lib/slug';
 import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
+import { logger } from '@/lib/logger';
 import { FACET_TAG } from '@/lib/search/facets';
 import { deleteObject } from '@/lib/storage/delete';
 import {
@@ -218,10 +219,22 @@ export async function updateProductAction(
 // published state — the seller-funnel signal for `first_listing`.
 async function applyProductStatusInTx(
   tx: Tx,
-  profile: { id: string; shopName: string; shopSlug: string },
+  profile: { id: string; shopName: string; shopSlug: string; approvalStatus: string },
   productId: string,
   status: ProductStatus,
 ): Promise<{ found: boolean; published: boolean }> {
+  // Defense-in-depth: a transition INTO 'published' requires an approved
+  // seller profile. The primary user-facing gate lives in the two publish
+  // actions (setProductStatusAction, setProductsStatusAction), before the
+  // transaction opens. This assertion is a backstop — it runs inside the
+  // transaction to enforce the invariant at the data layer regardless of
+  // how the caller was reached. (Decision #6 in the plan.)
+  if (status === 'published' && profile.approvalStatus !== 'approved') {
+    throw new Error(
+      `Unapproved seller (approvalStatus=${profile.approvalStatus}) attempted to publish product ${productId}`,
+    );
+  }
+
   // Read existing row with ownership constraint baked into the WHERE —
   // IDOR-safe even before any write happens.
   const [existing] = await tx
@@ -300,6 +313,18 @@ export async function setProductStatusAction(
   const parsedStatus = productStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
 
+  // Primary approval gate (seller-level authorization, Decision #6).
+  // Checked before opening the transaction so the rejection is fast and clear.
+  if (parsedStatus.data === 'published' && profile.approvalStatus !== 'approved') {
+    logger.warn(
+      { userId: profile.userId, approvalStatus: profile.approvalStatus },
+      'Blocked publish attempt by unapproved seller',
+    );
+    return err(
+      'Your seller account is pending approval — you can save drafts but cannot publish yet.',
+    );
+  }
+
   // Wrapped in a transaction so the notification fan-out commits with the
   // status change or rolls back together.
   const result = await db.transaction((tx) =>
@@ -340,6 +365,18 @@ export async function setProductsStatusAction(
 
   const parsedStatus = productStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
+
+  // Primary approval gate (Decision #6). Reject the whole bulk request once,
+  // before the transaction opens — no partial publish, no per-product error.
+  if (parsedStatus.data === 'published' && profile.approvalStatus !== 'approved') {
+    logger.warn(
+      { userId: profile.userId, approvalStatus: profile.approvalStatus },
+      'Blocked bulk publish attempt by unapproved seller',
+    );
+    return err(
+      'Your seller account is pending approval — you can save drafts but cannot publish yet.',
+    );
+  }
 
   if (!Array.isArray(productIds) || productIds.length === 0) {
     return err('Select at least one product.');

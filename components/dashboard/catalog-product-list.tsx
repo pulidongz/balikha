@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 
 type ProductStatus = 'draft' | 'published' | 'sold_out' | 'archived';
 
+type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 interface ProductRow {
   id: string;
   slug: string;
@@ -45,10 +47,13 @@ const STATUS_LABEL: Record<ProductStatus, string> = {
 export function CatalogProductList({
   catalogSlug,
   products,
+  approvalStatus,
 }: {
   catalogSlug: string;
   products: ProductRow[];
+  approvalStatus: ApprovalStatus;
 }) {
+  const canPublish = approvalStatus === 'approved';
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
@@ -99,7 +104,16 @@ export function CatalogProductList({
         <div className="bg-secondary/50 flex flex-wrap items-center gap-2 rounded-md border p-2">
           <span className="px-1 text-sm font-medium">{selected.size} selected</span>
           <div className="ml-auto flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => applyStatus('published')} disabled={pending}>
+            <Button
+              size="sm"
+              onClick={() => applyStatus('published')}
+              disabled={pending || !canPublish}
+              title={
+                !canPublish
+                  ? 'Your seller account must be approved before you can publish products.'
+                  : undefined
+              }
+            >
               {pending && pendingStatus === 'published' ? 'Publishing…' : 'Publish'}
             </Button>
             <Button

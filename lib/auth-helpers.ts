@@ -51,7 +51,22 @@ export async function getCurrentArtisanProfile() {
   const user = await getCurrentUser();
   if (!user) return null;
   const [profile] = await db
-    .select()
+    .select({
+      id: artisanProfiles.id,
+      userId: artisanProfiles.userId,
+      shopSlug: artisanProfiles.shopSlug,
+      shopName: artisanProfiles.shopName,
+      bio: artisanProfiles.bio,
+      bannerImageUrl: artisanProfiles.bannerImageUrl,
+      location: artisanProfiles.location,
+      policies: artisanProfiles.policies,
+      approvalStatus: artisanProfiles.approvalStatus,
+      approvalNote: artisanProfiles.approvalNote,
+      reviewedAt: artisanProfiles.reviewedAt,
+      reviewedById: artisanProfiles.reviewedById,
+      createdAt: artisanProfiles.createdAt,
+      updatedAt: artisanProfiles.updatedAt,
+    })
     .from(artisanProfiles)
     .where(eq(artisanProfiles.userId, user.id))
     .limit(1);

@@ -37,6 +37,14 @@ export const productStatus = pgEnum('product_status', [
   'archived',
 ]);
 
+// Approval lifecycle for seller applications. Only the column default is
+// `pending`; the migration backfills all pre-existing rows to `approved`.
+export const artisanApprovalStatus = pgEnum('artisan_approval_status', [
+  'pending',
+  'approved',
+  'rejected',
+]);
+
 export const artisanProfiles = pgTable(
   'artisan_profiles',
   {
@@ -51,6 +59,16 @@ export const artisanProfiles = pgTable(
     bannerImageUrl: text('banner_image_url'),
     location: text('location'),
     policies: text('policies'),
+    // Seller-approval lifecycle. Default is `pending`; the 0005 migration
+    // backfills pre-existing rows to `approved` so no live seller is locked.
+    approvalStatus: artisanApprovalStatus('approval_status').notNull().default('pending'),
+    // Applicant-facing rejection reason (Decision #7). Null when not rejected
+    // or when no note was supplied. Shown on the seller dashboard + in the
+    // rejection email.
+    approvalNote: text('approval_note'),
+    reviewedAt: timestamp('reviewed_at'),
+    reviewedById: text('reviewed_by_id').references(() => user.id, { onDelete: 'set null' }),
+
     // Weighted FTS document. A=shop_name (highest), B=location, C=bio.
     // Generated STORED — Postgres recomputes on UPDATE of any source column,
     // and backfills existing rows when the column is added.
@@ -405,6 +423,8 @@ export const notificationType = pgEnum('notification_type', [
   'order_status_changed',
   'system_announcement',
   'new_message',
+  'seller_application_approved',
+  'seller_application_rejected',
 ]);
 
 export const notifications = pgTable(
