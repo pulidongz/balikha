@@ -37,7 +37,16 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   // Turnstile tokens are single-use. Reset the widget + clear the token on
   // any error so a fresh challenge is issued before the next attempt.
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Set when the widget itself fails to load/run (script blocked, network,
+  // bad key). Without surfacing it the submit button is disabled forever with
+  // no explanation — a hard dead-end for users behind ad-blockers/proxies.
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance | undefined>(undefined);
+
+  function handleTurnstileToken(token: string | null) {
+    setTurnstileToken(token);
+    if (token) setCaptchaError(null);
+  }
 
   async function attemptSignUp() {
     setError(null);
@@ -141,12 +150,20 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             className="h-11"
           />
         </div>
-        {error && (
+        {(error || captchaError) && (
           <p role="alert" className="text-destructive text-sm">
-            {error}
+            {error ?? captchaError}
           </p>
         )}
-        <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+        <TurnstileWidget
+          ref={turnstileRef}
+          onToken={handleTurnstileToken}
+          onError={() =>
+            setCaptchaError(
+              'Could not load the verification challenge. Please refresh and try again.',
+            )
+          }
+        />
         <Button
           type="submit"
           disabled={loading || !turnstileToken}

@@ -37,7 +37,16 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
   // attempt — without this, a typo'd-password retry would fail the captcha
   // gate even after correcting the password.
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Set when the widget itself fails to load/run (script blocked, network,
+  // bad key). Without surfacing it the submit button is disabled forever with
+  // no explanation — a hard dead-end for users behind ad-blockers/proxies.
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance | undefined>(undefined);
+
+  function handleTurnstileToken(token: string | null) {
+    setTurnstileToken(token);
+    if (token) setCaptchaError(null);
+  }
 
   async function attemptSignIn() {
     setError(null);
@@ -113,12 +122,20 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
             className="h-11"
           />
         </div>
-        {error && (
+        {(error || captchaError) && (
           <p role="alert" className="text-destructive text-sm">
-            {error}
+            {error ?? captchaError}
           </p>
         )}
-        <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+        <TurnstileWidget
+          ref={turnstileRef}
+          onToken={handleTurnstileToken}
+          onError={() =>
+            setCaptchaError(
+              'Could not load the verification challenge. Please refresh and try again.',
+            )
+          }
+        />
         <Button
           type="submit"
           disabled={loading || !turnstileToken}
