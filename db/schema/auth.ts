@@ -1,16 +1,22 @@
 import { pgTable, text, timestamp, boolean, integer, bigint } from 'drizzle-orm/pg-core';
 
-// `is_admin` is hand-managed and NOT part of Better Auth's schema. If you ever
-// regenerate this file via Better Auth's CLI, re-add it — Better Auth will
-// strip columns it doesn't know about. It's safe to leave on the table at
-// runtime: Better Auth ignores unknown columns.
+// Authorization columns (`role`, `banned`, `ban_reason`, `ban_expires`) are
+// the Better Auth admin plugin's expected schema (ticket #26). They are
+// hand-edited here — do NOT regenerate this file via Better Auth's CLI, which
+// would strip these (and any other) columns it doesn't model identically.
+// `role`/`banned` are kept NOT NULL DEFAULT (stricter than the plugin's
+// optional fields, matching the prior `is_admin` convention); the plugin's
+// role-injecting hook populates `role` on every sign-up path.
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
-  isAdmin: boolean('is_admin').notNull().default(false),
+  role: text('role').notNull().default('user'),
+  banned: boolean('banned').notNull().default(false),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -24,6 +30,9 @@ export const session = pgTable('session', {
   expiresAt: timestamp('expires_at').notNull(),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
+  // Admin plugin's expected column. We don't build an impersonation UI in #26
+  // (Decision 7), but the plugin's schema includes it; kept nullable.
+  impersonatedBy: text('impersonated_by'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
