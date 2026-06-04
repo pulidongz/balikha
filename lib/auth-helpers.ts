@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
-import { artisanProfiles, user } from '@/db/schema';
+import { artisanProfiles } from '@/db/schema';
 import { logger } from '@/lib/logger';
 import { ok, err, type Result } from '@/lib/result';
 
@@ -73,20 +73,23 @@ export async function getCurrentArtisanProfile() {
   return profile ?? null;
 }
 
-// Better Auth's session.user doesn't include hand-managed columns like
-// `is_admin`. Re-fetch the row from the DB so callers can read the role flag.
-export async function getCurrentUserWithRole() {
-  const session = await getCurrentSession();
-  if (!session?.user) return null;
-  const [row] = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  return row ?? null;
-}
-
 // --- Throw-on-missing variants for server actions ---------------------------
 
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) throw new UnauthorizedError();
+  // Defense-in-depth banned check (ticket #26, Issue 6). The REAL guarantee
+  // against a banned/suspended user is the admin plugin's session revocation
+  // on banUser — once sessions are deleted, getCurrentUser() returns null and
+  // this never runs. This branch only becomes load-bearing if Better Auth's
+  // session.cookieCache is ever enabled (a cached session could outlive the
+  // revocation), at which point this would need a fresh DB read of `banned`
+  // rather than the cached session field. Documented so a future cookie-cache
+  // change doesn't silently defeat AC2.
+  if (user.banned) {
+    logger.warn({ userId: user.id }, 'Banned user blocked at requireUser');
+    throw new ForbiddenError('Your account has been suspended');
+  }
   return user;
 }
 
@@ -97,9 +100,12 @@ export async function requireArtisan() {
 }
 
 export async function requireAdmin() {
-  const u = await getCurrentUserWithRole();
+  // The admin plugin puts `role` on the session user, so no DB re-fetch is
+  // needed (ticket #26). `getCurrentSession()` is React-cached per request.
+  const session = await getCurrentSession();
+  const u = session?.user;
   if (!u) throw new UnauthorizedError();
-  if (!u.isAdmin) {
+  if (u.role !== 'admin') {
     logger.warn({ userId: u.id }, 'Non-admin attempted admin action');
     throw new AdminRequiredError();
   }

@@ -24,12 +24,12 @@ async function main() {
     process.exit(1);
   }
 
-  if (target.isAdmin) {
+  if (target.role === 'admin') {
     logger.info({ email }, 'User is already admin');
     process.exit(0);
   }
 
-  await db.update(user).set({ isAdmin: true }).where(eq(user.id, target.id));
+  await db.update(user).set({ role: 'admin' }).where(eq(user.id, target.id));
   logger.info({ email, userId: target.id }, 'User promoted to admin');
 }
 

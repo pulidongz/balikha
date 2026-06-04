@@ -5,38 +5,25 @@ import { buttonVariants } from '@/components/ui/button';
 import { SearchBar } from '@/components/search/search-bar';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import { db } from '@/db';
-import { artisanProfiles, user as userTable } from '@/db/schema';
+import { artisanProfiles } from '@/db/schema';
 import { SiteHeaderMobileMenu } from './site-header-mobile-menu';
 import { SiteHeaderUserMenu } from './site-header-user-menu';
 
 export async function SiteHeader() {
   const session = await getCurrentSession();
-  const signedIn = session !== null;
   const userName = session?.user.name ?? null;
   const userEmail = session?.user.email ?? null;
 
-  // Conditional menu items ("My shop", "Admin") need to know whether the
-  // current user has an artisan profile and whether they're an admin.
-  // Fetched in parallel to keep header render fast on signed-in pages;
-  // skipped entirely for anonymous visitors.
+  // The "My shop" slot still needs to know whether the current user has an
+  // artisan profile. Skipped entirely for anonymous visitors.
   let hasShop = false;
-  let isAdmin = false;
   if (session) {
-    const userId = session.user.id;
-    const [shopRow, roleRow] = await Promise.all([
-      db
-        .select({ id: artisanProfiles.id })
-        .from(artisanProfiles)
-        .where(eq(artisanProfiles.userId, userId))
-        .limit(1),
-      db
-        .select({ isAdmin: userTable.isAdmin })
-        .from(userTable)
-        .where(eq(userTable.id, userId))
-        .limit(1),
-    ]);
+    const shopRow = await db
+      .select({ id: artisanProfiles.id })
+      .from(artisanProfiles)
+      .where(eq(artisanProfiles.userId, session.user.id))
+      .limit(1);
     hasShop = shopRow.length > 0;
-    isAdmin = roleRow[0]?.isAdmin ?? false;
   }
 
   return (
@@ -65,12 +52,12 @@ export async function SiteHeader() {
           </Link>
 
           <nav className="hidden items-center gap-2 md:flex">
-            {signedIn && userName && userEmail ? (
+            {session && userName && userEmail ? (
               <SiteHeaderUserMenu
                 userName={userName}
                 userEmail={userEmail}
                 hasShop={hasShop}
-                isAdmin={isAdmin}
+                role={session.user.role}
               />
             ) : (
               <>
@@ -84,12 +71,12 @@ export async function SiteHeader() {
             )}
           </nav>
 
-          {signedIn ? (
+          {session ? (
             <SiteHeaderMobileMenu
               signedIn
               userName={userName}
               hasShop={hasShop}
-              isAdmin={isAdmin}
+              role={session.user.role}
             />
           ) : (
             <SiteHeaderMobileMenu signedIn={false} />

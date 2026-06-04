@@ -24,12 +24,12 @@ async function main() {
     process.exit(1);
   }
 
-  if (!target.isAdmin) {
+  if (target.role !== 'admin') {
     logger.info({ email }, 'User is not an admin');
     process.exit(0);
   }
 
-  await db.update(user).set({ isAdmin: false }).where(eq(user.id, target.id));
+  await db.update(user).set({ role: 'user' }).where(eq(user.id, target.id));
   logger.info({ email, userId: target.id }, 'User demoted from admin');
 }
 
