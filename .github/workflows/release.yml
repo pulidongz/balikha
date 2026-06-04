@@ -49,6 +49,14 @@ jobs:
           S3_PUBLIC_URL_BASE: 'https://images.balikha.art'
           EMAIL_FROM: 'hello@balikha.art'
           EMAIL_REPLY_TO: 'support@balikha.art'
+          # Site key is inlined into the shipped client bundle, so it MUST be
+          # the real prod widget key — sourced from the repo variable. If the
+          # variable is unset it resolves to '' and env.ts fails the build
+          # loudly (fail-closed). The secret key is only validated here (never
+          # connected to at build); the real one lives in
+          # /etc/balikha/production.env and is read at runtime.
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: 'release-build-dummy-turnstile-secret'
       - name: Package deploy artifact
         run: |
           # Write the tarball to RUNNER_TEMP — OUTSIDE the tree being archived.
