@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError } from 'better-auth/api';
+import { captcha } from 'better-auth/plugins';
 import { createElement } from 'react';
 import { db } from '@/db';
 import { env } from '@/env';
@@ -31,6 +32,25 @@ const socialProviders =
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
+  // Cloudflare Turnstile captcha plugin (ticket #25). Server-side verifies
+  // the x-captcha-response header against Cloudflare siteverify on the
+  // three bot-exposed endpoints: /sign-up/email, /sign-in/email,
+  // /request-password-reset. Token-based /reset-password is already
+  // bot-resistant (single-use token) and is intentionally not guarded.
+  plugins: [
+    captcha({
+      provider: 'cloudflare-turnstile',
+      secretKey: env.TURNSTILE_SECRET_KEY,
+    }),
+  ],
+  // Rate limiting using Better Auth's built-in throttle rules. No
+  // customRules — the built-in /sign-in/* and /sign-up/* rule (3 per 10s)
+  // plus reset/verify (3 per 60s) already satisfies AC2.
+  rateLimit: {
+    // enabled explicitly (default is prod-only) so dev exercises the throttle
+    enabled: true,
+    storage: 'database', // persisted in the rate_limit table (survives restarts)
+  },
   // Behind Cloudflare + Caddy, the socket peer is the proxy. Read the real
   // visitor IP from X-Real-IP (Caddy sets it to the trusted Cf-Connecting-Ip
   // value) so session.ip_address records the client, not the edge.

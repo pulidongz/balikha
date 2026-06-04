@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUp } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
+import { TurnstileWidget } from '@/components/auth/turnstile-widget';
 import { checkDisposableEmail } from '@/lib/actions/auth';
 import { safeNextOr } from '@/lib/safe-next';
 import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 
 interface SignUpFormProps {
   googleEnabled: boolean;
@@ -32,6 +34,19 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Turnstile tokens are single-use. Reset the widget + clear the token on
+  // any error so a fresh challenge is issued before the next attempt.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Set when the widget itself fails to load/run (script blocked, network,
+  // bad key). Without surfacing it the submit button is disabled forever with
+  // no explanation — a hard dead-end for users behind ad-blockers/proxies.
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | undefined>(undefined);
+
+  function handleTurnstileToken(token: string | null) {
+    setTurnstileToken(token);
+    if (token) setCaptchaError(null);
+  }
 
   async function attemptSignUp() {
     setError(null);
@@ -45,9 +60,16 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
       next !== '/account'
         ? `/verify-email?status=verified&next=${encodeURIComponent(next)}`
         : '/verify-email?status=verified';
-    const result = await signUp.email({ email, password, name, callbackURL });
+    const result = await signUp.email(
+      { email, password, name, callbackURL },
+      { headers: { 'x-captcha-response': turnstileToken ?? '' } },
+    );
     setLoading(false);
     if (result.error) {
+      // Reset the widget + clear the token on any error so the next attempt
+      // gets a fresh challenge (tokens are single-use and short-lived).
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       setError(result.error.message ?? 'Sign-up failed');
       return;
     }
@@ -128,12 +150,26 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             className="h-11"
           />
         </div>
-        {error && (
+        {(error || captchaError) && (
           <p role="alert" className="text-destructive text-sm">
-            {error}
+            {error ?? captchaError}
           </p>
         )}
-        <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+        <TurnstileWidget
+          ref={turnstileRef}
+          onToken={handleTurnstileToken}
+          onError={() =>
+            setCaptchaError(
+              'Could not load the verification challenge. Please refresh and try again.',
+            )
+          }
+        />
+        <Button
+          type="submit"
+          disabled={loading || !turnstileToken}
+          size="lg"
+          className="h-11 w-full"
+        >
           {loading ? 'Creating account…' : 'Create account'}
         </Button>
       </form>

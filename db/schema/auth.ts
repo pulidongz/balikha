@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, bigint } from 'drizzle-orm/pg-core';
 
 // `is_admin` is hand-managed and NOT part of Better Auth's schema. If you ever
 // regenerate this file via Better Auth's CLI, re-add it — Better Auth will
@@ -53,4 +53,17 @@ export const verification = pgTable('verification', {
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Better Auth built-in rate limiting — database storage (ticket #25).
+// Export name MUST be `rateLimit` (camelCase): the Drizzle adapter resolves
+// this via schema['rateLimit'] and throws BetterAuthError if the name differs.
+// key is NOT NULL UNIQUE — duplicate keys corrupt counts (Issue 2).
+// lastRequest uses mode:'number' so Better Auth can do arithmetic without
+// BigInt/number type mismatch errors (Issue 3).
+export const rateLimit = pgTable('rate_limit', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(), // unique+required — dupes corrupt counts
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull(), // mode:'number', not bigint
 });

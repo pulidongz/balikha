@@ -1,33 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AuthStatus } from '@/components/auth/auth-status';
+import { TurnstileWidget } from '@/components/auth/turnstile-widget';
 import { requestPasswordReset } from '@/lib/auth-client';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
+
+// UNKNOWN_ERROR is the captcha plugin's fail-closed code (siteverify
+// unreachable or secret missing). Like the other two it is raised before any
+// user lookup, so routing it to the retry branch leaks nothing — and it spares
+// the user a false "check inbox" with no email and no retry signal.
+const CAPTCHA_ERROR_CODES = new Set(['MISSING_RESPONSE', 'VERIFICATION_FAILED', 'UNKNOWN_ERROR']);
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  // Captcha challenge state. Tokens are single-use — reset the widget after
+  // any captcha error so the user can retry with a fresh token.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | undefined>(undefined);
+
+  function handleTurnstileToken(token: string | null) {
+    setTurnstileToken(token);
+    if (token) setCaptchaError(null);
+  }
 
   async function submit() {
+    setCaptchaError(null);
     setLoading(true);
-    // Always-success UX: we never surface "no account exists" — that's
-    // an account-enumeration leak. Better Auth's endpoint is silent on
-    // that too. If the email is real, a reset link is on the way.
-    const result = await requestPasswordReset({
-      email,
-      redirectTo: '/reset-password',
-    });
+    const result = await requestPasswordReset(
+      { email, redirectTo: '/reset-password' },
+      { headers: { 'x-captcha-response': turnstileToken ?? '' } },
+    );
     setLoading(false);
+
     if (result.error) {
-      // Always show success (enumeration protection), but log endpoint-level
-      // errors (network, rate limits, disabled reset) so they're visible in dev.
+      const code = result.error.code;
+
+      if (code !== undefined && CAPTCHA_ERROR_CODES.has(code)) {
+        // Captcha errors run before any user lookup — no enumeration risk.
+        // Surface a retry prompt instead of the false-positive "check inbox"
+        // state; otherwise the user hits a dead-end (no email, no retry signal).
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        setCaptchaError('Challenge expired or failed. Please try again.');
+        return;
+      }
+
+      // All other errors (rate-limit 429, network, disabled reset, unknown
+      // email, etc.) → flip to "check inbox" for enumeration safety.
+      // Log so the error is visible in dev without leaking it to the user.
       console.error('requestPasswordReset failed:', result.error);
     }
+
     setSent(true);
   }
 
@@ -80,7 +111,26 @@ export function ForgotPasswordForm() {
             className="h-11"
           />
         </div>
-        <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+        {captchaError && (
+          <p role="alert" className="text-destructive text-sm">
+            {captchaError}
+          </p>
+        )}
+        <TurnstileWidget
+          ref={turnstileRef}
+          onToken={handleTurnstileToken}
+          onError={() =>
+            setCaptchaError(
+              'Could not load the verification challenge. Please refresh and try again.',
+            )
+          }
+        />
+        <Button
+          type="submit"
+          disabled={loading || !turnstileToken}
+          size="lg"
+          className="h-11 w-full"
+        >
           {loading ? 'Sending…' : 'Send reset link'}
         </Button>
       </form>

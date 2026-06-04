@@ -118,3 +118,7 @@ jobs:
           S3_PUBLIC_URL_BASE: 'http://localhost:9000/ci-dummy-bucket'
           EMAIL_FROM: 'ci-dummy@example.com'
           EMAIL_REPLY_TO: 'ci-dummy@example.com'
+          # CI build artifact is discarded — these only need to satisfy the
+          # env.ts validator. The site key is Cloudflare's always-pass test key.
+          TURNSTILE_SECRET_KEY: 'ci-dummy-turnstile-secret'
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA'
