@@ -32,6 +32,7 @@ import { db } from '@/db';
 import { orders } from '@/db/schema';
 import { transitionOrder } from '@/lib/actions/orders';
 import { returnStockIfPreShipment } from '@/lib/orders/stock';
+import { restoreExpiredSuspensions } from '@/lib/admin/seller-content';
 import { env } from '@/env';
 import { logger } from '@/lib/logger';
 
@@ -151,8 +152,9 @@ async function main(): Promise<void> {
 
   const cancelled = await autoCancelStaleResponses(now);
   const completed = await autoCompleteStaleShipments(now);
+  const suspensionsRestored = await restoreExpiredSuspensions();
 
-  logger.info({ cancelled, completed }, 'Order tick: done');
+  logger.info({ cancelled, completed, suspensionsRestored }, 'Order tick: done');
 }
 
 main()

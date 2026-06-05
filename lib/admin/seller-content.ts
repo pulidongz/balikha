@@ -1,6 +1,8 @@
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { db } from '@/db';
 import type { Tx } from '@/db';
-import { artisanProfiles, products } from '@/db/schema';
+import { artisanProfiles, products, user } from '@/db/schema';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // hideSellerListings
@@ -106,4 +108,57 @@ export async function restoreSellerListings(userId: string, tx: Tx): Promise<voi
       .set({ status: 'sold_out', previousStatus: null })
       .where(inArray(products.id, toSoldOut));
   }
+}
+
+// ---------------------------------------------------------------------------
+// restoreExpiredSuspensions
+// ---------------------------------------------------------------------------
+// Reconciler that closes the gap between the Better Auth admin plugin's
+// auto-unban (which clears `user.banned` at `banExpires` but never restores
+// listings) and the actual product visibility.
+//
+// Finds every seller who has at least one product with `previous_status IS NOT
+// NULL` (i.e. listings were admin-hidden at suspend/ban time) but whose user
+// record now has `banned = false` (the plugin's timer auto-expired the ban).
+// For each such seller, calls `restoreSellerListings` inside a transaction to
+// restore the hidden listings to their prior statuses and clear `previous_status`.
+//
+// No-double-restore guarantee: the synchronous admin Unsuspend path already
+// clears `previous_status` in its own transaction, so once a seller is
+// restored there are no `previous_status IS NOT NULL` rows left and this
+// reconciler will not pick them up again.
+//
+// A still-suspended/banned seller (`banned = true`) is ignored because the
+// JOIN filters to `banned = false` only.
+//
+// Intended to be called by the `balikha-orders-tick` scheduled job so it
+// rides the existing systemd unit — no new unit needed.
+//
+// Returns the number of sellers whose listings were restored.
+// ---------------------------------------------------------------------------
+export async function restoreExpiredSuspensions(): Promise<number> {
+  // Find sellers who have admin-hidden products but are no longer banned.
+  // The distinct on artisanProfiles.userId is implicit via the join key.
+  const affected = await db
+    .selectDistinct({ userId: artisanProfiles.userId })
+    .from(products)
+    .innerJoin(artisanProfiles, eq(products.artisanProfileId, artisanProfiles.id))
+    .innerJoin(user, eq(artisanProfiles.userId, user.id))
+    .where(and(isNotNull(products.previousStatus), eq(user.banned, false)));
+
+  if (affected.length === 0) {
+    logger.info('Suspension reconciler: no expired suspensions to restore');
+    return 0;
+  }
+
+  let restored = 0;
+  for (const row of affected) {
+    await db.transaction(async (tx) => {
+      await restoreSellerListings(row.userId, tx);
+    });
+    restored += 1;
+  }
+
+  logger.info({ restored }, 'Suspension reconciler: restored expired suspensions');
+  return restored;
 }
