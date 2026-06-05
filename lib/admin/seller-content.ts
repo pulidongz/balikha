@@ -72,14 +72,14 @@ export async function hideSellerListings(userId: string, tx: Tx): Promise<void> 
 // Must be called inside the same Drizzle transaction as the unsuspend/unban
 // action (or from the reconciler, which also wraps in a transaction).
 // ---------------------------------------------------------------------------
-export async function restoreSellerListings(userId: string, tx: Tx): Promise<void> {
+export async function restoreSellerListings(userId: string, tx: Tx): Promise<number> {
   const [profile] = await tx
     .select({ id: artisanProfiles.id })
     .from(artisanProfiles)
     .where(eq(artisanProfiles.userId, userId))
     .limit(1);
 
-  if (!profile) return;
+  if (!profile) return 0;
 
   // Select only products that were admin-hidden (previousStatus IS NOT NULL).
   const hiddenProducts = await tx
@@ -87,7 +87,7 @@ export async function restoreSellerListings(userId: string, tx: Tx): Promise<voi
     .from(products)
     .where(and(eq(products.artisanProfileId, profile.id), isNotNull(products.previousStatus)));
 
-  if (hiddenProducts.length === 0) return;
+  if (hiddenProducts.length === 0) return 0;
 
   // Restore each prior status.  Group by previous_status to keep updates
   // minimal (two at most: published and sold_out).
@@ -96,18 +96,22 @@ export async function restoreSellerListings(userId: string, tx: Tx): Promise<voi
     .map((p) => p.id);
   const toSoldOut = hiddenProducts.filter((p) => p.previousStatus === 'sold_out').map((p) => p.id);
 
+  let count = 0;
   if (toPublished.length > 0) {
     await tx
       .update(products)
       .set({ status: 'published', previousStatus: null })
       .where(inArray(products.id, toPublished));
+    count += toPublished.length;
   }
   if (toSoldOut.length > 0) {
     await tx
       .update(products)
       .set({ status: 'sold_out', previousStatus: null })
       .where(inArray(products.id, toSoldOut));
+    count += toSoldOut.length;
   }
+  return count;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,10 +157,12 @@ export async function restoreExpiredSuspensions(): Promise<number> {
 
   let restored = 0;
   for (const row of affected) {
-    await db.transaction(async (tx) => {
-      await restoreSellerListings(row.userId, tx);
-    });
-    restored += 1;
+    try {
+      const count = await db.transaction(async (tx) => restoreSellerListings(row.userId, tx));
+      if (count > 0) restored += 1;
+    } catch (e) {
+      logger.warn({ userId: row.userId, error: e }, 'Failed to restore listings for seller — skipping');
+    }
   }
 
   logger.info({ restored }, 'Suspension reconciler: restored expired suspensions');
