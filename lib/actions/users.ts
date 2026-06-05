@@ -66,19 +66,28 @@ export async function suspendUser(input: unknown): Promise<Result<{ userId: stri
     return err(`Failed to suspend user: ${message}`);
   }
 
-  await db.transaction(async (tx) => {
-    await hideSellerListings(userId, tx);
-    await recordAdminAction(
-      {
-        actorUserId: admin.id,
-        action: 'suspend',
-        targetUserId: userId,
-        reason,
-        metadata: { durationDays },
-      },
-      tx,
+  try {
+    await db.transaction(async (tx) => {
+      await hideSellerListings(userId, tx);
+      await recordAdminAction(
+        {
+          actorUserId: admin.id,
+          action: 'suspend',
+          targetUserId: userId,
+          reason,
+          metadata: { durationDays },
+        },
+        tx,
+      );
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error(
+      { adminId: admin.id, targetUserId: userId, error: message },
+      'post-suspend transaction failed',
     );
-  });
+    return err(`User was suspended but follow-up failed — listings may still be visible. Error: ${message}`);
+  }
 
   log.info({ adminId: admin.id, targetUserId: userId, durationDays }, 'User suspended');
 
@@ -116,17 +125,26 @@ export async function unsuspendUser(input: unknown): Promise<Result<{ userId: st
     return err(`Failed to unsuspend user: ${message}`);
   }
 
-  await db.transaction(async (tx) => {
-    await restoreSellerListings(userId, tx);
-    await recordAdminAction(
-      {
-        actorUserId: admin.id,
-        action: 'unsuspend',
-        targetUserId: userId,
-      },
-      tx,
+  try {
+    await db.transaction(async (tx) => {
+      await restoreSellerListings(userId, tx);
+      await recordAdminAction(
+        {
+          actorUserId: admin.id,
+          action: 'unsuspend',
+          targetUserId: userId,
+        },
+        tx,
+      );
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error(
+      { adminId: admin.id, targetUserId: userId, error: message },
+      'post-unsuspend transaction failed',
     );
-  });
+    return err(`Failed to complete unsuspend follow-up: ${message}`);
+  }
 
   log.info({ adminId: admin.id, targetUserId: userId }, 'User unsuspended');
 
@@ -163,18 +181,27 @@ export async function banUser(input: unknown): Promise<Result<{ userId: string }
     return err(`Failed to ban user: ${message}`);
   }
 
-  await db.transaction(async (tx) => {
-    await hideSellerListings(userId, tx);
-    await recordAdminAction(
-      {
-        actorUserId: admin.id,
-        action: 'ban',
-        targetUserId: userId,
-        reason,
-      },
-      tx,
+  try {
+    await db.transaction(async (tx) => {
+      await hideSellerListings(userId, tx);
+      await recordAdminAction(
+        {
+          actorUserId: admin.id,
+          action: 'ban',
+          targetUserId: userId,
+          reason,
+        },
+        tx,
+      );
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error(
+      { adminId: admin.id, targetUserId: userId, error: message },
+      'post-ban transaction failed',
     );
-  });
+    return err(`User was banned but follow-up failed — listings may still be visible. Error: ${message}`);
+  }
 
   log.info({ adminId: admin.id, targetUserId: userId }, 'User banned');
 
@@ -212,17 +239,26 @@ export async function unbanUser(input: unknown): Promise<Result<{ userId: string
     return err(`Failed to unban user: ${message}`);
   }
 
-  await db.transaction(async (tx) => {
-    await restoreSellerListings(userId, tx);
-    await recordAdminAction(
-      {
-        actorUserId: admin.id,
-        action: 'unban',
-        targetUserId: userId,
-      },
-      tx,
+  try {
+    await db.transaction(async (tx) => {
+      await restoreSellerListings(userId, tx);
+      await recordAdminAction(
+        {
+          actorUserId: admin.id,
+          action: 'unban',
+          targetUserId: userId,
+        },
+        tx,
+      );
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error(
+      { adminId: admin.id, targetUserId: userId, error: message },
+      'post-unban transaction failed',
     );
-  });
+    return err(`Failed to complete unban follow-up: ${message}`);
+  }
 
   log.info({ adminId: admin.id, targetUserId: userId }, 'User unbanned');
 
@@ -260,11 +296,20 @@ export async function promoteToAdmin(input: unknown): Promise<Result<{ userId: s
     return err(`Failed to promote user: ${message}`);
   }
 
-  await recordAdminAction({
-    actorUserId: admin.id,
-    action: 'promote_admin',
-    targetUserId: userId,
-  });
+  try {
+    await recordAdminAction({
+      actorUserId: admin.id,
+      action: 'promote_admin',
+      targetUserId: userId,
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error(
+      { adminId: admin.id, targetUserId: userId, error: message },
+      'promote audit write failed',
+    );
+    return err(`Failed to record promotion audit: ${message}`);
+  }
 
   log.info({ adminId: admin.id, targetUserId: userId }, 'User promoted to admin');
 
@@ -302,11 +347,20 @@ export async function demoteToUser(input: unknown): Promise<Result<{ userId: str
     return err(`Failed to demote user: ${message}`);
   }
 
-  await recordAdminAction({
-    actorUserId: admin.id,
-    action: 'demote_admin',
-    targetUserId: userId,
-  });
+  try {
+    await recordAdminAction({
+      actorUserId: admin.id,
+      action: 'demote_admin',
+      targetUserId: userId,
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error(
+      { adminId: admin.id, targetUserId: userId, error: message },
+      'demote audit write failed',
+    );
+    return err(`Failed to record demotion audit: ${message}`);
+  }
 
   log.info({ adminId: admin.id, targetUserId: userId }, 'User demoted to user');
 
