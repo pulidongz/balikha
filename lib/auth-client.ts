@@ -1,4 +1,5 @@
 import { createAuthClient } from 'better-auth/react';
+import { adminClient } from 'better-auth/client/plugins';
 
 // No baseURL on purpose. Better Auth's client falls back to the relative
 // path `/api/auth`, which resolves to the current page's origin at fetch
@@ -12,7 +13,11 @@ import { createAuthClient } from 'better-auth/react';
 // The server's BETTER_AUTH_URL env var still sets the canonical URL
 // used in absolute links (email verification, OAuth callbacks); that's
 // a separate concern from the client's fetch target.
-export const authClient = createAuthClient();
+export const authClient = createAuthClient({
+  // Mirrors the server-side `admin()` plugin (ticket #26) so the inferred
+  // session type carries `role`/`banned` and the admin client methods exist.
+  plugins: [adminClient()],
+});
 
 export const {
   signIn,

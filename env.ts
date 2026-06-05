@@ -53,6 +53,13 @@ export const env = createEnv({
     // boot (fail-loud), and the server-side captcha plugin cannot verify
     // challenge tokens without it.
     TURNSTILE_SECRET_KEY: z.string().min(1),
+    // Static-admin bootstrap (ticket #26). Optional with no default — the
+    // `admin:bootstrap` script enforces their presence at *runtime* (throws
+    // if unset when invoked). They MUST stay optional: a required var would
+    // fail `next build` env validation in CI/release (the #25 lesson), and
+    // the CI/release build env: blocks deliberately don't carry these.
+    ADMIN_EMAIL: z.string().email().optional(),
+    ADMIN_PASSWORD: z.string().min(8).optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -85,6 +92,8 @@ export const env = createEnv({
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   },
   emptyStringAsUndefined: true,

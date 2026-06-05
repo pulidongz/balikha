@@ -27,20 +27,24 @@ function initialsOf(name: string): string {
 // Public-pages user menu — visible at md+ in the SiteHeader. "My account"
 // is always present. The next slot is mutually exclusive: "My shop" if the
 // user has an artisan profile, otherwise "Sell on Balikha" pointing at the
-// become-seller flow. "Admin" only shows when isAdmin. Keeps the menu
+// become-seller flow. "Admin" only shows for the admin role. Keeps the menu
 // honest about which surfaces the current user actually has access to,
 // and gives buyers a discoverable path to start selling.
 export function SiteHeaderUserMenu({
   userName,
   userEmail,
   hasShop,
-  isAdmin,
+  role,
 }: {
   userName: string;
   userEmail: string;
   hasShop: boolean;
-  isAdmin: boolean;
+  // Better Auth types the session role as nullable (the admin plugin marks the
+  // field optional); our column is NOT NULL but the inferred type is widened.
+  // `=== 'admin'` correctly treats null/undefined as "not admin".
+  role: string | null | undefined;
 }) {
+  const isAdmin = role === 'admin';
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
 

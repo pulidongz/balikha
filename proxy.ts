@@ -3,7 +3,7 @@ import { getSessionCookie } from 'better-auth/cookies';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
-// Cookie-only auth gate. The DB-backed admin check (is_admin column) lives in
+// Cookie-only auth gate. The real admin check (user.role) lives in
 // app/(admin)/layout.tsx — Drizzle/postgres aren't safe in the Edge runtime
 // proxy runs on, so role enforcement happens server-side after the route loads.
 const PROTECTED_PREFIXES = ['/dashboard', '/admin', '/account'];

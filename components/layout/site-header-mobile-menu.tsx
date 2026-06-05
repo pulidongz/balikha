@@ -9,12 +9,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { signOut } from '@/lib/auth-client';
 
 type Props =
-  | { signedIn: true; userName: string | null; hasShop: boolean; isAdmin: boolean }
+  | { signedIn: true; userName: string | null; hasShop: boolean; role: string | null | undefined }
   | {
       signedIn: false;
       userName?: never;
       hasShop?: never;
-      isAdmin?: never;
+      role?: never;
     };
 
 export function SiteHeaderMobileMenu(props: Props) {
@@ -77,7 +77,7 @@ export function SiteHeaderMobileMenu(props: Props) {
                   Sell on Balikha
                 </Link>
               )}
-              {props.isAdmin && (
+              {props.role === 'admin' && (
                 <Link
                   href="/admin"
                   onClick={() => setOpen(false)}

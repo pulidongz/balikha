@@ -24,8 +24,7 @@
     "email:test": "tsx --env-file=.env.development db/scripts/send-test-email.tsx",
     "email:preview:notifications": "tsx --env-file=.env.development db/scripts/preview-notification-emails.tsx",
     "orders:tick": "tsx --env-file=.env.development db/scripts/orders-tick.ts",
-    "admin:promote": "tsx --env-file=.env.development db/scripts/promote-admin.ts",
-    "admin:demote": "tsx --env-file=.env.development db/scripts/demote-admin.ts"
+    "admin:bootstrap": "tsx --env-file=.env.development db/scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",

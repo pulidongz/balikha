@@ -545,7 +545,7 @@ async function seed() {
   logger.info({ email: ADMIN.email }, 'Creating admin account…');
   const adminUser = await createUser(ADMIN.email, ADMIN.password, ADMIN.name);
   seededUserIds.push(adminUser.id);
-  await db.update(user).set({ isAdmin: true }).where(eq(user.id, adminUser.id));
+  await db.update(user).set({ role: 'admin' }).where(eq(user.id, adminUser.id));
 
   // Buyer accounts (no artisan profile)
   logger.info({ count: NUM_BUYERS }, 'Creating buyer accounts…');
@@ -571,7 +571,7 @@ async function seed() {
 
     // Promote Maria to admin so /admin is reachable immediately after seeding.
     if (seller.email === 'maria@balikha.test') {
-      await db.update(user).set({ isAdmin: true }).where(eq(user.id, created.id));
+      await db.update(user).set({ role: 'admin' }).where(eq(user.id, created.id));
       logger.info({ email: seller.email }, 'Promoted seller to admin');
     }
 

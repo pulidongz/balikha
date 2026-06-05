@@ -133,6 +133,13 @@ export const products = pgTable(
     currency: text('currency').notNull().default('PHP'),
     stockOnHand: integer('stock_on_hand').notNull().default(0),
     status: productStatus('status').notNull().default('draft'),
+    // Admin-hidden marker (ticket #26). NULL = not admin-hidden. When an admin
+    // suspends/bans the seller, each `published`/`sold_out` product's prior
+    // status is captured here and `status` is set to `archived`; restore (on
+    // Unsuspend or the auto-expiry reconciler) writes this value back to
+    // `status` and clears the column. Presence = admin-hidden; value = the
+    // status to restore to.
+    previousStatus: productStatus('previous_status'),
     dimensions: jsonb('dimensions').$type<{
       width?: number;
       height?: number;
@@ -833,5 +840,41 @@ export const buyerBlockedSellers = pgTable(
   (t) => [
     primaryKey({ columns: [t.buyerUserId, t.blockedArtisanProfileId] }),
     index('buyer_blocked_sellers_blocked_artisan_idx').on(t.blockedArtisanProfileId),
+  ],
+);
+
+// =============================================================================
+// Admin audit trail (ticket #26)
+// =============================================================================
+
+// Action discriminator for the admin audit log. NO impersonate_* values —
+// impersonation is deferred entirely in #26 (Decision 7).
+export const adminActionType = pgEnum('admin_action_type', [
+  'suspend',
+  'unsuspend',
+  'ban',
+  'unban',
+  'promote_admin',
+  'demote_admin',
+]);
+
+// Append-only audit log for admin user-management actions. Modeled on
+// `order_events`. Both FKs are nullable with ON DELETE SET NULL so deleting a
+// user (actor or target) preserves the immutable log rather than cascading
+// rows away (Issue 3). Never updated, never deleted.
+export const adminActions = pgTable(
+  'admin_actions',
+  {
+    id: text('id').primaryKey(),
+    actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+    action: adminActionType('action').notNull(),
+    targetUserId: text('target_user_id').references(() => user.id, { onDelete: 'set null' }),
+    reason: text('reason'),
+    metadataJson: jsonb('metadata_json'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('admin_actions_target_idx').on(t.targetUserId),
+    index('admin_actions_created_at_idx').on(t.createdAt),
   ],
 );

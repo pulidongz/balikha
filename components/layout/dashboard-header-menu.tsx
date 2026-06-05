@@ -35,17 +35,20 @@ export function DashboardHeaderMenu({
   userName,
   userEmail,
   shopSlug,
-  isAdmin,
+  role,
   pendingOrdersCount,
   unreadMessagesCount,
 }: {
   userName: string;
   userEmail: string;
   shopSlug: string | null;
-  isAdmin: boolean;
+  // Nullable to match Better Auth's inferred session role type (see
+  // SiteHeaderUserMenu). `=== 'admin'` treats null/undefined as "not admin".
+  role: string | null | undefined;
   pendingOrdersCount: number;
   unreadMessagesCount: number;
 }) {
+  const isAdmin = role === 'admin';
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
