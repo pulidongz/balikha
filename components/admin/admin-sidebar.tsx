@@ -16,12 +16,12 @@ interface NavItem {
 // Don't stub fake routes for them — empty admin pages are worse than no link.
 const NAV: readonly NavItem[] = [
   { href: '/admin', label: 'Overview', disabled: false, exact: true },
-  { href: '/admin/users', label: 'Users', disabled: true, exact: false },
+  { href: '/admin/users', label: 'Users', disabled: false, exact: false },
   { href: '/admin/orders', label: 'Orders', disabled: false, exact: false },
   { href: '/admin/sellers', label: 'Sellers', disabled: false, exact: false },
   { href: '/admin/products', label: 'Products', disabled: true, exact: false },
   { href: '/admin/search', label: 'Search analytics', disabled: false, exact: false },
-  { href: '/admin/audit-log', label: 'Audit log', disabled: true, exact: false },
+  { href: '/admin/audit-log', label: 'Audit log', disabled: false, exact: false },
 ];
 
 export function AdminSidebar() {
