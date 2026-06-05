@@ -14,7 +14,7 @@ export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif';
 // (['jpeg','png','webp']) set instead.
 export const ALLOWED_IMAGE_FORMATS: ImageFormat[] = ['jpeg', 'png', 'webp', 'avif'];
 
-// Preserves the prior product ceiling (the deleted imageUploadConfirmSchema
+// Preserves the prior product ceiling (the deleted confirm-upload validator
 // allowed up to 20000px) so no previously-valid photo is newly rejected.
 export const MAX_IMAGE_DIMENSION = 20000;
 

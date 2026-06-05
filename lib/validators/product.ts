@@ -64,31 +64,6 @@ export const productUpdateSchema = z.object({
 
 export const productStatusSchema = z.enum(['draft', 'published', 'sold_out', 'archived']);
 
-// Presigned-upload flow: client requests a URL, uploads directly to S3,
-// then confirms with the dimensions it read client-side. The 10MB cap is
-// enforced both here (early rejection) and via Content-Length on the
-// presigned URL (S3 enforces it server-side).
-export const imageUploadRequestSchema = z.object({
-  productId: z.string().uuid(),
-  filename: z.string().min(1).max(255),
-  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/avif']),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(10 * 1024 * 1024),
-});
-
-export const imageUploadConfirmSchema = z.object({
-  productId: z.string().uuid(),
-  key: z.string().min(1).max(512),
-  width: z.number().int().positive().max(20000),
-  height: z.number().int().positive().max(20000),
-  altText: z.string().max(200).optional(),
-});
-
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type ProductStatus = z.infer<typeof productStatusSchema>;
-export type ImageUploadRequest = z.infer<typeof imageUploadRequestSchema>;
-export type ImageUploadConfirm = z.infer<typeof imageUploadConfirmSchema>;
