@@ -15,6 +15,12 @@ export const env = createEnv({
     S3_ACCESS_KEY_ID: z.string().min(1),
     S3_SECRET_ACCESS_KEY: z.string().min(1),
     S3_BUCKET: z.string().min(1),
+    // MUST point at the isolated storage/CDN origin in production —
+    // `images.balikha.art` (a Cloudflare-fronted R2 custom domain), which is
+    // a DIFFERENT origin from the application. There is no app-hosted image
+    // proxy; uploaded images are served directly from this origin. If this
+    // value is ever set to the app origin, AC3 (isolated serving origin) is
+    // violated and uploaded images would be served from the application server.
     S3_PUBLIC_URL_BASE: z.string().url(),
     // Order lifecycle timeouts. Hours for seller-response (short window,
     // tunable to local commerce rhythm); days for buyer-auto-confirm
