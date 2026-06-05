@@ -88,7 +88,9 @@ export async function suspendUser(input: unknown): Promise<Result<{ userId: stri
       { adminId: admin.id, targetUserId: userId, error: message },
       'post-suspend transaction failed',
     );
-    return err(`User was suspended but follow-up failed — listings may still be visible. Error: ${message}`);
+    return err(
+      `User was suspended but follow-up failed — listings may still be visible. Error: ${message}`,
+    );
   }
 
   log.info({ adminId: admin.id, targetUserId: userId, durationDays }, 'User suspended');
@@ -202,7 +204,9 @@ export async function banUser(input: unknown): Promise<Result<{ userId: string }
       { adminId: admin.id, targetUserId: userId, error: message },
       'post-ban transaction failed',
     );
-    return err(`User was banned but follow-up failed — listings may still be visible. Error: ${message}`);
+    return err(
+      `User was banned but follow-up failed — listings may still be visible. Error: ${message}`,
+    );
   }
 
   log.info({ adminId: admin.id, targetUserId: userId }, 'User banned');
@@ -337,10 +341,7 @@ export async function demoteToUser(input: unknown): Promise<Result<{ userId: str
 
   if (userId === admin.id) return err('You cannot demote your own account');
 
-  const [adminCount] = await db
-    .select({ count: count() })
-    .from(user)
-    .where(eq(user.role, 'admin'));
+  const [adminCount] = await db.select({ count: count() }).from(user).where(eq(user.role, 'admin'));
   if ((adminCount?.count ?? 0) <= 1) return err('Cannot demote the last remaining admin');
 
   try {

@@ -161,7 +161,10 @@ export async function restoreExpiredSuspensions(): Promise<number> {
       const count = await db.transaction(async (tx) => restoreSellerListings(row.userId, tx));
       if (count > 0) restored += 1;
     } catch (e) {
-      logger.warn({ userId: row.userId, error: e }, 'Failed to restore listings for seller — skipping');
+      logger.warn(
+        { userId: row.userId, error: e },
+        'Failed to restore listings for seller — skipping',
+      );
     }
   }
 
