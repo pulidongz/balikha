@@ -10,8 +10,12 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { profileUpdateSchema } from '@/lib/validators/buyer';
+import {
+  sanitizeImage,
+  IMAGE_FORMAT_META,
+  MAX_IMAGE_DIMENSION,
+} from '@/lib/storage/sanitize-image';
 
-const ALLOWED_AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4 MB — avatars don't need banner-size budget
 
 async function bestEffortUnlinkLocalUpload(url: string | null) {
@@ -52,9 +56,6 @@ export async function uploadAvatarAction(formData: FormData): Promise<Result<nul
   if (!(file instanceof File) || file.size === 0) {
     return err('Select an image to upload.');
   }
-  if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
-    return err(`Unsupported image type: ${file.type || 'unknown'}.`);
-  }
   if (file.size > MAX_AVATAR_BYTES) {
     return err('Avatar must be 4 MB or smaller.');
   }
@@ -63,9 +64,16 @@ export async function uploadAvatarAction(formData: FormData): Promise<Result<nul
   await fs.mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const ext = path.extname(file.name) || '.bin';
-  const filename = `avatar-${Date.now()}${ext.toLowerCase()}`;
-  await fs.writeFile(path.join(uploadDir, filename), buffer);
+  const sanitized = await sanitizeImage(buffer, {
+    maxBytes: MAX_AVATAR_BYTES,
+    maxDimension: MAX_IMAGE_DIMENSION,
+    allowedFormats: ['jpeg', 'png', 'webp'],
+  });
+  if (!sanitized.ok) return err(sanitized.error);
+
+  const ext = IMAGE_FORMAT_META[sanitized.data.format].ext;
+  const filename = `avatar-${Date.now()}.${ext}`;
+  await fs.writeFile(path.join(uploadDir, filename), sanitized.data.data);
 
   const newUrl = `/uploads/users/${current.id}/${filename}`;
   // Read the previous URL straight from the row — the in-memory user from
