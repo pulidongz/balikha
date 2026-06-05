@@ -36,6 +36,14 @@
 balikha.art {
 	tls /etc/caddy/cloudflare-origin.pem /etc/caddy/cloudflare-origin-key.pem
 	encode zstd gzip
+	# Hard cap on request body size at the reverse-proxy layer. The product-image
+	# upload endpoint enforces MAX_IMAGE_BYTES (10 MB) + multipart overhead in
+	# application code, but this Caddy cap prevents other endpoints from being
+	# targeted with large bodies and stops the upload endpoint from buffering
+	# beyond this ceiling before the app-layer check runs.
+	request_body {
+		max_size 11MB
+	}
 	# Baseline security headers set at the origin (independent of edge config).
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"

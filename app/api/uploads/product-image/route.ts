@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '@/db';
 import { productImages, products } from '@/db/schema';
-import { ForbiddenError, UnauthorizedError, requireArtisan, requireUser } from '@/lib/auth-helpers';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+  requireArtisan,
+  requireOwnership,
+  requireUser,
+} from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 import { buildProductImageKey, publicUrlForKey } from '@/lib/storage/keys';
 import { putObject } from '@/lib/storage/put-object';
@@ -44,6 +51,16 @@ export async function POST(request: NextRequest) {
     throw e;
   }
 
+  // --- Content-Length pre-check (DoS protection BEFORE buffering) ---
+  // A crafted client can omit Content-Length; legitimate browser multipart
+  // POSTs always send it. Reject missing or non-numeric values as 413 so we
+  // never buffer an oversized body.
+  const contentLengthHeader = request.headers.get('content-length');
+  const contentLength = contentLengthHeader !== null ? parseInt(contentLengthHeader, 10) : NaN;
+  if (isNaN(contentLength) || contentLength > MAX_IMAGE_BYTES + 1024) {
+    return NextResponse.json({ error: 'Image must be 10 MB or smaller.' }, { status: 413 });
+  }
+
   const formData = await request.formData();
   const file = formData.get('file');
   const productId = formData.get('productId');
@@ -52,27 +69,39 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
   }
-  if (typeof productId !== 'string' || productId.length === 0) {
-    return NextResponse.json({ error: 'Missing product id.' }, { status: 400 });
+
+  // --- Validate productId is a UUID before hitting the DB ---
+  if (typeof productId !== 'string' || !z.string().uuid().safeParse(productId).success) {
+    return NextResponse.json({ error: 'Invalid product id.' }, { status: 400 });
+  }
+
+  // --- Validate altText length ---
+  if (typeof altTextRaw === 'string' && altTextRaw.length > 200) {
+    return NextResponse.json(
+      { error: 'Alt text must be 200 characters or fewer.' },
+      { status: 400 },
+    );
   }
   const altText = typeof altTextRaw === 'string' && altTextRaw.length > 0 ? altTextRaw : null;
 
-  // --- Product ownership ---
+  // --- Post-parse size guard (defense in depth) ---
+  if (file.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json({ error: 'Image must be 10 MB or smaller.' }, { status: 413 });
+  }
+
+  // --- Product ownership (uses shared requireOwnership for audit logging) ---
   const [product] = await db
     .select({ id: products.id, artisanProfileId: products.artisanProfileId })
     .from(products)
     .where(eq(products.id, productId))
     .limit(1);
-  if (!product || product.artisanProfileId !== profile.id) {
-    return NextResponse.json({ error: 'You do not own this product.' }, { status: 403 });
-  }
-
-  // --- Early size guard BEFORE buffering (DoS protection) ---
-  // file.size is client-claimed but cheap; reject a multi-hundred-MB POST
-  // without reading it into RAM. buffer.length in sanitizeImage is the
-  // authoritative post-buffer cap.
-  if (file.size > MAX_IMAGE_BYTES) {
-    return NextResponse.json({ error: 'Image must be 10 MB or smaller.' }, { status: 413 });
+  try {
+    requireOwnership(product, profile.id);
+  } catch (e) {
+    if (e instanceof ForbiddenError) {
+      return NextResponse.json({ error: 'You do not own this product.' }, { status: 403 });
+    }
+    throw e;
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());

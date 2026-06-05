@@ -42,7 +42,9 @@ function check(label: string, passed: boolean): void {
 }
 
 async function main(): Promise<void> {
-  const { sanitizeImage, MAX_IMAGE_DIMENSION } = await import('@/lib/storage/sanitize-image');
+  const { sanitizeImage, MAX_IMAGE_DIMENSION, IMAGE_FORMAT_META } =
+    await import('@/lib/storage/sanitize-image');
+  const { buildProductImageKey } = await import('@/lib/storage/keys');
 
   const opts = {
     maxBytes: 10 * 1024 * 1024,
@@ -155,6 +157,30 @@ async function main(): Promise<void> {
       .toBuffer();
     const result = await sanitizeImage(gif, { ...opts, allowedFormats: [...opts.allowedFormats] });
     check('disallowed format (gif) is rejected', !result.ok);
+  }
+
+  // (7) A sanitized JPEG buffer yields a storage key ending in ".jpg".
+  // Regression guard for buildProductImageKey receiving a bare ext (not a
+  // dotted filename) — the old implementation extracted ext via lastIndexOf('.')
+  // and fell back to 'bin' when no dot was present.
+  {
+    const jpeg = await sharp({
+      create: { width: 32, height: 32, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toBuffer();
+
+    const result = await sanitizeImage(jpeg, {
+      ...opts,
+      allowedFormats: [...opts.allowedFormats],
+    });
+    if (!result.ok) {
+      check('JPEG sanitizes for key-extension assertion', false);
+    } else {
+      const ext = IMAGE_FORMAT_META[result.data.format].ext;
+      const key = buildProductImageKey('test-product-id', ext);
+      check('sanitized JPEG yields a storage key ending in .jpg', key.endsWith('.jpg'));
+    }
   }
 
   if (failures > 0) {
