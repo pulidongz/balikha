@@ -1,9 +1,12 @@
-// Client-side orchestration for uploading one product image: validate, request
-// a presigned URL, PUT the file to storage, read its pixel dimensions, then
-// confirm. Used by the create form (ProductForm) and the product-page uploader
-// (ProductImageUploader). Browser-only — uses fetch, Image, and URL.
-
-import { confirmImageUploadAction, requestImageUploadAction } from '@/lib/actions/product-image';
+// Client-side orchestration for uploading one product image. Posts the file to
+// the server-proxied Route Handler (/api/uploads/product-image), which is the
+// real validation boundary: it re-reads the bytes, validates the actual format,
+// strips EXIF, stores the sanitized image, and records the row. The client-side
+// validateImageFile() below is a preflight UX nicety only (fail-fast on the
+// obvious bad cases) — the server does not trust it.
+//
+// Used by the create form (ProductForm) and the product-page uploader
+// (ProductImageUploader).
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -19,49 +22,27 @@ export function validateImageFile(file: File): string | null {
   return null;
 }
 
-function readDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new window.Image();
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('Could not read image dimensions'));
-    };
-    img.src = objectUrl;
-  });
-}
-
-// Uploads one image to one product. Throws an Error on any failure.
+// Uploads one image to one product. Throws an Error on any failure; the thrown
+// message is the server's rejection reason, which both consumers surface in
+// their error UI.
 export async function uploadProductImage(productId: string, file: File): Promise<void> {
   const problem = validateImageFile(file);
   if (problem) throw new Error(problem);
 
-  const presigned = await requestImageUploadAction({
-    productId,
-    filename: file.name,
-    contentType: file.type,
-    sizeBytes: file.size,
-  });
-  if (!presigned.ok) throw new Error(presigned.error);
+  const body = new FormData();
+  body.append('file', file);
+  body.append('productId', productId);
 
-  const putResponse = await fetch(presigned.data.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type },
-    body: file,
+  const response = await fetch('/api/uploads/product-image', {
+    method: 'POST',
+    body,
   });
-  if (!putResponse.ok) throw new Error(`Upload to storage failed (${putResponse.status})`);
 
-  const dims = await readDimensions(file);
-
-  const confirmed = await confirmImageUploadAction({
-    productId,
-    key: presigned.data.key,
-    width: dims.width,
-    height: dims.height,
-  });
-  if (!confirmed.ok) throw new Error(confirmed.error);
+  if (!response.ok) {
+    const message = await response
+      .json()
+      .then((data: { error?: string }) => data.error)
+      .catch(() => null);
+    throw new Error(message ?? `Upload failed (${response.status})`);
+  }
 }
