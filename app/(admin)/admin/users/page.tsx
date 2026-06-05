@@ -3,6 +3,7 @@ import { asc, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
+import { deriveStatus, STATUS_PILL, ROLE_PILL } from '@/lib/admin/user-status';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -24,25 +25,6 @@ function parseSearch(raw: string | string[] | undefined): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return typeof value === 'string' ? value.trim() : '';
 }
-
-type UserStatus = 'active' | 'suspended' | 'banned';
-
-function deriveStatus(banned: boolean, banExpires: Date | null, now: Date): UserStatus {
-  if (!banned) return 'active';
-  if (banExpires !== null && banExpires > now) return 'suspended';
-  return 'banned';
-}
-
-const STATUS_PILL: Record<UserStatus, string> = {
-  active: 'bg-green-100 text-green-800',
-  suspended: 'bg-amber-100 text-amber-800',
-  banned: 'bg-red-100 text-red-800',
-};
-
-const ROLE_PILL: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-800',
-  user: 'bg-gray-100 text-gray-700',
-};
 
 export default async function AdminUsersPage({
   searchParams,

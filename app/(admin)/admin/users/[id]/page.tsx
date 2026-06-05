@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
+import { deriveStatus, STATUS_PILL, ROLE_PILL } from '@/lib/admin/user-status';
 import { AdminUserActions } from '@/components/admin/admin-user-actions';
 
 export const metadata = { title: 'User — Admin' };
@@ -15,25 +16,6 @@ const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-type UserStatus = 'active' | 'suspended' | 'banned';
-
-function deriveStatus(banned: boolean, banExpires: Date | null, now: Date): UserStatus {
-  if (!banned) return 'active';
-  if (banExpires !== null && banExpires > now) return 'suspended';
-  return 'banned';
-}
-
-const STATUS_PILL: Record<UserStatus, string> = {
-  active: 'bg-green-100 text-green-800',
-  suspended: 'bg-amber-100 text-amber-800',
-  banned: 'bg-red-100 text-red-800',
-};
-
-const ROLE_PILL: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-800',
-  user: 'bg-gray-100 text-gray-700',
-};
 
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();

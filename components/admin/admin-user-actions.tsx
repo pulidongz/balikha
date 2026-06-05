@@ -22,12 +22,7 @@ import {
   unbanUser,
   unsuspendUser,
 } from '@/lib/actions/users';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type UserStatus = 'active' | 'suspended' | 'banned';
+import type { UserStatus } from '@/lib/admin/user-status';
 
 // ---------------------------------------------------------------------------
 // Main island
