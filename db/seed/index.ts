@@ -2,7 +2,7 @@
 // Run via `npm run db:seed` or `npm run db:reset` (which schema-pushes first).
 //
 // What this creates:
-// - 1 admin account (admin@balikha.com / password) — no artisan profile.
+// - 1 admin account (admin@balikha.art / password) — no artisan profile.
 // - 10 sellers, each with their own craft and 20 products = 200 products total.
 //   Status mix: ~75% published, ~10% sold_out, ~10% draft, ~5% archived.
 //   Image counts vary 0–4 per product. ~600 images total.
@@ -46,7 +46,7 @@ faker.seed(42);
 
 // --- Configuration ----------------------------------------------------------
 
-const ADMIN = { email: 'admin@balikha.com', password: 'password', name: 'Admin' };
+const ADMIN = { email: 'admin@balikha.art', password: 'password', name: 'Admin' };
 const TEST_PASSWORD = 'password123';
 const NUM_BUYERS = 10;
 const PRODUCTS_PER_SELLER = 20;

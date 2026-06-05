@@ -175,7 +175,7 @@ Same `docker exec ... cat root.crt` first step. Then:
 
 | Role                                | Email                                          | Password      |
 | ----------------------------------- | ---------------------------------------------- | ------------- |
-| **Admin** (no shop)                 | `admin@balikha.com`                            | `password`    |
+| **Admin** (no shop)                 | `admin@balikha.art`                            | `password`    |
 | Seller — Maria Ceramics (pottery)   | `maria@balikha.test`                           | `password123` |
 | Seller — T'boli Weaves              | `tboli@balikha.test`                           | `password123` |
 | Seller — Narra Studio (wood)        | `narra@balikha.test`                           | `password123` |
