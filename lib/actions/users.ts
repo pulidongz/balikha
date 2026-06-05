@@ -3,7 +3,9 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { count, eq } from 'drizzle-orm';
 import { db } from '@/db';
+import { user } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
@@ -332,6 +334,14 @@ export async function demoteToUser(input: unknown): Promise<Result<{ userId: str
 
   const log = await getRequestLogger();
   const { userId } = parsed.data;
+
+  if (userId === admin.id) return err('You cannot demote your own account');
+
+  const [adminCount] = await db
+    .select({ count: count() })
+    .from(user)
+    .where(eq(user.role, 'admin'));
+  if ((adminCount?.count ?? 0) <= 1) return err('Cannot demote the last remaining admin');
 
   try {
     await auth.api.setRole({
