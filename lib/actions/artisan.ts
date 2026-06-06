@@ -13,8 +13,12 @@ import { getRequestLogger } from '@/lib/logger-context';
 import { withIdempotency } from '@/lib/idempotency';
 import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
+import {
+  sanitizeImage,
+  IMAGE_FORMAT_META,
+  MAX_IMAGE_DIMENSION,
+} from '@/lib/storage/sanitize-image';
 
-const ALLOWED_BANNER_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_BANNER_BYTES = 8 * 1024 * 1024; // 8 MB — banners are larger than product images
 
 async function bestEffortUnlinkLocalUpload(url: string | null) {
@@ -146,9 +150,6 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Res
   if (!(file instanceof File) || file.size === 0) {
     return err('Select an image to upload.');
   }
-  if (!ALLOWED_BANNER_TYPES.has(file.type)) {
-    return err(`Unsupported image type: ${file.type || 'unknown'}.`);
-  }
   if (file.size > MAX_BANNER_BYTES) {
     return err('Banner must be 8 MB or smaller.');
   }
@@ -157,9 +158,16 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Res
   await fs.mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const ext = path.extname(file.name) || '.bin';
-  const filename = `banner-${Date.now()}${ext.toLowerCase()}`;
-  await fs.writeFile(path.join(uploadDir, filename), buffer);
+  const sanitized = await sanitizeImage(buffer, {
+    maxBytes: MAX_BANNER_BYTES,
+    maxDimension: MAX_IMAGE_DIMENSION,
+    allowedFormats: ['jpeg', 'png', 'webp'],
+  });
+  if (!sanitized.ok) return err(sanitized.error);
+
+  const ext = IMAGE_FORMAT_META[sanitized.data.format].ext;
+  const filename = `banner-${Date.now()}.${ext}`;
+  await fs.writeFile(path.join(uploadDir, filename), sanitized.data.data);
 
   const newUrl = `/uploads/artisans/${profile.id}/${filename}`;
   await bestEffortUnlinkLocalUpload(profile.bannerImageUrl);
