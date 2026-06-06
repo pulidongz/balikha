@@ -59,7 +59,9 @@ export default withSentryConfig(nextConfig, {
   // source is never served publicly from images/app origins.
   sourcemaps: { deleteSourcemapsAfterUpload: true },
   // Tree-shake the Sentry SDK's own debug logger from the client bundle.
-  webpack: { treeshake: { removeDebugLogging: true } },
+  // Bundler-agnostic (the `webpack.treeshake` form is a no-op under Turbopack,
+  // which this project builds with).
+  bundleSizeOptimizations: { excludeDebugStatements: true },
   // Upload once after all builds complete — the supported path for
   // Next 15.4.1+ / Turbopack (this project builds with Turbopack).
   useRunAfterProductionCompileHook: true,
