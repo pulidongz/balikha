@@ -69,6 +69,28 @@ jobs:
       - name: Prettier check
         run: npm run format:check
 
+  image-checks:
+    name: Image sanitize checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Deterministic guard on the security-critical sanitizeImage helper
+      # (EXIF stripping, format allowlist incl. AVIF/heif detection, byte +
+      # dimension caps, key extension). Self-contained — generates fixtures
+      # with sharp and injects env placeholders, so it needs no DB/MinIO/secrets.
+      - name: Image sanitize checks
+        run: npm run test:images
+
   build:
     name: Build
     runs-on: ubuntu-latest
