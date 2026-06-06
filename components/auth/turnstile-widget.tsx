@@ -30,6 +30,10 @@ export const TurnstileWidget = forwardRef<TurnstileInstance | undefined, Turnsti
       <Turnstile
         ref={ref}
         siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+        // Render nothing for users who pass silently; only show the challenge
+        // when Cloudflare actually needs human interaction. Keeps full bot
+        // protection while removing the widget from the happy path.
+        options={{ appearance: 'interaction-only' }}
         onSuccess={onToken}
         onExpire={() => onToken(null)}
         onError={() => {
