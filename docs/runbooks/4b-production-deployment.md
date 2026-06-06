@@ -11,6 +11,37 @@ in front of the app is 4E — do not enable the orange cloud during this runbook
 
 ---
 
+## Routine deploys (after the first)
+
+Once the box is provisioned (Steps 1–2 below, done once), **subsequent deploys are
+automatic**: merging a PR to `main` triggers `release.yml`, which builds the
+artifact and runs `infra/production/deploy.sh` over SSH (ship artifact → `npm ci`
+→ flip the `/opt/balikha/current` symlink → `balikha-migrate.service` → restart
+`balikha.service` → loopback health gate → prune old releases). A code change OR a
+schema migration needs **no manual step** — `db:migrate` runs inside the deploy.
+
+Watch a deploy:
+
+```bash
+gh run list --branch main --limit 4          # find the "Release & deploy" run
+gh run watch <run-id>                         # follow it live
+curl -I https://balikha.art                    # 200 + valid TLS once done
+curl -fsS https://balikha.art/api/health       # {"status":"ok"}
+```
+
+**Manual re-deploy / first deploy** (e.g. to redeploy a specific SHA without a new
+merge): Step 3 below.
+
+**One-time / occasional manual steps — NOT part of every deploy:**
+
+| When | Do |
+| --- | --- |
+| Platform needs its admin account (first time, or recovery) | **Step 3.5** (`balikha-bootstrap-admin.service`) |
+| A new/changed env var | Edit `/etc/balikha/production.env` (Step 2), then redeploy or `sudo systemctl restart balikha.service` |
+| A new systemd unit was added to `infra/production/systemd/` | Re-run **Step 1** (`provision/90-app-runtime.sh` glob-installs all units, idempotent) |
+
+---
+
 ## Prerequisites
 
 Before starting, confirm:
@@ -176,6 +207,70 @@ The script:
 11. **Soft public-URL check:** `curl https://balikha.art/api/health` — warns but does not fail (Let's Encrypt issuance may still be in progress on a first deploy).
 12. Prunes old releases, keeping the newest 5.
 13. Prints a rollback hint.
+
+---
+
+## Step 3.5 — Bootstrap the static admin (one-time)
+
+The platform needs a guaranteed, loggable-into admin account (`role='admin'`).
+This is also the **lockout-recovery net** for the `is_admin → role` migration
+(ticket #26): if no account was `is_admin=true` before that migration, prod has
+**zero admins** until this runs. This is a **one-time** step (plus any time you
+need to recover admin access) — it is **not** part of every deploy.
+
+1. **Ensure the credentials are in the env file** (Step 2). They are `.optional()`
+   in `env.ts` (so the build never depends on them), but the bootstrap throws if
+   either is unset:
+
+   ```bash
+   ssh deploy@<public-ip> "sudo grep -E 'ADMIN_(EMAIL|PASSWORD)' /etc/balikha/production.env"
+   ```
+
+   If absent, add `ADMIN_EMAIL=admin@balikha.art` and a **strong** `ADMIN_PASSWORD`
+   to `/etc/balikha/production.env` (keep `chmod 600`, `chown balikha-app` as in
+   Step 2). Use a real, operator-controlled inbox for the email.
+
+2. **Ensure the unit is installed.** `balikha-bootstrap-admin.service` ships in
+   `infra/production/systemd/` and is glob-installed by `provision/90-app-runtime.sh`.
+   On a box provisioned *before* this unit existed, re-run the provision step to
+   pick it up (idempotent):
+
+   ```bash
+   scp -r infra root@<public-ip>:/root/balikha-infra
+   ssh root@<public-ip> 'sudo /root/balikha-infra/provision/90-app-runtime.sh'
+   ```
+
+3. **Run the one-shot** (idempotent — re-running just re-asserts `role='admin'` +
+   verified email):
+
+   ```bash
+   ssh deploy@<public-ip> 'sudo systemctl start balikha-bootstrap-admin.service'
+   ssh deploy@<public-ip> 'sudo journalctl -u balikha-bootstrap-admin.service -n 30 --no-pager'
+   # Expect "Bootstrap: admin account created" (first run) or an idempotent no-op.
+   ```
+
+4. **Verify, then rotate the password.** Sign in at `https://balikha.art` as
+   `admin@balikha.art`, then change the password through the UI so the plaintext
+   in `production.env` is no longer live:
+
+   ```bash
+   ssh deploy@<public-ip> 'sudo -u postgres psql balikha -c "select email, role, email_verified from \"user\" where role='"'"'admin'"'"';"'
+   ```
+
+> **No unit yet?** Equivalent one-off (reproduces the unit's `EnvironmentFile`
+> semantics; `systemd-run` reads the root-only env file for you):
+>
+> ```bash
+> ssh deploy@<public-ip> "sudo systemd-run --pty --collect \
+>   --uid=balikha-app --gid=balikha-app \
+>   --working-directory=/opt/balikha/current \
+>   -p EnvironmentFile=/etc/balikha/production.env \
+>   -p Environment=NODE_ENV=production -p Environment=HOME=/var/lib/balikha \
+>   /opt/balikha/current/node_modules/.bin/tsx db/scripts/bootstrap-admin.ts"
+> ```
+>
+> Do **not** run `npm run admin:bootstrap` on the box — that script hardcodes
+> `--env-file=.env.development`, which does not exist in a production release.
 
 ---
 
