@@ -57,6 +57,18 @@ jobs:
           # /etc/balikha/production.env and is read at runtime.
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: 'release-build-dummy-turnstile-secret'
+          # Sentry error tracking (ticket #34). The DSN is non-secret and is
+          # INLINED into the client+server bundle, so it must be the real prod
+          # value — sourced from the repo variable (mirrors the Turnstile site
+          # key above). If unset it resolves to '' → env.ts treats it as absent
+          # (optional) and Sentry.init stays disabled (fail-open-disabled).
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          # Build-only — consumed by withSentryConfig to upload source maps and
+          # create the release. ORG/PROJECT are repo variables; the auth token
+          # is a repo SECRET. All absent => upload is skipped, build still green.
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       - name: Package deploy artifact
         run: |
           # Write the tarball to RUNNER_TEMP — OUTSIDE the tree being archived.
