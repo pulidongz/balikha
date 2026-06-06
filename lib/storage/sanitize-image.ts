@@ -53,7 +53,13 @@ export async function sanitizeImage(
     // Default failOn: 'error' — the helper is the security boundary and must
     // reject malformed input rather than tolerate truncation.
     const metadata = await sharp(buffer).metadata();
-    const { format, width, height } = metadata;
+    const { width, height } = metadata;
+    // sharp reports an AVIF file as format 'heif' with compression 'av1' (HEIC
+    // is 'heif' with 'hevc'). Normalize to 'avif' so the allowlist entry
+    // actually matches — otherwise every real AVIF is rejected as an unknown
+    // 'heif', while genuine HEIC stays (correctly) unsupported.
+    const format =
+      metadata.format === 'heif' && metadata.compression === 'av1' ? 'avif' : metadata.format;
 
     if (!isAllowedFormat(format, opts.allowedFormats)) {
       logger.warn({ format, allowed: opts.allowedFormats }, 'Image rejected: disallowed format');

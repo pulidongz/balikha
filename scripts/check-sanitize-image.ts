@@ -183,6 +183,34 @@ async function main(): Promise<void> {
     }
   }
 
+  // (8) A real AVIF is ACCEPTED on the product allowlist and normalized to
+  // 'avif', and REJECTED on the banner/avatar allowlist. Regression guard for
+  // the heif/avif mismatch: sharp reports an AVIF as format 'heif' + compression
+  // 'av1', so a naive `allowed.includes(metadata.format)` rejects every AVIF.
+  {
+    const avif = await sharp({
+      create: { width: 48, height: 48, channels: 3, background: { r: 7, g: 8, b: 9 } },
+    })
+      .avif()
+      .toBuffer();
+
+    const product = await sanitizeImage(avif, {
+      ...opts,
+      allowedFormats: [...opts.allowedFormats],
+    });
+    check('real AVIF accepted on the product allowlist', product.ok);
+    if (product.ok) {
+      check('AVIF normalized to format "avif"', product.data.format === 'avif');
+      check('AVIF stored content-type is image/avif', product.data.contentType === 'image/avif');
+    }
+
+    const banner = await sanitizeImage(avif, {
+      ...opts,
+      allowedFormats: ['jpeg', 'png', 'webp'],
+    });
+    check('AVIF rejected on the banner/avatar allowlist (no avif)', !banner.ok);
+  }
+
   if (failures > 0) {
     console.error(`\n${failures} assertion(s) failed.`);
     process.exit(1);
