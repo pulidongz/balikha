@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   // Allow Caddy-proxied dev URLs to connect to the dev server's HMR WebSocket
@@ -40,4 +41,31 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap the config so the Sentry build plugin uploads source maps and
+// creates a release during `next build` (ticket #34). All three vars
+// below are BUILD-ONLY (consumed by the plugin, not app runtime) and are
+// supplied by release.yml; absent locally/CI, the plugin no-ops the upload
+// and the build still succeeds. The DSN is NOT here — it is a runtime/
+// build-inlined app var validated by env.ts.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Quiet plugin logs except in CI, where they aid debugging.
+  silent: !process.env.CI,
+  // Better stack frames for client chunks served from the CDN domain.
+  widenClientFileUpload: true,
+  // Upload maps, then DELETE them from the shipped bundle so readable
+  // source is never served publicly from images/app origins.
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+  // Tree-shake the Sentry SDK's own debug logger from the client bundle.
+  // Bundler-agnostic (the `webpack.treeshake` form is a no-op under Turbopack,
+  // which this project builds with).
+  bundleSizeOptimizations: { excludeDebugStatements: true },
+  // Upload once after all builds complete — the supported path for
+  // Next 15.4.1+ / Turbopack (this project builds with Turbopack).
+  useRunAfterProductionCompileHook: true,
+  // Next 16 + Turbopack requires an application key for source-map
+  // association. Stable, non-secret identifier for this app.
+  _experimental: { turbopackApplicationKey: 'balikha' },
+});
