@@ -34,11 +34,11 @@ merge): Step 3 below.
 
 **One-time / occasional manual steps — NOT part of every deploy:**
 
-| When | Do |
-| --- | --- |
-| Platform needs its admin account (first time, or recovery) | **Step 3.5** (`balikha-bootstrap-admin.service`) |
-| A new/changed env var | Edit `/etc/balikha/production.env` (Step 2), then redeploy or `sudo systemctl restart balikha.service` |
-| A new systemd unit was added to `infra/production/systemd/` | Re-run **Step 1** (`provision/90-app-runtime.sh` glob-installs all units, idempotent) |
+| When                                                        | Do                                                                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Platform needs its admin account (first time, or recovery)  | **Step 3.5** (`balikha-bootstrap-admin.service`)                                                       |
+| A new/changed env var                                       | Edit `/etc/balikha/production.env` (Step 2), then redeploy or `sudo systemctl restart balikha.service` |
+| A new systemd unit was added to `infra/production/systemd/` | Re-run **Step 1** (`provision/90-app-runtime.sh` glob-installs all units, idempotent)                  |
 
 ---
 
@@ -232,7 +232,7 @@ need to recover admin access) — it is **not** part of every deploy.
 
 2. **Ensure the unit is installed.** `balikha-bootstrap-admin.service` ships in
    `infra/production/systemd/` and is glob-installed by `provision/90-app-runtime.sh`.
-   On a box provisioned *before* this unit existed, re-run the provision step to
+   On a box provisioned _before_ this unit existed, re-run the provision step to
    pick it up (idempotent):
 
    ```bash
