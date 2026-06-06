@@ -72,6 +72,13 @@ export const env = createEnv({
     // Cloudflare Turnstile site key. NEXT_PUBLIC_ prefix inlines it at
     // compile time so the client widget can read it without an API call.
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
+    // Sentry error tracking (ticket #34). The DSN is non-secret by design
+    // (it only permits SENDING events), so one NEXT_PUBLIC_ var serves both
+    // the browser SDK (inlined into the client bundle) and the server SDK
+    // (t3-env exposes client vars to server code). Optional with no default:
+    // CI/dev builds pass with it absent (the #25 lesson), and Sentry.init
+    // stays disabled until both a DSN and NODE_ENV=production are present.
+    NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
   },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -101,6 +108,7 @@ export const env = createEnv({
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   },
   emptyStringAsUndefined: true,
 });
