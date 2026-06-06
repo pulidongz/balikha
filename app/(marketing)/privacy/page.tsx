@@ -173,7 +173,7 @@ const SECTIONS: Section[] = [
       },
       {
         type: 'p',
-        text: 'To exercise any of these rights, email us at privacy@balikha.com. We will respond within 15 business days.',
+        text: 'To exercise any of these rights, email us at privacy@balikha.art. We will respond within 15 business days.',
       },
     ],
   },
@@ -245,7 +245,7 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Balikha Artisan Marketplace',
-          'Data Protection Officer: privacy@balikha.com',
+          'Data Protection Officer: privacy@balikha.art',
           'Republic of the Philippines',
           'National Privacy Commission: www.privacy.gov.ph | complaints@privacy.gov.ph',
         ],

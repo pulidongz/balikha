@@ -202,7 +202,7 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Balikha Artisan Marketplace',
-          'Email: legal@balikha.com',
+          'Email: legal@balikha.art',
           'Republic of the Philippines',
         ],
       },
