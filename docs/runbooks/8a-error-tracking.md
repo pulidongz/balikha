@@ -69,8 +69,14 @@ Sentry is intentionally disabled in dev (`NODE_ENV !== 'production'`).
 - Free tier: ~5k errors/month, 1 project — ample pre-launch. `tracesSampleRate`
   is 0 (no performance events consume quota).
 - PII: `sendDefaultPii: false` + `lib/observability/scrub.ts` strip cookies,
-  auth/captcha headers, and request bodies before send. Guarded by
-  `npm run test:sentry` in addition to the team's standard checks.
+  auth/captcha headers, request bodies, credential-bearing query strings
+  (`request.query_string` / `request.url`), and navigation breadcrumb URLs
+  before send. Guarded by `npm run test:sentry` in addition to the team's
+  standard checks.
+- **Known residual — exception message strings:** `error.message` and
+  `event.exception.values[].value` are NOT scrubbed. Ensure that thrown errors
+  in auth, checkout, and address code paths do not interpolate user-supplied
+  PII (emails, addresses, tokens) into their messages.
 - Client errors carry browser/route context but not the server `requestId`
   (it is a response header the browser cannot read for the document request).
   Server errors — where the Pino logs live — carry it. This is by design.
