@@ -33,7 +33,7 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
       if (crumb.data) {
         for (const field of URL_BREADCRUMB_FIELDS) {
           const val: unknown = crumb.data[field];
-          if (typeof val === 'string' && val.includes('?')) {
+          if (typeof val === 'string') {
             crumb.data[field] = stripQuery(val);
           }
         }
