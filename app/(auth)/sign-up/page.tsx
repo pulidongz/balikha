@@ -15,6 +15,12 @@ export const metadata = {
   title: 'Create account',
 };
 
+// Render dynamically so `googleAuthEnabled` is read from the running server's
+// env at request time, not frozen at build. See the sign-in page for the full
+// rationale (CI build env has no GOOGLE_* creds, so static prerender would bake
+// the Google button hidden in prod).
+export const dynamic = 'force-dynamic';
+
 // SignUpForm reads the `next` query param via useSearchParams() — same
 // CSR-bailout-during-prerender pattern as the sign-in page.
 export default function SignUpPage() {
