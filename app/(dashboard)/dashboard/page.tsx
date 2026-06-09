@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   const profile = await getCurrentArtisanProfile();
   if (!profile) redirect('/dashboard/become-seller');
 
-  const firstName = session.user.name.split(' ')[0] ?? session.user.name;
+  const firstName = session.user.firstName ?? '';
 
   // Stats — three independent aggregates in one round-trip per metric
   const [catalogStat] = await db

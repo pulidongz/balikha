@@ -4,9 +4,7 @@ import Link from 'next/link';
 // notifications. Calm, factual, no emoji confetti — tells them what they
 // can do here. Per buyer-dashboard plan §4: "all-empty is qualitatively
 // different from any-section-empty."
-export function FirstTimeBuyerWelcome({ name }: { name: string }) {
-  const firstName = name.split(' ')[0] ?? name;
-
+export function FirstTimeBuyerWelcome({ firstName }: { firstName: string }) {
   return (
     <div className="space-y-8">
       <header>

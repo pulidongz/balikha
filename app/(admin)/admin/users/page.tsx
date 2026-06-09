@@ -40,7 +40,12 @@ export default async function AdminUsersPage({
 
   const searchCondition =
     search.length > 0
-      ? or(ilike(user.email, `%${search}%`), ilike(user.name, `%${search}%`))
+      ? or(
+          ilike(user.email, `%${search}%`),
+          ilike(user.name, `%${search}%`),
+          ilike(user.firstName, `%${search}%`),
+          ilike(user.lastName, `%${search}%`),
+        )
       : undefined;
 
   const [list, totalRow] = await Promise.all([
