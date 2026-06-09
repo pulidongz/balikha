@@ -30,6 +30,7 @@
     "test:seo": "tsx scripts/check-structured-data.ts",
     "test:name": "tsx scripts/check-name-utils.ts",
     "test:suggest-domain": "tsx scripts/check-suggest-domain.ts",
+    "test:google-mapping": "tsx scripts/check-google-mapping.ts",
     "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts",
     "test:admin-product-moderation": "tsx --env-file=.env.development scripts/check-admin-product-moderation.ts"
   },
