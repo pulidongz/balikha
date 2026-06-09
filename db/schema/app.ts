@@ -37,6 +37,15 @@ export const productStatus = pgEnum('product_status', [
   'archived',
 ]);
 
+// Admin moderation axis for product listings (ticket #31).
+// 'none' = no moderation; 'flagged' = soft internal flag, listing stays live;
+// 'removed' = hard takedown, status set to 'archived', seller notified.
+export const productModerationStatus = pgEnum('product_moderation_status', [
+  'none',
+  'flagged',
+  'removed',
+]);
+
 // Approval lifecycle for seller applications. Only the column default is
 // `pending`; the migration backfills all pre-existing rows to `approved`.
 export const artisanApprovalStatus = pgEnum('artisan_approval_status', [
@@ -140,6 +149,15 @@ export const products = pgTable(
     // `status` and clears the column. Presence = admin-hidden; value = the
     // status to restore to.
     previousStatus: productStatus('previous_status'),
+    // Admin moderation axis (ticket #31), orthogonal to lifecycle `status`.
+    // 'flagged' = live but marked for admin attention; 'removed' = admin
+    // takedown (status set to 'archived', seller notified, seller cannot
+    // re-publish). Deliberately NOT previousStatus — that column is owned by
+    // the suspend/ban reconciler, which would auto-reverse a takedown.
+    moderationStatus: productModerationStatus('moderation_status').notNull().default('none'),
+    moderationReason: text('moderation_reason'),
+    moderatedAt: timestamp('moderated_at'),
+    moderatedBy: text('moderated_by').references(() => user.id, { onDelete: 'set null' }),
     dimensions: jsonb('dimensions').$type<{
       width?: number;
       height?: number;
@@ -170,6 +188,7 @@ export const products = pgTable(
     index('products_catalog_idx').on(t.catalogId),
     index('products_artisan_idx').on(t.artisanProfileId),
     index('products_status_idx').on(t.status),
+    index('products_moderation_status_idx').on(t.moderationStatus),
     uniqueIndex('products_slug_per_artisan').on(t.artisanProfileId, t.slug),
     index('products_search_idx').using('gin', t.searchVector),
     // Trigram fallback for typo-tolerant matching on title. Joined with
@@ -432,6 +451,7 @@ export const notificationType = pgEnum('notification_type', [
   'new_message',
   'seller_application_approved',
   'seller_application_rejected',
+  'listing_taken_down',
 ]);
 
 export const notifications = pgTable(
@@ -856,6 +876,9 @@ export const adminActionType = pgEnum('admin_action_type', [
   'unban',
   'promote_admin',
   'demote_admin',
+  'remove_product',
+  'flag_product',
+  'reinstate_product',
 ]);
 
 // Append-only audit log for admin user-management actions. Modeled on
