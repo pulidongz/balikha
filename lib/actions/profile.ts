@@ -10,6 +10,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { profileUpdateSchema } from '@/lib/validators/buyer';
+import { composeName } from '@/lib/name';
 import {
   sanitizeImage,
   IMAGE_FORMAT_META,
@@ -40,7 +41,12 @@ export async function updateProfileAction(formData: FormData): Promise<Result<nu
 
   await db
     .update(user)
-    .set({ name: parsed.data.name, updatedAt: new Date() })
+    .set({
+      firstName: parsed.data.firstName,
+      lastName: parsed.data.lastName || null,
+      name: composeName(parsed.data.firstName, parsed.data.lastName),
+      updatedAt: new Date(),
+    })
     .where(eq(user.id, current.id));
 
   log.info({ userId: current.id }, 'Profile updated');
