@@ -26,7 +26,8 @@
     "orders:tick": "tsx --env-file=.env.development db/scripts/orders-tick.ts",
     "admin:bootstrap": "tsx --env-file=.env.development db/scripts/bootstrap-admin.ts",
     "test:images": "tsx scripts/check-sanitize-image.ts",
-    "test:sentry": "tsx scripts/check-sentry-scrub.ts"
+    "test:sentry": "tsx scripts/check-sentry-scrub.ts",
+    "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",

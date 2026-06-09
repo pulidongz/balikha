@@ -3,17 +3,36 @@ import { count, eq, gte } from 'drizzle-orm';
 import { db } from '@/db';
 import { orders, searchEvents } from '@/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  countActiveSellers30d,
+  countTotalProducts,
+  countTotalUsers,
+  formatRate,
+  loadOrderMetrics,
+  type OrderMetrics,
+} from '@/lib/queries/admin-metrics';
 
-// The remaining placeholder panels intentionally name the three most-likely
-// upcoming admin features. They double as a roadmap and as slot markers —
-// when audit logging lands, that plan replaces the activity panel; when
-// reporting ships, the moderation panel; etc. Search analytics shipped in
-// the search plan, so its placeholder is now a real summary linking to the
-// dedicated page.
+// The remaining placeholder panel intentionally names the most-likely upcoming
+// admin feature. It doubles as a roadmap and as a slot marker — when audit
+// logging lands, that plan replaces the activity panel. Search analytics and
+// disputes shipped already; sales overview now shows live order data.
+export const dynamic = 'force-dynamic';
+
 export default async function AdminOverview() {
-  const [searchCount7d, disputedCountRow] = await Promise.all([
+  const [
+    searchCount7d,
+    disputedCountRow,
+    totalUsers,
+    totalProducts,
+    activeSellers30d,
+    orderMetrics,
+  ] = await Promise.all([
     loadSearchCount7d(),
     db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
+    countTotalUsers(),
+    countTotalProducts(),
+    countActiveSellers30d(),
+    loadOrderMetrics(),
   ]);
   const disputedCount = disputedCountRow[0]?.value ?? 0;
 
@@ -27,9 +46,9 @@ export default async function AdminOverview() {
       </header>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Users" />
-        <StatCard label="Products" />
-        <StatCard label="Active sellers (30d)" />
+        <StatCard label="Users" value={totalUsers} />
+        <StatCard label="Products" value={totalProducts} />
+        <StatCard label="Active sellers (30d)" value={activeSellers30d} />
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -39,19 +58,13 @@ export default async function AdminOverview() {
           description="An audit log of meaningful marketplace events will appear here once event logging is wired in."
         />
         <DisputesNeedingAttention count={disputedCount} />
-        <PlaceholderPanel
-          title="Sales overview"
-          description="Order volume, revenue, and conversion data will appear here once payments ship."
-        />
+        <SalesOverviewCard metrics={orderMetrics} />
       </section>
     </div>
   );
 }
 
-// Em-dash, not "0" or "N/A" — a zero looks like a real metric reading zero;
-// the em-dash is unmistakably a placeholder for a metric that doesn't exist
-// yet. Don't change this without changing the meaning.
-function StatCard({ label }: { label: string }) {
+function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -60,8 +73,7 @@ function StatCard({ label }: { label: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-3xl font-medium">—</p>
-        <p className="text-muted-foreground mt-1 text-xs">No data yet</p>
+        <p className="text-3xl font-medium">{value.toLocaleString()}</p>
       </CardContent>
     </Card>
   );
@@ -137,6 +149,34 @@ function DisputesNeedingAttention({ count }: { count: number }) {
         <Link href="/admin/orders" className="text-foreground mt-3 inline-block text-sm underline">
           View queue →
         </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SalesOverviewCard({ metrics }: { metrics: OrderMetrics }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Sales overview</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-medium">{metrics.volume.toLocaleString()}</p>
+        <p className="text-muted-foreground mt-1 text-xs">orders placed (all time)</p>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <dt className="text-muted-foreground text-xs">Completion</dt>
+            <dd className="font-medium">{formatRate(metrics.completionRate)}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs">Declined</dt>
+            <dd className="font-medium">{formatRate(metrics.declineRate)}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs">No response</dt>
+            <dd className="font-medium">{formatRate(metrics.noResponseRate)}</dd>
+          </div>
+        </dl>
       </CardContent>
     </Card>
   );
