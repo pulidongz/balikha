@@ -1,5 +1,6 @@
 import { createAuthClient } from 'better-auth/react';
-import { adminClient } from 'better-auth/client/plugins';
+import { adminClient, inferAdditionalFields } from 'better-auth/client/plugins';
+import type { auth } from '@/lib/auth';
 
 // No baseURL on purpose. Better Auth's client falls back to the relative
 // path `/api/auth`, which resolves to the current page's origin at fetch
@@ -14,9 +15,9 @@ import { adminClient } from 'better-auth/client/plugins';
 // used in absolute links (email verification, OAuth callbacks); that's
 // a separate concern from the client's fetch target.
 export const authClient = createAuthClient({
-  // Mirrors the server-side `admin()` plugin (ticket #26) so the inferred
-  // session type carries `role`/`banned` and the admin client methods exist.
-  plugins: [adminClient()],
+  // adminClient mirrors the server admin() plugin; inferAdditionalFields makes
+  // firstName/lastName/acceptedTermsAt visible on the typed client + session.
+  plugins: [adminClient(), inferAdditionalFields<typeof auth>()],
 });
 
 export const {
