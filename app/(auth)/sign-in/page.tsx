@@ -15,6 +15,15 @@ export const metadata = {
   title: 'Sign in',
 };
 
+// `googleAuthEnabled` is derived from runtime env (GOOGLE_CLIENT_ID/SECRET),
+// which live in production.env and are absent from the CI build env. Static
+// prerendering would bake `googleEnabled: false` into the artifact at build
+// time, hiding the Google button in prod even when the server has the creds.
+// Rendering dynamically evaluates the flag at request time from the running
+// server's env — and keeps the documented rollback honest (clearing the creds
+// hides the button AND disables the provider together).
+export const dynamic = 'force-dynamic';
+
 // SignInForm reads the `next` query param via useSearchParams(), which
 // forces the form into a CSR bailout during prerendering. Suspense
 // boundary tells Next that's expected and lets the rest of the page
