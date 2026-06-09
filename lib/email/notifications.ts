@@ -6,6 +6,7 @@ import { getEmailRecipient } from '@/lib/email/recipient';
 import { NewMessageEmail } from '@/lib/email/templates/new-message-email';
 import { OrderNotificationEmail } from '@/lib/email/templates/order-notification-email';
 import { SellerApplicationEmail } from '@/lib/email/templates/seller-application-email';
+import { ListingTakedownEmail } from '@/lib/email/templates/listing-takedown-email';
 
 // Consumer-level email dispatch for cross-session notifications (messages,
 // orders). Mirrors lib/notifications/emit.ts: a dispatch failure is logged
@@ -249,6 +250,53 @@ export async function dispatchOrderEmail(d: OrderEmailDispatch): Promise<void> {
     logger.error(
       { err: e, recipientUserId: d.recipientUserId, kind: d.kind },
       'dispatchOrderEmail failed',
+    );
+  }
+}
+
+// ---- Listing takedown channel ----------------------------------------------
+
+export interface ListingTakedownEmailDispatch {
+  recipientUserId: string;
+  productTitle: string;
+  reason: string;
+}
+
+export async function dispatchListingTakedownEmail(d: ListingTakedownEmailDispatch): Promise<void> {
+  try {
+    const recipient = await getEmailRecipient(d.recipientUserId);
+    if (!recipient) {
+      logger.warn(
+        { event: 'email.listing_takedown.no_recipient', userId: d.recipientUserId },
+        'No email recipient for listing takedown',
+      );
+      return;
+    }
+    const result = await sendEmail({
+      to: recipient.email,
+      subject: 'A listing was removed — Balikha',
+      react: createElement(ListingTakedownEmail, {
+        productTitle: d.productTitle,
+        reason: d.reason,
+        url: absoluteUrl('/dashboard'),
+      }),
+    });
+    if (!result.ok) {
+      logger.error(
+        {
+          event: 'email.listing_takedown.send_failed',
+          userId: d.recipientUserId,
+          error: result.error,
+        },
+        'Listing takedown email failed',
+      );
+    }
+  } catch (e) {
+    // Consumer-level swallow (see module header): never break a committed
+    // action over an email failure. Logged for observability.
+    logger.error(
+      { err: e, recipientUserId: d.recipientUserId },
+      'dispatchListingTakedownEmail failed',
     );
   }
 }
