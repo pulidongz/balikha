@@ -2,11 +2,11 @@
 // Run via `npm run db:seed` or `npm run db:reset` (which schema-pushes first).
 //
 // What this creates:
-// - 1 admin account (admin@balikha.art / password) — no artisan profile.
+// - 1 admin account (admin@balikha.art / password123) — no artisan profile.
 // - 10 sellers, each with their own craft and 20 products = 200 products total.
 //   Status mix: ~75% published, ~10% sold_out, ~10% draft, ~5% archived.
 //   Image counts vary 0–4 per product. ~600 images total.
-// - 10 buyer accounts (buyer1@…@balikha.test through buyer10@…/password123).
+// - 10 buyer accounts (buyer1@…@balikha.art through buyer10@…/password123).
 // - Each product image is a real binary uploaded to MinIO with a unique
 //   storage_key. The image bytes come from a pool of 50 unique placeholder
 //   photos fetched from picsum.photos (cached on disk so re-runs are fast).
@@ -46,7 +46,7 @@ faker.seed(42);
 
 // --- Configuration ----------------------------------------------------------
 
-const ADMIN = { email: 'admin@balikha.art', password: 'password', name: 'Admin' };
+const ADMIN = { email: 'admin@balikha.art', password: 'password123', name: 'Admin' };
 const TEST_PASSWORD = 'password123';
 const NUM_BUYERS = 10;
 const PRODUCTS_PER_SELLER = 20;
@@ -80,7 +80,7 @@ interface SellerSeed {
 
 const SELLERS: SellerSeed[] = [
   {
-    email: 'maria@balikha.test',
+    email: 'maria@balikha.art',
     name: 'Maria Santos',
     shopName: 'Maria Ceramics',
     shopSlug: 'maria-ceramics',
@@ -89,7 +89,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'pottery',
   },
   {
-    email: 'tboli@balikha.test',
+    email: 'tboli@balikha.art',
     name: "T'boli Collective",
     shopName: "T'boli Weaves",
     shopSlug: 'tboli-weaves',
@@ -98,7 +98,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'weaves',
   },
   {
-    email: 'narra@balikha.test',
+    email: 'narra@balikha.art',
     name: 'Junnie Narra',
     shopName: 'Narra Studio',
     shopSlug: 'narra-studio',
@@ -107,7 +107,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'wood',
   },
   {
-    email: 'kapinunan@balikha.test',
+    email: 'kapinunan@balikha.art',
     name: 'Esperanza Reyes',
     shopName: 'Kapinunan Silver',
     shopSlug: 'kapinunan-silver',
@@ -116,7 +116,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'silver',
   },
   {
-    email: 'pasig-leather@balikha.test',
+    email: 'pasig-leather@balikha.art',
     name: 'Ronaldo Cruz',
     shopName: 'Pasig Leatherworks',
     shopSlug: 'pasig-leatherworks',
@@ -125,7 +125,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'leather',
   },
   {
-    email: 'banwa-glass@balikha.test',
+    email: 'banwa-glass@balikha.art',
     name: 'Liza Tomas',
     shopName: 'Banwa Glass',
     shopSlug: 'banwa-glass',
@@ -134,7 +134,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'glass',
   },
   {
-    email: 'davao-dipping@balikha.test',
+    email: 'davao-dipping@balikha.art',
     name: 'Apolinario Velasco',
     shopName: 'Davao Dipping Co.',
     shopSlug: 'davao-dipping-co',
@@ -143,7 +143,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'soap',
   },
   {
-    email: 'hablon@balikha.test',
+    email: 'hablon@balikha.art',
     name: 'Cecilia Aquino',
     shopName: 'Hablon Heritage',
     shopSlug: 'hablon-heritage',
@@ -152,7 +152,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'textiles',
   },
   {
-    email: 'lola-letras@balikha.test',
+    email: 'lola-letras@balikha.art',
     name: 'Imelda Bautista',
     shopName: 'Lola Letras',
     shopSlug: 'lola-letras',
@@ -161,7 +161,7 @@ const SELLERS: SellerSeed[] = [
     craft: 'paper',
   },
   {
-    email: 'sagada-roasters@balikha.test',
+    email: 'sagada-roasters@balikha.art',
     name: 'Lakan Pulido',
     shopName: 'Sagada Roasters',
     shopSlug: 'sagada-roasters',
@@ -550,11 +550,7 @@ async function seed() {
   // Buyer accounts (no artisan profile)
   logger.info({ count: NUM_BUYERS }, 'Creating buyer accounts…');
   for (let i = 1; i <= NUM_BUYERS; i++) {
-    const buyer = await createUser(
-      `buyer${i}@balikha.test`,
-      TEST_PASSWORD,
-      faker.person.fullName(),
-    );
+    const buyer = await createUser(`buyer${i}@balikha.art`, TEST_PASSWORD, faker.person.fullName());
     seededUserIds.push(buyer.id);
   }
 
@@ -570,7 +566,7 @@ async function seed() {
     seededUserIds.push(created.id);
 
     // Promote Maria to admin so /admin is reachable immediately after seeding.
-    if (seller.email === 'maria@balikha.test') {
+    if (seller.email === 'maria@balikha.art') {
       await db.update(user).set({ role: 'admin' }).where(eq(user.id, created.id));
       logger.info({ email: seller.email }, 'Promoted seller to admin');
     }
@@ -699,11 +695,11 @@ async function seed() {
   logger.info('--- Test credentials ---');
   logger.info(`Admin:  ${ADMIN.email} / ${ADMIN.password}`);
   for (const seller of SELLERS) {
-    const label = seller.email === 'maria@balikha.test' ? 'Seller (admin):' : 'Seller:        ';
+    const label = seller.email === 'maria@balikha.art' ? 'Seller (admin):' : 'Seller:        ';
     logger.info(`${label} ${seller.email} / ${TEST_PASSWORD}  (${seller.shopName})`);
   }
   logger.info(
-    `Buyers: buyer1@balikha.test through buyer${NUM_BUYERS}@balikha.test / ${TEST_PASSWORD}`,
+    `Buyers: buyer1@balikha.art through buyer${NUM_BUYERS}@balikha.art / ${TEST_PASSWORD}`,
   );
 }
 
