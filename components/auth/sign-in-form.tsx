@@ -32,6 +32,7 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
     oauthErrored ? 'Could not complete Google sign-in. Please try again.' : null,
   );
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   // Turnstile tokens are single-use. The widget ref lets us call reset()
   // after any failed submit so a fresh challenge is issued before the next
   // attempt — without this, a typo'd-password retry would fail the captcha
@@ -104,17 +105,26 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="signin-password">Password</Label>
-            <Link
-              href="/forgot-password"
-              className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-            >
-              Forgot password?
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground text-xs"
+                onClick={() => setShowPassword((s) => !s)}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+              <Link
+                href="/forgot-password"
+                className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
           <Input
             id="signin-password"
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
