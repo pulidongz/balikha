@@ -26,7 +26,7 @@ GET https://balikha.art/api/health  →  200  {"status":"ok"}
   curls both the loopback `http://127.0.0.1:3000/api/health` and the public
   `https://balikha.art/api/health`) and by `infra/production/verify-edge.sh`.
 - **Do not** make this endpoint deeper for monitoring. If a DB-aware readiness
-  signal is ever wanted, add a *separate* route rather than changing this one.
+  signal is ever wanted, add a _separate_ route rather than changing this one.
 
 No code change is required for this ticket.
 
@@ -44,7 +44,7 @@ email alerting — ample for one production URL.
    - **Keyword Value:** `ok` (matches the `{"status":"ok"}` body)
    - **Alert condition:** **down when the keyword is NOT found** — newer UI:
      "Alert when keyword is not found"; classic UI dropdown: `not exists`. The
-     success word `ok` is always present when healthy, so its *absence* means
+     success word `ok` is always present when healthy, so its _absence_ means
      down. (Do **not** pick "exists"/"alert when keyword is found" — that is
      backwards and would alarm while the site is healthy.)
    - **Monitoring Interval:** `5 minutes` (free-tier minimum)
@@ -53,7 +53,7 @@ email alerting — ample for one production URL.
 
 > Why monitor the **public** URL, not the origin: the origin IP is firewalled to
 > Cloudflare ranges only (ticket 4E),
-> so an external monitor *cannot* reach the box directly (see
+> so an external monitor _cannot_ reach the box directly (see
 > `infra/production/lock-origin-firewall.sh`) — and monitoring `balikha.art` is
 > what you actually want: it tests the full DNS → Cloudflare →
 > origin → app path that real users traverse.
