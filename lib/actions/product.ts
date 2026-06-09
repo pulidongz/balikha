@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db, type Tx } from '@/db';
 import {
   artisanFollows,
@@ -244,11 +244,19 @@ async function applyProductStatusInTx(
       title: products.title,
       status: products.status,
       stockOnHand: products.stockOnHand,
+      moderationStatus: products.moderationStatus,
     })
     .from(products)
     .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)))
     .limit(1);
   if (!existing) return { found: false, published: false };
+
+  // Defense-in-depth: a removed listing cannot be republished. The primary
+  // user-facing gate lives in setProductStatusAction and setProductsStatusAction.
+  // This backstop enforces the invariant at the data layer regardless of caller.
+  if (status === 'published' && existing.moderationStatus === 'removed') {
+    throw new Error(`Removed listing ${productId} cannot be republished`);
+  }
 
   await tx
     .update(products)
@@ -325,6 +333,19 @@ export async function setProductStatusAction(
     );
   }
 
+  // Primary moderation gate (ticket #31). A removed listing cannot be
+  // republished; only an admin can reinstate it. Checked before the transaction.
+  if (parsedStatus.data === 'published') {
+    const [row] = await db
+      .select({ moderationStatus: products.moderationStatus })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)))
+      .limit(1);
+    if (row?.moderationStatus === 'removed') {
+      return err('This listing was removed by an administrator and cannot be republished.');
+    }
+  }
+
   // Wrapped in a transaction so the notification fan-out commits with the
   // status change or rolls back together.
   const result = await db.transaction((tx) =>
@@ -383,6 +404,26 @@ export async function setProductsStatusAction(
   }
   if (productIds.length > 200) {
     return err('Too many products selected at once. Select 200 or fewer.');
+  }
+
+  // Primary moderation gate (ticket #31). Reject the whole batch if any
+  // product was admin-removed — no partial publish, mirrors approval gate.
+  if (parsedStatus.data === 'published') {
+    const removedRows = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(
+        and(
+          inArray(products.id, productIds),
+          eq(products.artisanProfileId, profile.id),
+          eq(products.moderationStatus, 'removed'),
+        ),
+      );
+    if (removedRows.length > 0) {
+      return err(
+        'One or more listings were removed by an administrator and cannot be republished.',
+      );
+    }
   }
 
   const publishedIds: string[] = [];
