@@ -4,13 +4,18 @@ import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanFollows, artisanProfiles, catalogs, productImages, products } from '@/db/schema';
+import { env } from '@/env';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CatalogSection } from '@/components/marketplace/catalog-section';
 import { FollowToggle } from '@/components/marketplace/follow-toggle';
 import { SellerReputationSummary } from '@/components/marketplace/seller-reputation-summary';
+import { JsonLd } from '@/components/seo/json-ld';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { breadcrumbJsonLd, organizationJsonLd } from '@/lib/seo/structured-data';
+
+const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
 // Previously cached for 5 min — wishlist hearts are per-user so this
 // becomes dynamic when getCurrentUser() reads request headers.
@@ -111,6 +116,18 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
     productsByCatalog.set(p.catalogId, list);
   }
 
+  const org = organizationJsonLd({
+    name: profile.shopName,
+    url: `${APP_URL}/shop/${profile.shopSlug}`,
+    description: profile.bio,
+    image: profile.bannerImageUrl,
+  });
+
+  const breadcrumb = breadcrumbJsonLd([
+    { name: 'Shop', url: APP_URL },
+    { name: profile.shopName, url: `${APP_URL}/shop/${profile.shopSlug}` },
+  ]);
+
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const reputation = await getSellerReputationCached(profile.id);
@@ -130,6 +147,8 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
 
   return (
     <div>
+      <JsonLd data={org} />
+      <JsonLd data={breadcrumb} />
       {/* Banner — gracefully degrades if no banner image */}
       <section
         aria-label="Shop banner"

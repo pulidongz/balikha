@@ -18,6 +18,8 @@ import { formatPrice } from '@/lib/format';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
+import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo/structured-data';
+import { JsonLd } from '@/components/seo/json-ld';
 
 // Previously cached for 5 min — now per-user because of wishlist hearts.
 // Calling getCurrentUser() makes this dynamic via headers().
@@ -179,27 +181,23 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
         : null,
   };
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
+  const jsonLd = productJsonLd({
     name: product.title,
-    description: product.description ?? undefined,
-    image: images.map((img) => `${APP_URL}${img.url}`),
+    description: product.description,
+    images: images.map((img) => img.url),
     sku: product.id,
-    brand: { '@type': 'Brand', name: artisan.shopName },
-    offers: {
-      '@type': 'Offer',
-      url: `${APP_URL}/shop/${artisan.shopSlug}/${product.slug}`,
-      priceCurrency: product.currency,
-      price: product.price,
-      availability: inStock
-        ? 'https://schema.org/InStock'
-        : isSoldOut
-          ? 'https://schema.org/SoldOut'
-          : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: artisan.shopName },
-    },
-  };
+    brandName: artisan.shopName,
+    url: `${APP_URL}/shop/${artisan.shopSlug}/${product.slug}`,
+    currency: product.currency,
+    price: product.price,
+    availability: inStock ? 'InStock' : isSoldOut ? 'SoldOut' : 'OutOfStock',
+  });
+
+  const breadcrumb = breadcrumbJsonLd([
+    { name: 'Shop', url: APP_URL },
+    { name: artisan.shopName, url: `${APP_URL}/shop/${artisan.shopSlug}` },
+    { name: product.title, url: `${APP_URL}/shop/${artisan.shopSlug}/${product.slug}` },
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-16">
@@ -216,10 +214,8 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
         <span className="text-foreground">{product.title}</span>
       </nav>
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
+      <JsonLd data={breadcrumb} />
 
       {/* 3:2 split at lg+, stacked below */}
       <div className="grid gap-10 lg:grid-cols-5">
