@@ -11,6 +11,7 @@ import { ResetPasswordEmail } from '@/lib/email/templates/reset-password';
 import { logger } from '@/lib/logger';
 import { isDisposableEmail } from '@/lib/email/disposable';
 import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
+import { mapGoogleProfileToNames, type GoogleNameProfile } from '@/lib/auth-google';
 
 // Surface "is Google sign-in available?" to server components without
 // requiring a NEXT_PUBLIC_ env var. The auth pages read this and pass
@@ -26,6 +27,17 @@ const socialProviders =
         google: {
           clientId: env.GOOGLE_CLIENT_ID,
           clientSecret: env.GOOGLE_CLIENT_SECRET,
+          // Better Auth's built-in Google provider passes the decoded ID token
+          // (full OIDC claims) here and spreads the result over the user record.
+          // We populate the structured first/last fields; `name` stays Google's
+          // display name (NOT recomposed from first+last — Google's display name
+          // is the better display value). given_name/family_name →
+          // firstName/lastName, null surname for mononym accounts.
+          // The `profile` param needs an explicit type: the conditional
+          // socialProviders object literal isn't contextually typed against the
+          // provider options, so a bare param infers as `any` (noImplicitAny).
+          // GoogleNameProfile is the structural subset we actually read.
+          mapProfileToUser: (profile: GoogleNameProfile) => mapGoogleProfileToNames(profile),
         },
       }
     : undefined;
@@ -66,6 +78,17 @@ export const auth = betterAuth({
   advanced: {
     ipAddress: {
       ipAddressHeaders: ['x-real-ip'],
+    },
+  },
+  user: {
+    additionalFields: {
+      // input:true → accepted from the email/password sign-up call and from
+      // Google's mapProfileToUser. required:false so programmatic paths (seed)
+      // and OAuth aren't rejected; the form enforces both for the UI path.
+      firstName: { type: 'string', required: false, input: true },
+      lastName: { type: 'string', required: false, input: true },
+      // input:false → server-controlled only; stamped by the create hook below.
+      acceptedTermsAt: { type: 'date', required: false, input: false },
     },
   },
   emailAndPassword: {
@@ -165,7 +188,25 @@ export const auth = betterAuth({
               code: 'DISPOSABLE_EMAIL',
             });
           }
-          return { data: user };
+          // Server-side floor: Better Auth requires a non-empty `name`, and a
+          // scripted POST could send blank first/last (additionalFields are
+          // required:false). Raise (as APIError, which Better Auth re-throws)
+          // rather than persist a junk display name.
+          if (!user.name?.trim()) {
+            throw new APIError('BAD_REQUEST', {
+              message: 'A name is required.',
+              code: 'NAME_REQUIRED',
+            });
+          }
+          // `acceptedTermsAt` is stamped at creation for ALL paths. This is a
+          // DELIBERATE "acceptance is implied at account creation" record — NOT
+          // a per-request consent gate. The email/password form requires the
+          // Terms checkbox and Google shows an inline notice, but the seed and
+          // any programmatic caller are stamped too. We do NOT recompose `name`
+          // here: for Google, `name` stays the display-name claim while
+          // firstName/lastName come from given/family (they may legitimately
+          // differ).
+          return { data: { ...user, acceptedTermsAt: new Date() } };
         },
       },
     },
