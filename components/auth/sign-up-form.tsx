@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +12,8 @@ import { TurnstileWidget } from '@/components/auth/turnstile-widget';
 import { checkDisposableEmail } from '@/lib/actions/auth';
 import { safeNextOr } from '@/lib/safe-next';
 import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
+import { composeName } from '@/lib/name';
+import { suggestEmailDomain } from '@/lib/email/suggest-domain';
 import type { TurnstileInstance } from '@marsidev/react-turnstile';
 
 interface SignUpFormProps {
@@ -29,7 +32,11 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
     searchParams.get('next'),
     intent === 'seller' ? '/dashboard/become-seller' : '/account',
   );
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +68,14 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
         ? `/verify-email?status=verified&next=${encodeURIComponent(next)}`
         : '/verify-email?status=verified';
     const result = await signUp.email(
-      { email, password, name, callbackURL },
+      {
+        email,
+        password,
+        name: composeName(firstName, lastName),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        callbackURL,
+      },
       { headers: { 'x-captcha-response': turnstileToken ?? '' } },
     );
     setLoading(false);
@@ -81,6 +95,7 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
 
   async function handleEmailBlur() {
     if (!email) return;
+    setEmailSuggestion(suggestEmailDomain(email));
     const isDisp = await checkDisposableEmail(email);
     if (isDisp) {
       setError(DISPOSABLE_EMAIL_MESSAGE);
@@ -107,17 +122,31 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
           void attemptSignUp();
         }}
       >
-        <div className="space-y-2">
-          <Label htmlFor="signup-name">Name</Label>
-          <Input
-            id="signup-name"
-            name="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            autoComplete="name"
-            className="h-11"
-          />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="signup-first-name">First name</Label>
+            <Input
+              id="signup-first-name"
+              name="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              autoComplete="given-name"
+              className="h-11"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signup-last-name">Last name</Label>
+            <Input
+              id="signup-last-name"
+              name="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              autoComplete="family-name"
+              className="h-11"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="signup-email">Email</Label>
@@ -129,6 +158,7 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             onChange={(e) => {
               setEmail(e.target.value);
               setError(null);
+              setEmailSuggestion(null);
             }}
             onBlur={handleEmailBlur}
             required
@@ -136,12 +166,33 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             className="h-11"
           />
         </div>
+        {emailSuggestion && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground -mt-2 text-xs underline-offset-4 hover:underline"
+            onClick={() => {
+              setEmail(emailSuggestion);
+              setEmailSuggestion(null);
+            }}
+          >
+            Did you mean {emailSuggestion}?
+          </button>
+        )}
         <div className="space-y-2">
-          <Label htmlFor="signup-password">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="signup-password">Password</Label>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground text-xs"
+              onClick={() => setShowPassword((s) => !s)}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
           <Input
             id="signup-password"
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -150,6 +201,41 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
             className="h-11"
           />
         </div>
+        <label
+          htmlFor="signup-terms"
+          className="text-muted-foreground flex items-start gap-2 text-sm"
+        >
+          <input
+            id="signup-terms"
+            name="acceptTerms"
+            type="checkbox"
+            checked={acceptTerms}
+            onChange={(e) => setAcceptTerms(e.target.checked)}
+            required
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            I agree to the{' '}
+            <Link
+              href="/terms"
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline underline-offset-4"
+            >
+              Terms
+            </Link>{' '}
+            and{' '}
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline underline-offset-4"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
         {(error || captchaError) && (
           <p role="alert" className="text-destructive text-sm">
             {error ?? captchaError}
@@ -166,7 +252,7 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
         />
         <Button
           type="submit"
-          disabled={loading || !turnstileToken}
+          disabled={loading || !turnstileToken || !acceptTerms}
           size="lg"
           className="h-11 w-full"
         >
