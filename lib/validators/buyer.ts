@@ -4,7 +4,8 @@ import { z } from 'zod';
 // (mirrors the banner pattern in artisan.ts), so it isn't accepted on the
 // profile-update schema.
 export const profileUpdateSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+  firstName: z.string().min(1, 'First name is required').max(40),
+  lastName: z.string().max(40).optional().default(''),
 });
 
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
