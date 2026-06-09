@@ -41,8 +41,12 @@ email alerting — ample for one production URL.
      body, not just a 2xx, so a 200 that serves the wrong content still alerts).
    - **Friendly Name:** `Balikha production`
    - **URL (or IP):** `https://balikha.art/api/health`
-   - **Keyword Type:** `exists`
    - **Keyword Value:** `ok` (matches the `{"status":"ok"}` body)
+   - **Alert condition:** **down when the keyword is NOT found** — newer UI:
+     "Alert when keyword is not found"; classic UI dropdown: `not exists`. The
+     success word `ok` is always present when healthy, so its *absence* means
+     down. (Do **not** pick "exists"/"alert when keyword is found" — that is
+     backwards and would alarm while the site is healthy.)
    - **Monitoring Interval:** `5 minutes` (free-tier minimum)
    - **Monitor Timeout:** default (30s) is fine.
 3. Save. Within a few minutes the monitor should read **Up** (green).
