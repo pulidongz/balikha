@@ -28,6 +28,7 @@
     "test:images": "tsx scripts/check-sanitize-image.ts",
     "test:sentry": "tsx scripts/check-sentry-scrub.ts",
     "test:seo": "tsx scripts/check-structured-data.ts",
+    "test:name": "tsx scripts/check-name-utils.ts",
     "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts",
     "test:admin-product-moderation": "tsx --env-file=.env.development scripts/check-admin-product-moderation.ts"
   },
