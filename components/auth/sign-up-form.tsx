@@ -23,10 +23,11 @@ interface SignUpFormProps {
 export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Seller-intent signups (from the "Sell your craft" entry point) route into
-  // the shop-creation flow; everyone else lands on the buyer account page. An
+  // Artist-intent signups (from the "Share your work" entry points) route into
+  // the studio-creation flow; everyone else lands on the buyer account page. An
   // explicit, safe `next` (e.g. a proxy-bounce deep link) still wins, since
-  // that is a page the user actually tried to reach.
+  // that is a page the user actually tried to reach. The `seller` value is an
+  // internal identifier kept for analytics continuity (T4).
   const intent = searchParams.get('intent');
   const next = safeNextOr(
     searchParams.get('next'),

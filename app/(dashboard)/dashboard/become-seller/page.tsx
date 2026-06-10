@@ -19,8 +19,8 @@ export default async function BecomeSellerPage() {
       <header className="mb-8 space-y-2">
         <h1 className="font-serif text-3xl tracking-tight">Open a studio on Balikha</h1>
         <p className="text-muted-foreground text-base">
-          Artists share and manage their work from here. You only need a studio name to start — you
-          can add a bio, banner, and other details later from settings.
+          Artists share and manage their work from here — and sell it if they want to. You only need
+          a studio name to start; a bio, banner, and other details can come later from settings.
         </p>
       </header>
 

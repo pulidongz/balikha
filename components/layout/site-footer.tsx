@@ -3,10 +3,12 @@ import { getCurrentSession } from '@/lib/auth-helpers';
 
 export async function SiteFooter() {
   const session = await getCurrentSession();
-  // Anonymous visitors go to intent-tagged signup; signed-in users go straight
-  // to the shop-creation page (which self-redirects to /dashboard if they
-  // already have a shop).
-  const sellHref = session ? '/dashboard/become-seller' : '/sign-up?intent=seller';
+  // T4 showcase-first framing: the artist CTA reads "Share your work", not
+  // "Sell". Anonymous visitors go to intent-tagged signup; signed-in users go
+  // straight to the studio-creation page (which self-redirects to /dashboard
+  // if they already have a studio). The `intent=seller` param value is kept
+  // as-is for analytics continuity — it is an internal identifier.
+  const shareHref = session ? '/dashboard/become-seller' : '/sign-up?intent=seller';
 
   return (
     <footer className="border-t">
@@ -16,8 +18,8 @@ export async function SiteFooter() {
           <p>Handmade work from independent artisans.</p>
         </div>
         <nav className="flex gap-6">
-          <Link href={sellHref} className="hover:text-foreground">
-            Sell your craft
+          <Link href={shareHref} className="hover:text-foreground">
+            Share your work
           </Link>
           <Link href="/about" className="hover:text-foreground">
             About
