@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { reorderAction } from '@/lib/actions/orders';
+import { workPath } from '@/lib/routes';
 
 // "Reorder" doesn't put anything into a cart — there's no cart in this
 // model. Instead, it routes the buyer back to the live product page
@@ -33,7 +34,7 @@ export function ReorderButton({
         setError(result.error);
         return;
       }
-      router.push(`/shop/${result.data.artisanSlug}/${result.data.productSlug}?reorder=1`);
+      router.push(`${workPath(result.data.artisanSlug, result.data.productSlug)}?reorder=1`);
     });
   }
 

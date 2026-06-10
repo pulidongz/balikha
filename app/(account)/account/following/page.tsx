@@ -38,7 +38,7 @@ export default async function FollowingPage() {
         <p className="text-muted-foreground mt-1 text-sm">
           {list.length === 0
             ? "You're not following anyone yet."
-            : `${list.length} ${list.length === 1 ? 'shop' : 'shops'}`}
+            : `${list.length} ${list.length === 1 ? 'studio' : 'studios'}`}
         </p>
       </header>
 

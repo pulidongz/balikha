@@ -1,10 +1,11 @@
 import Link from 'next/link';
+import { studioPath } from '@/lib/routes';
 import type { CatalogHit } from '@/lib/search/types';
 
 /**
  * Horizontal strip of matched catalogs. Catalog detail pages don't
- * exist yet (out of scope per plan §11), so hits link to the artisan
- * storefront with a `?catalog=<slug>` hint the storefront can use to
+ * exist yet (out of scope per plan §11), so hits link to the studio
+ * page with a `?catalog=<slug>` hint the studio page can use to
  * highlight the matching catalog.
  */
 export function CatalogsSection({ catalogs }: { catalogs: CatalogHit[] }) {
@@ -18,7 +19,7 @@ export function CatalogsSection({ catalogs }: { catalogs: CatalogHit[] }) {
         {catalogs.map((c) => (
           <Link
             key={c.id}
-            href={`/shop/${c.artisanSlug}?catalog=${c.slug}`}
+            href={`${studioPath(c.artisanSlug)}?catalog=${c.slug}`}
             className="group block space-y-0.5 focus-visible:outline-none"
           >
             <p className="group-hover:text-accent text-sm font-medium transition-colors">

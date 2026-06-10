@@ -148,13 +148,13 @@ interface SellerApplicationEmailCopy {
 
 const SELLER_APPLICATION_EMAIL_COPY: Record<'approved' | 'rejected', SellerApplicationEmailCopy> = {
   approved: {
-    heading: 'Your seller application was approved',
+    heading: 'Your artist application was approved',
     intro:
-      'Congratulations — your Balikha seller account is now active. You can start publishing your products and building your shop.',
+      'Congratulations — your Balikha artist account is now active. You can start publishing your products and building your studio.',
     ctaLabel: 'Go to your dashboard',
   },
   rejected: {
-    heading: 'Your seller application was not approved',
+    heading: 'Your artist application was not approved',
     intro:
       'Thank you for applying to sell on Balikha. Unfortunately your application was not approved at this time.',
     ctaLabel: 'View your dashboard',

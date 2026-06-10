@@ -16,7 +16,7 @@ export default function ContactPage() {
 
       <div className="text-muted-foreground mt-6 space-y-6 leading-relaxed">
         <p>
-          Whether you are a maker thinking about opening a shop, a buyer with a question about an
+          Whether you are a maker thinking about opening a studio, a buyer with a question about an
           order, or someone who just wants to say hello, we read every message and we try to reply
           like people, not a help desk.
         </p>

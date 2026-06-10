@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { studioPath } from '@/lib/routes';
 import type { ArtisanHit } from '@/lib/search/types';
 
 function initialOf(name: string): string {
@@ -21,7 +22,7 @@ export function ArtisansSection({ artisans }: { artisans: ArtisanHit[] }) {
         {artisans.map((a) => (
           <Link
             key={a.id}
-            href={`/shop/${a.shopSlug}`}
+            href={studioPath(a.shopSlug)}
             className="group flex items-start gap-3 focus-visible:outline-none"
           >
             <div className="bg-secondary flex h-12 w-12 flex-none items-center justify-center rounded-full font-serif text-base">

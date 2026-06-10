@@ -21,8 +21,8 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
   const searchParams = useSearchParams();
   // Default destination is the buyer surface — every signed-in user has
   // access to /account, whereas /dashboard redirects non-sellers off to
-  // the become-seller flow. Sellers reach /dashboard from the avatar
-  // dropdown's "My shop" link.
+  // the become-seller flow. Artists reach /dashboard from the avatar
+  // dropdown's "My studio" link.
   const next = safeNextOr(searchParams.get('next'), '/account');
   // Surface OAuth failures that landed us back here via errorCallbackURL.
   const oauthErrored = searchParams.get('error') === 'oauth';

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import type { OrderStatus } from '@/lib/orders/types';
 import type { MessageThread, MessageSenderRole, ThreadWriteState } from '@/lib/messaging/types';
 import type { MessageWithSender } from '@/lib/queries/messaging';
+import { workPath } from '@/lib/routes';
 
 const DATE_TIME_FMT = new Intl.DateTimeFormat('en-PH', {
   year: 'numeric',
@@ -64,7 +65,7 @@ export function ThreadView({
   // a buyer/seller who wants to transact despite the messaging pause
   // should be able to.
   const showOrderCta = viewerRole === 'buyer' && !thread.orderId && !readOnly;
-  const orderCtaHref = `/shop/${thread.artisanShopSlugSnapshot}/${thread.productSlugSnapshot}?threadId=${thread.id}`;
+  const orderCtaHref = `${workPath(thread.artisanShopSlugSnapshot, thread.productSlugSnapshot)}?threadId=${thread.id}`;
 
   return (
     <div className="space-y-6">

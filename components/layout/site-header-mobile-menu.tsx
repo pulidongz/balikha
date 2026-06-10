@@ -66,7 +66,7 @@ export function SiteHeaderMobileMenu(props: Props) {
                   onClick={() => setOpen(false)}
                   className="hover:bg-secondary rounded-md px-3 py-2"
                 >
-                  My shop
+                  My studio
                 </Link>
               ) : (
                 <Link

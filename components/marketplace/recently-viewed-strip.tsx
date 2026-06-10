@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { RecentlyViewedItem } from '@/lib/queries/recently-viewed';
+import { workPath } from '@/lib/routes';
 import { PriceTag } from './price-tag';
 
 interface Props {
@@ -30,7 +31,7 @@ export function RecentlyViewedStrip({ items, minItems = 4, heading = 'Recently v
         {items.map((p) => (
           <Link
             key={p.id}
-            href={`/shop/${p.artisanShopSlug}/${p.slug}`}
+            href={workPath(p.artisanShopSlug, p.slug)}
             className="group block w-40 shrink-0 space-y-2 sm:w-44"
           >
             <div className="bg-secondary relative aspect-square overflow-hidden rounded-md">

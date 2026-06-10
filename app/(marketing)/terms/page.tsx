@@ -28,13 +28,13 @@ const SECTIONS: Section[] = [
       {
         type: 'list',
         items: [
-          'Artisans ("Sellers") to list, showcase, and offer handcrafted and artisanal products for sale.',
-          'Customers ("Buyers") to discover and purchase products directly from Sellers.',
+          'Artisans ("Artists") to list, showcase, and offer handcrafted and artisanal products for sale.',
+          'Customers ("Buyers") to discover and purchase products directly from Artists.',
         ],
       },
       {
         type: 'p',
-        text: 'Important: Balikha does not process payments. All transactions are arranged directly between Buyers and Sellers. Balikha is not a party to any transaction and assumes no responsibility for payment disputes, product quality, delivery, or fulfillment.',
+        text: 'Important: Balikha does not process payments. All transactions are arranged directly between Buyers and Artists. Balikha is not a party to any transaction and assumes no responsibility for payment disputes, product quality, delivery, or fulfillment.',
       },
     ],
   },
@@ -50,7 +50,7 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Buyer Account: For individuals who wish to browse and purchase products.',
-          'Seller Account: For artisans who wish to list and sell products on the Platform.',
+          'Artist Account: For artisans who wish to list and sell products on the Platform.',
         ],
       },
       {
@@ -60,9 +60,9 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    heading: '4. Seller Obligations',
+    heading: '4. Artist Obligations',
     blocks: [
-      { type: 'p', text: 'Sellers agree to:' },
+      { type: 'p', text: 'Artists agree to:' },
       {
         type: 'list',
         items: [
@@ -87,9 +87,9 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Use the Platform only for lawful purposes.',
-          'Communicate respectfully with Sellers.',
-          'Understand that payment and fulfillment arrangements are made directly with Sellers, outside of the Platform.',
-          'Not misrepresent their identity or intentions when contacting Sellers.',
+          'Communicate respectfully with Artists.',
+          'Understand that payment and fulfillment arrangements are made directly with Artists, outside of the Platform.',
+          'Not misrepresent their identity or intentions when contacting Artists.',
         ],
       },
     ],
@@ -120,7 +120,7 @@ const SECTIONS: Section[] = [
       },
       {
         type: 'p',
-        text: 'Sellers retain ownership of their product photos, descriptions, and creative content, but grant Balikha a non-exclusive, royalty-free license to display and promote such content on the Platform.',
+        text: 'Artists retain ownership of their product photos, descriptions, and creative content, but grant Balikha a non-exclusive, royalty-free license to display and promote such content on the Platform.',
       },
     ],
   },
@@ -155,8 +155,8 @@ const SECTIONS: Section[] = [
       {
         type: 'list',
         items: [
-          'Any transaction disputes between Buyers and Sellers.',
-          'Product defects, non-delivery, or misrepresentation by Sellers.',
+          'Any transaction disputes between Buyers and Artists.',
+          'Product defects, non-delivery, or misrepresentation by Artists.',
           'Loss of data, revenue, or business opportunity arising from use of the Platform.',
           'Any indirect, incidental, or consequential damages arising from use of the Platform.',
         ],

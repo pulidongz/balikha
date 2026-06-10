@@ -7,6 +7,7 @@ import { artisanProfiles, orderDisputes, orderEvents, orders, user } from '@/db/
 import { requireAdmin } from '@/lib/auth-helpers';
 import { EmbeddedThread } from '@/components/orders/embedded-thread';
 import { formatPrice } from '@/lib/format';
+import { studioPath, workPath } from '@/lib/routes';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { AdminOrderActions } from '@/components/admin/admin-order-actions';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
@@ -125,7 +126,7 @@ export default async function AdminOrderDetailPage({
           {activeDispute.sellerStatement && (
             <div>
               <p className="text-muted-foreground text-xs font-medium uppercase">
-                Seller&rsquo;s statement
+                Artist&rsquo;s statement
               </p>
               <p className="mt-1 text-sm whitespace-pre-line">{activeDispute.sellerStatement}</p>
             </div>
@@ -185,7 +186,7 @@ export default async function AdminOrderDetailPage({
           </div>
           <div className="min-w-0 flex-1 space-y-1">
             <Link
-              href={`/shop/${order.artisanSlugSnapshot}/${order.productSlugSnapshot}`}
+              href={workPath(order.artisanSlugSnapshot, order.productSlugSnapshot)}
               className="text-foreground hover:text-accent block truncate text-sm font-medium transition-colors"
             >
               {order.productTitleSnapshot}
@@ -211,13 +212,13 @@ export default async function AdminOrderDetailPage({
             <p className="text-muted-foreground text-xs">{buyerEmail}</p>
           </div>
           <div className="text-sm">
-            <p className="text-muted-foreground text-xs font-medium uppercase">Seller</p>
+            <p className="text-muted-foreground text-xs font-medium uppercase">Artist</p>
             <p className="text-foreground mt-1 font-medium">{artisanShopName}</p>
             <Link
-              href={`/shop/${order.artisanSlugSnapshot}`}
+              href={studioPath(order.artisanSlugSnapshot)}
               className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
             >
-              View shop
+              View studio
             </Link>
           </div>
         </div>

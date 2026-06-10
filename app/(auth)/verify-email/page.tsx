@@ -98,7 +98,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
             celebrate
             large
             title="Your email is verified"
-            description="You're all set. You can now place orders and open a shop of your own."
+            description="You're all set. You can now place orders and open a studio of your own."
             action={
               <Button
                 size="lg"

@@ -66,7 +66,7 @@ class OrderBusinessError extends Error {}
  *   - the product was deleted (productId is null after ON DELETE SET NULL)
  *   - the product exists but the artisan profile was removed
  *
- * The button's UX path: `success → router.push('/shop/[artisan]/[product]?reorder=1')`
+ * The button's UX path: `success → router.push('/studio/[artisan]/[product]?reorder=1')`
  * → OrderButton on that page detects ?reorder=1 and auto-opens the
  * dialog with a fresh address selection.
  */

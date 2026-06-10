@@ -17,7 +17,7 @@ const LABEL: Record<OrderEventType, string> = {
   shipped: 'Marked as shipped',
   completed: 'Marked as received',
   cancelled_by_buyer: 'Cancelled by buyer',
-  cancelled_by_seller: 'Cancelled by seller',
+  cancelled_by_seller: 'Cancelled by artist',
   auto_cancelled: 'Auto-cancelled (timeout)',
   disputed: 'Dispute filed',
   dispute_resolved: 'Dispute resolved',
@@ -54,7 +54,7 @@ const UPCOMING_MILESTONES = ['accepted', 'payment_received', 'shipped', 'complet
 type UpcomingMilestone = (typeof UPCOMING_MILESTONES)[number];
 
 const UPCOMING_LABEL: Record<UpcomingMilestone, string> = {
-  accepted: 'Awaiting seller response',
+  accepted: 'Awaiting artist response',
   payment_received: 'Awaiting payment',
   shipped: 'Awaiting shipment',
   completed: 'Awaiting delivery',
@@ -94,7 +94,7 @@ function actorLabel(role: string, viewerRole: 'buyer' | 'seller' | 'admin'): str
     case 'buyer':
       return 'by buyer';
     case 'seller':
-      return 'by seller';
+      return 'by artist';
     case 'admin':
       return 'by Balikha support';
     case 'system':

@@ -9,6 +9,7 @@ import { artisanProfiles, catalogs } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { assertVerifiedEmail, getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
+import { studioPath } from '@/lib/routes';
 import { getRequestLogger } from '@/lib/logger-context';
 import { withIdempotency } from '@/lib/idempotency';
 import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
@@ -138,7 +139,7 @@ export async function updateArtisanProfileAction(formData: FormData): Promise<Re
 
   revalidatePath('/dashboard');
   revalidatePath('/dashboard/settings');
-  revalidatePath(`/shop/${profile.shopSlug}`);
+  revalidatePath(studioPath(profile.shopSlug));
   return ok(null);
 }
 
@@ -178,7 +179,7 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Res
     .where(eq(artisanProfiles.id, profile.id));
 
   revalidatePath('/dashboard/settings');
-  revalidatePath(`/shop/${profile.shopSlug}`);
+  revalidatePath(studioPath(profile.shopSlug));
   return ok(null);
 }
 
@@ -196,6 +197,6 @@ export async function deleteArtisanBannerAction(): Promise<Result<null>> {
     .where(eq(artisanProfiles.id, profile.id));
 
   revalidatePath('/dashboard/settings');
-  revalidatePath(`/shop/${profile.shopSlug}`);
+  revalidatePath(studioPath(profile.shopSlug));
   return ok(null);
 }

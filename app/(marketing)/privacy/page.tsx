@@ -23,7 +23,7 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Buyers who browse and purchase products.',
-          'Sellers (Artisans) who register and list products.',
+          'Artists (Artisans) who register and list products.',
           'Visitors who browse the Platform without an account.',
         ],
       },
@@ -40,7 +40,7 @@ const SECTIONS: Section[] = [
           'Email address',
           'Username and password (stored in encrypted form)',
           'Profile photo (optional)',
-          'Contact details (for Sellers)',
+          'Contact details (for Artists)',
         ],
       },
       { type: 'p', text: '2.2 Location Data — we collect location information to:' },
@@ -48,26 +48,26 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Enable Buyers to find artisans and products near them.',
-          'Display region-based listings and seller locations.',
+          'Display region-based listings and artist locations.',
         ],
       },
       {
         type: 'p',
         text: "Location data may be collected through your device's GPS, IP address, or information you voluntarily provide (e.g., city/province in your profile). You may disable location access through your device settings, though this may limit certain features.",
       },
-      { type: 'p', text: '2.3 User-Generated Content — Sellers upload content including:' },
+      { type: 'p', text: '2.3 User-Generated Content — Artists upload content including:' },
       {
         type: 'list',
         items: [
           'Product photos and images',
           'Product descriptions, titles, and pricing',
-          'Shop profile information and story',
+          'Studio profile information and story',
         ],
       },
       { type: 'p', text: 'Buyers may submit:' },
       {
         type: 'list',
-        items: ['Product reviews and ratings', 'Messages sent to Sellers through the Platform'],
+        items: ['Product reviews and ratings', 'Messages sent to Artists through the Platform'],
       },
       {
         type: 'p',
@@ -92,7 +92,7 @@ const SECTIONS: Section[] = [
         type: 'list',
         items: [
           'Create and manage your account.',
-          'Enable Buyers and Sellers to connect and transact.',
+          'Enable Buyers and Artists to connect and transact.',
           'Display relevant products and artisans based on location.',
           'Send transactional notifications (e.g., new message alerts, account updates).',
           'Improve Platform features and user experience.',
@@ -131,7 +131,7 @@ const SECTIONS: Section[] = [
       {
         type: 'list',
         items: [
-          'Other Users: Seller profiles and product listings are visible to Buyers. Buyer messages are visible to the relevant Seller.',
+          'Other Users: Artist profiles and product listings are visible to Buyers. Buyer messages are visible to the relevant Artist.',
           'Service Providers: Third-party vendors who assist with hosting, analytics, or platform operations, bound by confidentiality agreements.',
           'Legal Authorities: When required by Philippine law, court order, or lawful government request.',
         ],

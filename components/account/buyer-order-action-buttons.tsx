@@ -114,7 +114,7 @@ function CancelButton({ orderId }: { orderId: string }) {
             <DialogHeader>
               <DialogTitle>Cancel this order?</DialogTitle>
               <DialogDescription>
-                The seller will see your cancellation reason. You can place a new order later if you
+                The artist will see your cancellation reason. You can place a new order later if you
                 change your mind.
               </DialogDescription>
             </DialogHeader>
@@ -146,7 +146,7 @@ function CancelButton({ orderId }: { orderId: string }) {
                   id="buyer-cancel-notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Anything the seller should know."
+                  placeholder="Anything the artist should know."
                   maxLength={1000}
                   rows={3}
                 />

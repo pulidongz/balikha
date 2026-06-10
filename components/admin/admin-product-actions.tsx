@@ -94,7 +94,7 @@ function FlagButton({ productId }: { productId: string }) {
             <DialogHeader>
               <DialogTitle>Flag listing</DialogTitle>
               <DialogDescription>
-                The listing stays live but is marked for admin attention. No seller notification is
+                The listing stays live but is marked for admin attention. No artist notification is
                 sent.
               </DialogDescription>
             </DialogHeader>
@@ -183,17 +183,17 @@ function RemoveButton({ productId }: { productId: string }) {
             <DialogHeader>
               <DialogTitle>Remove listing</DialogTitle>
               <DialogDescription>
-                The listing will be unpublished and the seller will be notified with the reason.
+                The listing will be unpublished and the artist will be notified with the reason.
                 This can be reversed via Reinstate.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2 py-4">
-              <Label htmlFor="remove-reason">Reason (shown to seller)</Label>
+              <Label htmlFor="remove-reason">Reason (shown to artist)</Label>
               <Textarea
                 id="remove-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Required — sent to the seller in a notification and email."
+                placeholder="Required — sent to the artist in a notification and email."
                 rows={4}
                 maxLength={2000}
                 autoFocus

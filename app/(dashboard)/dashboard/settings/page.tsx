@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { BannerUploader } from '@/components/dashboard/banner-uploader';
 import { SettingsForm } from '@/components/dashboard/settings-form';
 import { requireSellerProfile } from '@/lib/auth-helpers';
+import { studioPath } from '@/lib/routes';
 
 export const metadata = {
-  title: 'Shop settings',
+  title: 'Studio settings',
 };
 
 export default async function SettingsPage() {
@@ -14,11 +15,11 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-10 sm:px-6">
       <header className="space-y-2">
-        <h1 className="font-serif text-3xl tracking-tight">Shop settings</h1>
+        <h1 className="font-serif text-3xl tracking-tight">Studio settings</h1>
         <p className="text-muted-foreground">
-          These are the public details on your shop page —{' '}
+          These are the public details on your studio page —{' '}
           <Link
-            href={`/shop/${profile.shopSlug}`}
+            href={studioPath(profile.shopSlug)}
             target="_blank"
             rel="noreferrer"
             className="text-foreground underline-offset-4 hover:underline"

@@ -48,7 +48,7 @@ export default async function AdminOverview() {
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard label="Users" value={totalUsers} />
         <StatCard label="Products" value={totalProducts} />
-        <StatCard label="Active sellers (30d)" value={activeSellers30d} />
+        <StatCard label="Active artists (30d)" value={activeSellers30d} />
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">

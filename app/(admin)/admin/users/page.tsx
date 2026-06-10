@@ -132,7 +132,7 @@ export default async function AdminUsersPage({
                     <p className="text-muted-foreground text-xs">{u.email}</p>
                     <p className="text-muted-foreground text-xs">
                       Joined {formatRelativeTime(u.createdAt)}
-                      {u.isArtisan ? ' · seller' : ''}
+                      {u.isArtisan ? ' · artist' : ''}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">

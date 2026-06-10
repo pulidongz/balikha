@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { signOut } from '@/lib/auth-client';
+import { studioPath } from '@/lib/routes';
 import { DashboardNav } from './dashboard-nav';
 
 function initialsOf(name: string): string {
@@ -29,7 +30,7 @@ function initialsOf(name: string): string {
 // Dropdown contents mirror the marketplace SiteHeaderUserMenu so the
 // menu stays consistent across surfaces — switching from /account to
 // /dashboard shouldn't change which destinations the avatar exposes.
-// Settings (catalogs, shop info, etc.) lives in the dashboard sidebar
+// Settings (catalogs, studio info, etc.) lives in the dashboard sidebar
 // and isn't repeated here.
 export function DashboardHeaderMenu({
   userName,
@@ -87,7 +88,7 @@ export function DashboardHeaderMenu({
 
       {shopSlug && (
         <Link
-          href={`/shop/${shopSlug}`}
+          href={studioPath(shopSlug)}
           target="_blank"
           rel="noreferrer"
           className={buttonVariants({
@@ -96,7 +97,7 @@ export function DashboardHeaderMenu({
             className: 'hidden sm:inline-flex',
           })}
         >
-          View shop →
+          View studio →
         </Link>
       )}
 
@@ -133,7 +134,7 @@ export function DashboardHeaderMenu({
           </DropdownMenuItem>
           {shopSlug && (
             <DropdownMenuItem render={<Link href="/dashboard" />}>
-              <LayoutDashboard className="mr-2 h-4 w-4" /> My shop
+              <LayoutDashboard className="mr-2 h-4 w-4" /> My studio
             </DropdownMenuItem>
           )}
           {isAdmin && (

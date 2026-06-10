@@ -121,13 +121,13 @@ function OrderSteps({ shopName }: { shopName: string }) {
   );
 }
 
-// The seller's recent track record, or an honest note for a new seller.
+// The maker's recent track record, or an honest note for a new maker.
 // Never shows zeroed-out stats: a maker with no order history reads as
 // "early days," not "0% fulfilled".
 function SellerTrustBlock({ trust, shopName }: { trust: SellerTrust; shopName: string }) {
   return (
     <section className="space-y-1.5">
-      <h3 className="text-sm font-medium">This seller</h3>
+      <h3 className="text-sm font-medium">This maker</h3>
       {trust.hasHistory ? (
         <div className="text-muted-foreground space-y-1 text-sm">
           {trust.responseLine && <p>{trust.responseLine}</p>}
@@ -306,12 +306,12 @@ function OrderDialog(props: OrderButtonProps) {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="notes-from-buyer">Note to seller (optional)</Label>
+              <Label htmlFor="notes-from-buyer">Note to the maker (optional)</Label>
               <Textarea
                 id="notes-from-buyer"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything the seller should know: special handling, a delivery preference, a question."
+                placeholder="Anything the maker should know: special handling, a delivery preference, a question."
                 maxLength={2000}
                 rows={3}
               />

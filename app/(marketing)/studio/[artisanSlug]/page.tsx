@@ -13,7 +13,8 @@ import { JsonLd } from '@/components/seo/json-ld';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
-import { breadcrumbJsonLd, organizationJsonLd } from '@/lib/seo/structured-data';
+import { studioPath } from '@/lib/routes';
+import { organizationJsonLd } from '@/lib/seo/structured-data';
 
 const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
@@ -41,17 +42,22 @@ function initialsOf(name: string): string {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { artisanSlug } = await params;
   const profile = await loadArtisan(artisanSlug);
-  if (!profile) return { title: 'Shop not found' };
-  const description = profile.bio ?? `Handmade work by ${profile.shopName} on Balikha.`;
+  if (!profile) return { title: 'Studio not found' };
+  // Truncated for OG/meta description tags — bios can run long.
+  const description = (profile.bio ?? `Handmade work by ${profile.shopName} on Balikha.`).slice(
+    0,
+    155,
+  );
   return {
     title: profile.shopName,
     description,
     openGraph: {
       title: profile.shopName,
       description,
-      url: `/shop/${profile.shopSlug}`,
+      url: studioPath(profile.shopSlug),
       images: profile.bannerImageUrl ? [{ url: profile.bannerImageUrl }] : undefined,
     },
+    twitter: { card: 'summary_large_image' },
   };
 }
 
@@ -116,17 +122,15 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
     productsByCatalog.set(p.catalogId, list);
   }
 
+  // No breadcrumb JSON-LD here: with the marketplace "Shop" root dropped
+  // (T1), the studio page is the top of its own trail, and single-item
+  // breadcrumb lists carry no SEO signal.
   const org = organizationJsonLd({
     name: profile.shopName,
-    url: `${APP_URL}/shop/${profile.shopSlug}`,
+    url: `${APP_URL}${studioPath(profile.shopSlug)}`,
     description: profile.bio,
     image: profile.bannerImageUrl,
   });
-
-  const breadcrumb = breadcrumbJsonLd([
-    { name: 'Shop', url: APP_URL },
-    { name: profile.shopName, url: `${APP_URL}/shop/${profile.shopSlug}` },
-  ]);
 
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
@@ -148,10 +152,9 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
   return (
     <div>
       <JsonLd data={org} />
-      <JsonLd data={breadcrumb} />
       {/* Banner — gracefully degrades if no banner image */}
       <section
-        aria-label="Shop banner"
+        aria-label="Studio banner"
         className="bg-secondary relative aspect-[16/6] w-full overflow-hidden md:aspect-[16/4]"
       >
         {profile.bannerImageUrl ? (

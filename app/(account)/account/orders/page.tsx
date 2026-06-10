@@ -106,7 +106,7 @@ export default async function OrdersPage({
           title={filter === 'in_progress' ? 'No orders in progress' : 'No orders match this filter'}
           description={
             filter === 'in_progress'
-              ? "When you place an order, it'll appear here while you and the seller coordinate."
+              ? "When you place an order, it'll appear here while you and the artist coordinate."
               : 'Try a different filter from the tabs above.'
           }
           action={

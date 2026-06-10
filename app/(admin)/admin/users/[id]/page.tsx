@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { artisanProfiles, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { deriveStatus, STATUS_PILL, ROLE_PILL } from '@/lib/admin/user-status';
+import { studioPath } from '@/lib/routes';
 import { AdminUserActions } from '@/components/admin/admin-user-actions';
 
 export const metadata = { title: 'User — Admin' };
@@ -123,20 +124,22 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         </section>
       )}
 
-      {/* Seller details — only shown when the user is a seller */}
-      {row.artisanProfileId && (
+      {/* Artist details — only shown when the user is an artist. shopSlug
+          comes from the same joined artisan_profiles row as artisanProfileId,
+          so checking it too is a type-narrowing no-op at runtime. */}
+      {row.artisanProfileId && row.shopSlug && (
         <section className="border-t pt-6">
           <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
-            Seller profile
+            Artist profile
           </h2>
           <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-muted-foreground text-xs font-medium uppercase">Shop name</dt>
+              <dt className="text-muted-foreground text-xs font-medium uppercase">Studio name</dt>
               <dd className="text-foreground mt-1">{row.shopName}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground text-xs font-medium uppercase">Shop URL</dt>
-              <dd className="text-foreground mt-1 font-mono text-xs">/shop/{row.shopSlug}</dd>
+              <dt className="text-muted-foreground text-xs font-medium uppercase">Studio URL</dt>
+              <dd className="text-foreground mt-1 font-mono text-xs">{studioPath(row.shopSlug)}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground text-xs font-medium uppercase">
@@ -145,15 +148,13 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               <dd className="text-foreground mt-1">{row.approvalStatus}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground text-xs font-medium uppercase">
-                Seller profile
-              </dt>
+              <dt className="text-muted-foreground text-xs font-medium uppercase">Application</dt>
               <dd className="mt-1">
                 <Link
                   href={`/admin/sellers/${row.artisanProfileId}`}
                   className="text-primary text-xs hover:underline"
                 >
-                  View in Sellers →
+                  View application →
                 </Link>
               </dd>
             </div>

@@ -14,6 +14,7 @@ import {
 import { uniqueSlug } from '@/lib/slug';
 import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
+import { workPath } from '@/lib/routes';
 import { logger } from '@/lib/logger';
 import { FACET_TAG } from '@/lib/search/facets';
 import { deleteObject } from '@/lib/storage/delete';
@@ -287,7 +288,7 @@ async function applyProductStatusInTx(
           target: {
             kind: 'product',
             id: productId,
-            url: `/shop/${profile.shopSlug}/${existing.slug}`,
+            url: workPath(profile.shopSlug, existing.slug),
           },
         })),
       );
@@ -520,7 +521,7 @@ async function emitWishlistBackInStock(tx: Tx, ctx: BackInStockContext): Promise
       target: {
         kind: 'product',
         id: ctx.productId,
-        url: `/shop/${ctx.shopSlug}/${ctx.productSlug}`,
+        url: workPath(ctx.shopSlug, ctx.productSlug),
       },
     })),
   );
