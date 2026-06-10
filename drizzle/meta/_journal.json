@@ -78,6 +78,13 @@
       "when": 1781124201100,
       "tag": "0010_last_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781126220145,
+      "tag": "0011_free_gravity",
+      "breakpoints": true
     }
   ]
 }

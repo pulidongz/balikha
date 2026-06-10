@@ -3,16 +3,20 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, catalogs } from '@/db/schema';
+import { artisanProfiles, catalogs, products } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
 import { assertVerifiedEmail, getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { studioPath } from '@/lib/routes';
 import { getRequestLogger } from '@/lib/logger-context';
 import { withIdempotency } from '@/lib/idempotency';
-import { artisanProfileCreateSchema, artisanProfileUpdateSchema } from '@/lib/validators/artisan';
+import {
+  artisanCoverFocusSchema,
+  artisanProfileCreateSchema,
+  artisanProfileUpdateSchema,
+} from '@/lib/validators/artisan';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
 import {
   sanitizeImage,
@@ -123,21 +127,192 @@ export async function becomeArtisanAction(
   });
 }
 
+// Build the validator input from FormData. Two different absences matter:
+// a field NOT in the FormData (form doesn't edit it) stays `undefined` and
+// drizzle skips it on update — so the settings form and the on-page studio
+// dialog can share this action while editing different field sets. A field
+// submitted EMPTY ('') becomes null — an explicit clear.
+function profileInputFromFormData(formData: FormData) {
+  const getRequired = (k: string): string | undefined => {
+    const v = formData.get(k);
+    return typeof v === 'string' ? v.trim() : undefined;
+  };
+  const getClearable = (k: string): string | null | undefined => {
+    const v = formData.get(k);
+    if (v === null) return undefined; // not submitted → leave unchanged
+    const t = String(v).trim();
+    return t === '' ? null : t;
+  };
+  const craftTagsRaw = formData.get('craftTags');
+  const craftTags =
+    craftTagsRaw === null
+      ? undefined
+      : String(craftTagsRaw)
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+  return {
+    shopName: getRequired('shopName'),
+    bio: getClearable('bio'),
+    location: getClearable('location'),
+    policies: getClearable('policies'),
+    craftTags,
+    instagram: getClearable('instagram'),
+    facebook: getClearable('facebook'),
+    tiktok: getClearable('tiktok'),
+    website: getClearable('website'),
+  };
+}
+
 export async function updateArtisanProfileAction(formData: FormData): Promise<Result<null>> {
   const profile = await getCurrentArtisanProfile();
   if (!profile) return err('No artisan profile to update.');
 
-  const parsed = artisanProfileUpdateSchema.safeParse(Object.fromEntries(formData));
+  const input = profileInputFromFormData(formData);
+  const parsed = artisanProfileUpdateSchema.safeParse(input);
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
+  }
+  const { shopName, bio, location, policies, craftTags, instagram, facebook, tiktok, website } =
+    parsed.data;
+
+  // Assemble the externalLinks jsonb only when at least one link field was
+  // actually submitted; otherwise leave the column untouched (undefined).
+  const anyLinkSubmitted = [instagram, facebook, tiktok, website].some((v) => v !== undefined);
+  const links = {
+    ...(instagram ? { instagram } : {}),
+    ...(facebook ? { facebook } : {}),
+    ...(tiktok ? { tiktok } : {}),
+    ...(website ? { website } : {}),
+  };
+  const externalLinks = anyLinkSubmitted
+    ? Object.keys(links).length > 0
+      ? links
+      : null
+    : undefined;
+
+  await db
+    .update(artisanProfiles)
+    .set({
+      shopName,
+      bio,
+      location,
+      policies,
+      craftTags: craftTags === undefined ? undefined : craftTags.length > 0 ? craftTags : null,
+      externalLinks,
+      updatedAt: new Date(),
+    })
+    .where(eq(artisanProfiles.id, profile.id));
+
+  revalidatePath('/dashboard');
+  revalidatePath('/dashboard/settings');
+  revalidatePath(studioPath(profile.shopSlug));
+  return ok(null);
+}
+
+// Sets the cover image's vertical focal point (T2 "cover crop"). Pure
+// framing metadata — no file is touched.
+export async function setArtisanCoverFocusAction(focus: string): Promise<Result<null>> {
+  const profile = await getCurrentArtisanProfile();
+  if (!profile) return err('No artisan profile to update.');
+
+  const parsed = artisanCoverFocusSchema.safeParse(focus);
+  if (!parsed.success) return err('Invalid cover focus.');
+
+  await db
+    .update(artisanProfiles)
+    .set({ coverFocus: parsed.data, updatedAt: new Date() })
+    .where(eq(artisanProfiles.id, profile.id));
+
+  revalidatePath(studioPath(profile.shopSlug));
+  revalidatePath('/dashboard/settings');
+  return ok(null);
+}
+
+// Pin (or unpin, with null) a featured work on the studio page (T2).
+// Ownership is enforced in the WHERE of the product probe; only published
+// works can be pinned — a visitor-facing slot must never hold hidden work.
+export async function setFeaturedProductAction(productId: string | null): Promise<Result<null>> {
+  const profile = await getCurrentArtisanProfile();
+  if (!profile) return err('No artisan profile to update.');
+
+  if (productId !== null) {
+    const [product] = await db
+      .select({ id: products.id, status: products.status })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.artisanProfileId, profile.id)))
+      .limit(1);
+    if (!product) return err('That work was not found in your studio.');
+    if (product.status !== 'published') {
+      return err('Only published works can be featured.');
+    }
   }
 
   await db
     .update(artisanProfiles)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ featuredProductId: productId, updatedAt: new Date() })
     .where(eq(artisanProfiles.id, profile.id));
 
-  revalidatePath('/dashboard');
+  revalidatePath(studioPath(profile.shopSlug));
+  return ok(null);
+}
+
+const MAX_PROFILE_PHOTO_BYTES = 4 * 1024 * 1024; // 4 MB — avatar-sized asset
+
+export async function uploadArtisanProfilePhotoAction(formData: FormData): Promise<Result<null>> {
+  const profile = await getCurrentArtisanProfile();
+  if (!profile) return err('No artisan profile to update.');
+
+  const file = formData.get('photo');
+  if (!(file instanceof File) || file.size === 0) {
+    return err('Select an image to upload.');
+  }
+  if (file.size > MAX_PROFILE_PHOTO_BYTES) {
+    return err('Photo must be 4 MB or smaller.');
+  }
+
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'artisans', profile.id);
+  await fs.mkdir(uploadDir, { recursive: true });
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const sanitized = await sanitizeImage(buffer, {
+    maxBytes: MAX_PROFILE_PHOTO_BYTES,
+    maxDimension: MAX_IMAGE_DIMENSION,
+    allowedFormats: ['jpeg', 'png', 'webp'],
+  });
+  if (!sanitized.ok) return err(sanitized.error);
+
+  const ext = IMAGE_FORMAT_META[sanitized.data.format].ext;
+  const filename = `photo-${Date.now()}.${ext}`;
+  await fs.writeFile(path.join(uploadDir, filename), sanitized.data.data);
+
+  const newUrl = `/uploads/artisans/${profile.id}/${filename}`;
+  await bestEffortUnlinkLocalUpload(profile.profilePhotoUrl);
+
+  await db
+    .update(artisanProfiles)
+    .set({ profilePhotoUrl: newUrl, updatedAt: new Date() })
+    .where(eq(artisanProfiles.id, profile.id));
+
+  revalidatePath('/dashboard/settings');
+  revalidatePath(studioPath(profile.shopSlug));
+  return ok(null);
+}
+
+export async function deleteArtisanProfilePhotoAction(): Promise<Result<null>> {
+  const profile = await getCurrentArtisanProfile();
+  if (!profile) return err('No artisan profile to update.');
+
+  if (!profile.profilePhotoUrl) return ok(null);
+
+  await bestEffortUnlinkLocalUpload(profile.profilePhotoUrl);
+
+  await db
+    .update(artisanProfiles)
+    .set({ profilePhotoUrl: null, updatedAt: new Date() })
+    .where(eq(artisanProfiles.id, profile.id));
+
   revalidatePath('/dashboard/settings');
   revalidatePath(studioPath(profile.shopSlug));
   return ok(null);
