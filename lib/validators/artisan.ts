@@ -15,13 +15,17 @@ export const artisanProfileCreateSchema = z.object({
 
 // External profile links (T2). https only — these render as outbound links
 // on a public page, so plain-http and exotic schemes are rejected outright.
-const externalLinkField = z
-  .string()
-  .url('Enter a full URL, e.g. https://instagram.com/yourname')
-  .startsWith('https://', 'Links must start with https://')
-  .max(300)
-  .optional()
-  .nullable();
+// One schema per field so the error example matches the platform the user
+// is actually typing into.
+function externalLinkField(example: string) {
+  return z
+    .string()
+    .url(`Enter a full URL, e.g. ${example}`)
+    .startsWith('https://', 'Links must start with https://')
+    .max(300)
+    .optional()
+    .nullable();
+}
 
 export const artisanProfileUpdateSchema = z.object({
   shopName: z
@@ -37,10 +41,10 @@ export const artisanProfileUpdateSchema = z.object({
   // capped so the hero stays a description, not a tag cloud. Undefined =
   // not submitted; an empty array clears (the action stores null).
   craftTags: z.array(z.string().min(2).max(30)).max(6).optional(),
-  instagram: externalLinkField,
-  facebook: externalLinkField,
-  tiktok: externalLinkField,
-  website: externalLinkField,
+  instagram: externalLinkField('https://instagram.com/yourname'),
+  facebook: externalLinkField('https://facebook.com/yourpage'),
+  tiktok: externalLinkField('https://tiktok.com/@yourname'),
+  website: externalLinkField('https://yourstudio.ph'),
 });
 
 export const artisanCoverFocusSchema = z.enum(['top', 'center', 'bottom']);
