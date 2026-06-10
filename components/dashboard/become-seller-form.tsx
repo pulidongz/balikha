@@ -50,7 +50,7 @@ export function BecomeSellerForm() {
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="shop-name">Shop name</Label>
+        <Label htmlFor="shop-name">Studio name</Label>
         <Input
           id="shop-name"
           name="shopName"
@@ -61,7 +61,7 @@ export function BecomeSellerForm() {
           autoComplete="organization"
         />
         <p className="text-muted-foreground text-xs">
-          This is the public name buyers will see. Your shop URL is generated automatically.
+          This is the public name buyers will see. Your studio URL is generated automatically.
         </p>
       </div>
       {error && (
@@ -70,7 +70,7 @@ export function BecomeSellerForm() {
         </p>
       )}
       <Button type="submit" size="lg" disabled={isPending}>
-        {isPending ? 'Creating shop…' : 'Become a seller'}
+        {isPending ? 'Creating studio…' : 'Open a studio'}
       </Button>
     </form>
   );

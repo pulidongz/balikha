@@ -3,19 +3,19 @@ import { cn } from '@/lib/utils';
 import type { OrderStatus } from '@/lib/orders/types';
 
 const LABEL: Record<OrderStatus, string> = {
-  pending_seller_response: 'Awaiting seller',
+  pending_seller_response: 'Awaiting artist',
   pending_payment_arrangement: 'Arranging payment',
   payment_received: 'Payment received',
   shipped: 'Shipped',
   completed: 'Completed',
   cancelled_by_buyer: 'Cancelled by buyer',
-  cancelled_by_seller: 'Cancelled by seller',
+  cancelled_by_seller: 'Cancelled by artist',
   auto_cancelled: 'Auto-cancelled',
   disputed: 'Disputed',
 };
 
 const VARIANT_CLASS: Record<OrderStatus, string> = {
-  // Awaiting the seller — a pending state that needs action; Burnt Amber.
+  // Awaiting the artist — a pending state that needs action; Burnt Amber.
   pending_seller_response: 'border-transparent bg-warning text-warning-foreground',
   // Active states — neutral/in-progress visuals
   pending_payment_arrangement: 'border-transparent bg-secondary text-foreground',

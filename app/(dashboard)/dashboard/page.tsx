@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/marketplace/empty-state';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { getCurrentArtisanProfile, getCurrentSession } from '@/lib/auth-helpers';
+import { studioPath } from '@/lib/routes';
 
 export const metadata = {
   title: 'Dashboard',
@@ -113,17 +114,17 @@ export default async function DashboardPage() {
         <p className="text-muted-foreground text-sm">Managing {profile.shopName}.</p>
       </header>
 
-      {/* Approval status banners — pending and rejected sellers see a
-          clear explanation of their application state. Approved sellers
+      {/* Approval status banners — pending and rejected artists see a
+          clear explanation of their application state. Approved artists
           see nothing here (the normal dashboard experience). */}
       {profile.approvalStatus === 'pending' && (
         <div
           className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
           role="status"
         >
-          <p className="font-medium">Your seller application is under review.</p>
+          <p className="font-medium">Your artist application is under review.</p>
           <p className="mt-1 text-amber-800">
-            You can prepare drafts and set up your shop, but you can&rsquo;t publish products yet.
+            You can prepare drafts and set up your studio, but you can&rsquo;t publish products yet.
             We&rsquo;ll notify you once we&rsquo;ve reviewed your application.
           </p>
         </div>
@@ -133,7 +134,7 @@ export default async function DashboardPage() {
           className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-900"
           role="status"
         >
-          <p className="font-medium">Your seller application was not approved.</p>
+          <p className="font-medium">Your artist application was not approved.</p>
           {profile.approvalNote ? (
             <p className="mt-1 whitespace-pre-line text-red-800">{profile.approvalNote}</p>
           ) : (
@@ -145,7 +146,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Stat cards */}
-      <section aria-label="Shop overview" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section aria-label="Studio overview" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label="Catalogs"
           value={catalogCount}
@@ -246,12 +247,12 @@ export default async function DashboardPage() {
           Manage catalogs
         </Link>
         <Link
-          href={`/shop/${profile.shopSlug}`}
+          href={studioPath(profile.shopSlug)}
           target="_blank"
           rel="noreferrer"
           className={buttonVariants({ variant: 'ghost', size: 'lg', className: 'h-11' })}
         >
-          View public shop →
+          View public studio →
         </Link>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { formatRelativeTime } from '@/lib/format';
+import { workPath } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 import { AdminProductActions } from '@/components/admin/admin-product-actions';
 
@@ -225,7 +226,7 @@ export default async function AdminProductsPage({
                   )}
                   {product.artisanSlug && product.slug && (
                     <a
-                      href={`/shop/${product.artisanSlug}/${product.slug}`}
+                      href={workPath(product.artisanSlug, product.slug)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-foreground text-xs underline"

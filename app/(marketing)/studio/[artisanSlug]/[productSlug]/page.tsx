@@ -18,6 +18,7 @@ import { formatPrice } from '@/lib/format';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
+import { studioPath, workPath } from '@/lib/routes';
 import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo/structured-data';
 import { JsonLd } from '@/components/seo/json-ld';
 
@@ -65,9 +66,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       type: 'website',
       title: row.product.title,
       description,
-      url: `/shop/${row.artisan.shopSlug}/${row.product.slug}`,
+      url: workPath(row.artisan.shopSlug, row.product.slug),
       images: primary ? [{ url: primary.url }] : undefined,
     },
+    twitter: { card: 'summary_large_image' },
   };
 }
 
@@ -187,27 +189,23 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
     images: images.map((img) => img.url),
     sku: product.id,
     brandName: artisan.shopName,
-    url: `${APP_URL}/shop/${artisan.shopSlug}/${product.slug}`,
+    url: `${APP_URL}${workPath(artisan.shopSlug, product.slug)}`,
     currency: product.currency,
     price: product.price,
     availability: inStock ? 'InStock' : isSoldOut ? 'SoldOut' : 'OutOfStock',
   });
 
+  // T1: the trail starts at the studio, not a marketplace "Shop" root.
   const breadcrumb = breadcrumbJsonLd([
-    { name: 'Shop', url: APP_URL },
-    { name: artisan.shopName, url: `${APP_URL}/shop/${artisan.shopSlug}` },
-    { name: product.title, url: `${APP_URL}/shop/${artisan.shopSlug}/${product.slug}` },
+    { name: artisan.shopName, url: `${APP_URL}${studioPath(artisan.shopSlug)}` },
+    { name: product.title, url: `${APP_URL}${workPath(artisan.shopSlug, product.slug)}` },
   ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-16">
-      {/* Breadcrumb */}
+      {/* Breadcrumb — studio-rooted: {Studio name} › {Work title} */}
       <nav aria-label="Breadcrumb" className="text-muted-foreground mb-8 text-sm">
-        <Link href="/" className="hover:text-foreground">
-          Shop
-        </Link>
-        <span className="mx-2 opacity-50">›</span>
-        <Link href={`/shop/${artisan.shopSlug}`} className="hover:text-foreground">
+        <Link href={studioPath(artisan.shopSlug)} className="hover:text-foreground">
           {artisan.shopName}
         </Link>
         <span className="mx-2 opacity-50">›</span>
@@ -268,7 +266,7 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
             <p className="text-muted-foreground text-sm">
               by{' '}
               <Link
-                href={`/shop/${artisan.shopSlug}`}
+                href={studioPath(artisan.shopSlug)}
                 className="text-foreground underline-offset-4 hover:underline"
               >
                 {artisan.shopName}
@@ -312,7 +310,7 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
               }))}
               defaultAddressId={defaultAddressId}
               sellerTrust={sellerTrust}
-              signInRedirect={`/shop/${artisan.shopSlug}/${product.slug}`}
+              signInRedirect={workPath(artisan.shopSlug, product.slug)}
             />
             <WishlistToggle
               productId={product.id}
@@ -328,7 +326,7 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
               <AskTheMakerButton
                 productId={product.id}
                 signedIn={viewer !== null}
-                productUrl={`/shop/${artisan.shopSlug}/${product.slug}`}
+                productUrl={workPath(artisan.shopSlug, product.slug)}
               />
             </div>
           )}
@@ -379,10 +377,10 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
           <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="font-serif text-2xl tracking-tight">More from {artisan.shopName}</h2>
             <Link
-              href={`/shop/${artisan.shopSlug}`}
+              href={studioPath(artisan.shopSlug)}
               className="text-muted-foreground hover:text-foreground text-sm"
             >
-              View shop →
+              View studio →
             </Link>
           </div>
           <ProductGrid cols={4}>

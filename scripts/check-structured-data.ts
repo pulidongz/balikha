@@ -27,7 +27,7 @@ process.stdout.write('productJsonLd: basic shape and absolute-image-URL fix\n');
     images: [absoluteImageUrl],
     sku: 'sku-123',
     brandName: 'Balikha Studio',
-    url: 'https://balikha.art/shop/balikha-studio/test-bowl',
+    url: 'https://balikha.art/studio/balikha-studio/test-bowl',
     currency: 'PHP',
     price: 450,
     availability: 'InStock',
@@ -65,7 +65,7 @@ process.stdout.write('productJsonLd: SoldOut and OutOfStock availability mapping
     images: [],
     sku: 'sku-sold',
     brandName: 'Studio',
-    url: 'https://balikha.art/shop/studio/sold-bowl',
+    url: 'https://balikha.art/studio/studio/sold-bowl',
     currency: 'PHP',
     price: 100,
     availability: 'SoldOut',
@@ -76,7 +76,7 @@ process.stdout.write('productJsonLd: SoldOut and OutOfStock availability mapping
     images: [],
     sku: 'sku-oos',
     brandName: 'Studio',
-    url: 'https://balikha.art/shop/studio/oos-bowl',
+    url: 'https://balikha.art/studio/studio/oos-bowl',
     currency: 'PHP',
     price: 100,
     availability: 'OutOfStock',
@@ -96,20 +96,20 @@ process.stdout.write('organizationJsonLd: shape, image present/absent, no logo k
 {
   const withImage = organizationJsonLd({
     name: 'Balikha Studio',
-    url: 'https://balikha.art/shop/balikha-studio',
+    url: 'https://balikha.art/studio/balikha-studio',
     description: 'Handmade pottery',
     image: 'https://images.balikha.art/banners/studio.jpg',
   });
 
   assert(withImage['@type'] === 'Organization', '@type is Organization');
   assert(withImage['name'] === 'Balikha Studio', 'name is set');
-  assert(withImage['url'] === 'https://balikha.art/shop/balikha-studio', 'url is set');
+  assert(withImage['url'] === 'https://balikha.art/studio/balikha-studio', 'url is set');
   assert(withImage['image'] !== undefined, 'image is present when provided');
   assert(!('logo' in withImage), 'no logo key emitted');
 
   const noImage = organizationJsonLd({
     name: 'New Shop',
-    url: 'https://balikha.art/shop/new-shop',
+    url: 'https://balikha.art/studio/new-shop',
     description: null,
     image: null,
   });
@@ -122,25 +122,28 @@ process.stdout.write('organizationJsonLd: shape, image present/absent, no logo k
 // --- breadcrumbJsonLd ---
 process.stdout.write('breadcrumbJsonLd: itemListElement count and positions\n');
 {
+  // T1: trails are studio-rooted — {Studio name} › {Work title}, no
+  // marketplace "Shop" root node.
   const result = breadcrumbJsonLd([
-    { name: 'Shop', url: 'https://balikha.art' },
-    { name: 'Balikha Studio', url: 'https://balikha.art/shop/balikha-studio' },
-    { name: 'Test Bowl', url: 'https://balikha.art/shop/balikha-studio/test-bowl' },
+    { name: 'Balikha Studio', url: 'https://balikha.art/studio/balikha-studio' },
+    { name: 'Test Bowl', url: 'https://balikha.art/studio/balikha-studio/test-bowl' },
   ]);
 
   assert(result['@type'] === 'BreadcrumbList', '@type is BreadcrumbList');
   const items = result['itemListElement'] as Array<Record<string, unknown>>;
   assert(Array.isArray(items), 'itemListElement is an array');
-  assert(items.length === 3, 'itemListElement has 3 entries');
+  assert(items.length === 2, 'itemListElement has 2 entries');
   assert(items[0]?.['position'] === 1, 'first item position is 1');
   assert(items[1]?.['position'] === 2, 'second item position is 2');
-  assert(items[2]?.['position'] === 3, 'third item position is 3');
-  assert(items[0]?.['name'] === 'Shop', 'first item name is Shop');
-  assert(items[0]?.['item'] === 'https://balikha.art', 'first item url is https://balikha.art');
-  assert(items[2]?.['name'] === 'Test Bowl', 'third item name is Test Bowl');
+  assert(items[0]?.['name'] === 'Balikha Studio', 'first item name is the studio');
   assert(
-    items[2]?.['item'] === 'https://balikha.art/shop/balikha-studio/test-bowl',
-    'third item url matches',
+    items[0]?.['item'] === 'https://balikha.art/studio/balikha-studio',
+    'first item url is the studio page',
+  );
+  assert(items[1]?.['name'] === 'Test Bowl', 'second item name is the work title');
+  assert(
+    items[1]?.['item'] === 'https://balikha.art/studio/balikha-studio/test-bowl',
+    'second item url matches',
   );
 }
 

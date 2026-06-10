@@ -137,15 +137,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <h2 className="font-serif text-3xl tracking-tight">Featured artisans</h2>
           <p className="text-muted-foreground text-sm">
             {featuredArtisans.length === 0
-              ? 'No shops yet.'
-              : `${featuredArtisans.length} ${featuredArtisans.length === 1 ? 'shop' : 'shops'}`}
+              ? 'No studios yet.'
+              : `${featuredArtisans.length} ${featuredArtisans.length === 1 ? 'studio' : 'studios'}`}
           </p>
         </div>
         {featuredArtisans.length === 0 ? (
           <p className="text-muted-foreground">
             Be the first.{' '}
             <Link href="/sign-up" className="text-foreground underline-offset-4 hover:underline">
-              Open a shop on Balikha
+              Open a studio on Balikha
             </Link>
             .
           </p>

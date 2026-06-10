@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { updateArtisanProfileAction } from '@/lib/actions/artisan';
+import { studioPath } from '@/lib/routes';
 
 type Defaults = {
   shopSlug: string;
@@ -56,7 +57,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="settings-shop-name">Shop name</Label>
+        <Label htmlFor="settings-shop-name">Studio name</Label>
         <Input
           id="settings-shop-name"
           name="shopName"
@@ -73,8 +74,8 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="settings-shop-slug">Shop URL</Label>
-        <Input id="settings-shop-slug" value={`/shop/${defaults.shopSlug}`} readOnly disabled />
+        <Label htmlFor="settings-shop-slug">Studio URL</Label>
+        <Input id="settings-shop-slug" value={studioPath(defaults.shopSlug)} readOnly disabled />
         <p className="text-muted-foreground text-xs">
           Slug is locked once chosen — changing it would break existing bookmarks.
         </p>
@@ -111,7 +112,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="settings-policies">Shop policies</Label>
+        <Label htmlFor="settings-policies">Studio policies</Label>
         <Textarea
           id="settings-policies"
           name="policies"

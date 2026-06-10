@@ -5,9 +5,10 @@ import { db } from '@/db';
 import { artisanProfiles, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { formatRelativeTime } from '@/lib/format';
+import { studioPath } from '@/lib/routes';
 import { AdminSellerActions } from '@/components/admin/admin-seller-actions';
 
-export const metadata = { title: 'Seller Application — Admin' };
+export const metadata = { title: 'Artist Application — Admin' };
 
 const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
   year: 'numeric',
@@ -79,16 +80,16 @@ export default async function AdminSellerDetailPage({
 
       <section className="border-t pt-6">
         <h2 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
-          Shop details
+          Studio details
         </h2>
         <div className="mt-3 grid gap-6 sm:grid-cols-2">
           <div className="text-sm">
-            <p className="text-muted-foreground text-xs font-medium uppercase">Shop name</p>
+            <p className="text-muted-foreground text-xs font-medium uppercase">Studio name</p>
             <p className="text-foreground mt-1">{profile.shopName}</p>
           </div>
           <div className="text-sm">
-            <p className="text-muted-foreground text-xs font-medium uppercase">Shop URL</p>
-            <p className="text-foreground mt-1 font-mono text-xs">/shop/{profile.shopSlug}</p>
+            <p className="text-muted-foreground text-xs font-medium uppercase">Studio URL</p>
+            <p className="text-foreground mt-1 font-mono text-xs">{studioPath(profile.shopSlug)}</p>
           </div>
           {profile.location && (
             <div className="text-sm">

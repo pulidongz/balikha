@@ -130,7 +130,7 @@ function RejectButton({
         <DialogContent className="sm:max-w-md">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>Reject seller application</DialogTitle>
+              <DialogTitle>Reject artist application</DialogTitle>
               <DialogDescription>
                 The application will be marked as rejected. You can re-open it later by approving.
               </DialogDescription>

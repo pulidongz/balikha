@@ -4,7 +4,7 @@ import { BecomeSellerForm } from '@/components/dashboard/become-seller-form';
 import { getCurrentArtisanProfile, requireVerifiedEmail } from '@/lib/auth-helpers';
 
 export const metadata = {
-  title: 'Become a seller',
+  title: 'Open a studio',
 };
 
 export default async function BecomeSellerPage() {
@@ -17,17 +17,19 @@ export default async function BecomeSellerPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <header className="mb-8 space-y-2">
-        <h1 className="font-serif text-3xl tracking-tight">Open a shop on Balikha</h1>
+        <h1 className="font-serif text-3xl tracking-tight">Open a studio on Balikha</h1>
         <p className="text-muted-foreground text-base">
-          Sellers list and manage their work from here. You only need a shop name to start — you can
-          add a bio, banner, and other details later from settings.
+          Artists share and manage their work from here. You only need a studio name to start — you
+          can add a bio, banner, and other details later from settings.
         </p>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif text-xl">Shop details</CardTitle>
-          <CardDescription>Your shop URL is generated automatically from the name.</CardDescription>
+          <CardTitle className="font-serif text-xl">Studio details</CardTitle>
+          <CardDescription>
+            Your studio URL is generated automatically from the name.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <BecomeSellerForm />

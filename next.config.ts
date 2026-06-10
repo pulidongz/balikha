@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
   //
   // localhost:3000 is implicitly allowed (the dev server's own host).
   allowedDevOrigins: ['dev.balikha.art', 'balikha.localhost'],
+  // T1 community pivot: artisan pages moved from /shop/* to /studio/*.
+  // permanent:true emits a 308 (Next's method-preserving equivalent of a
+  // 301 — search engines treat both as permanent). :path* covers both the
+  // studio page and work pages; query strings pass through automatically.
+  async redirects() {
+    return [{ source: '/shop/:path*', destination: '/studio/:path*', permanent: true }];
+  },
   images: {
     remotePatterns: [
       // Dev-only: placeholder images, local MinIO, and the rate-limited

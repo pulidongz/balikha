@@ -35,7 +35,7 @@ export function ResendVerificationBanner({ email }: ResendVerificationBannerProp
       <p className="text-foreground text-sm font-medium">Please verify your email</p>
       <p className="text-muted-foreground mt-1 text-sm">
         We sent a verification link to <span className="text-foreground">{email}</span>. Until you
-        verify, you can&rsquo;t place orders or become a seller.
+        verify, you can&rsquo;t place orders or open a studio.
       </p>
       {sent ? (
         <p className="text-foreground mt-3 text-sm" role="status">

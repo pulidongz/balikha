@@ -27,7 +27,7 @@ const RESOLUTION_OPTIONS: readonly { value: Resolution; label: string; descripti
   },
   {
     value: 'resolved_for_seller',
-    label: 'For seller',
+    label: 'For artist',
     description: 'The order is marked completed. The stock stays spent, counted as a normal sale.',
   },
   {
@@ -165,7 +165,7 @@ function ForceCancelButton({ orderId }: { orderId: string }) {
       label="Force cancel"
       variant="destructive"
       title="Force-cancel this order"
-      description="The buyer and seller see the order as cancelled. Stock returns if the order hasn't shipped yet. Use this only when normal channels have failed (terminated seller, confirmed fraud, etc.)."
+      description="The buyer and artist see the order as cancelled. Stock returns if the order hasn't shipped yet. Use this only when normal channels have failed (terminated artist, confirmed fraud, etc.)."
       action={async (input) => adminForceCancel(input)}
     />
   );

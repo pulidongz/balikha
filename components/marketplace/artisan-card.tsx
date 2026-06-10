@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { studioPath } from '@/lib/routes';
 
 type Props = {
   artisan: {
@@ -21,7 +22,7 @@ function initialsOf(name: string): string {
 export function ArtisanCard({ artisan, productCount }: Props) {
   return (
     <Link
-      href={`/shop/${artisan.shopSlug}`}
+      href={studioPath(artisan.shopSlug)}
       className="group block space-y-3 focus-visible:outline-none"
     >
       <div className="bg-secondary relative aspect-[4/5] overflow-hidden rounded-lg">

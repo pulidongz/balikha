@@ -20,7 +20,7 @@ export default async function NewProductPage({
   const { catalogSlug } = await params;
   const { onboarding } = await searchParams;
   // Ephemeral marker set by the become-seller flow. Not persisted — the intro
-  // is a one-time "your shop is live" moment, not a recurring banner.
+  // is a one-time "your studio is live" moment, not a recurring banner.
   const isOnboarding = onboarding === '1';
   const profile = await requireSellerProfile();
 

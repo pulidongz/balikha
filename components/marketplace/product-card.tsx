@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { workPath } from '@/lib/routes';
 import { PriceTag } from './price-tag';
 import { WishlistToggle } from './wishlist-toggle';
 
@@ -49,7 +50,7 @@ export function ProductCard({
   return (
     <div className="group relative space-y-3">
       <Link
-        href={`/shop/${artisan.shopSlug}/${product.slug}`}
+        href={workPath(artisan.shopSlug, product.slug)}
         className="block focus-visible:outline-none"
       >
         <div className="bg-secondary relative aspect-square overflow-hidden rounded-lg">

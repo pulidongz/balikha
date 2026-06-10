@@ -110,7 +110,7 @@ export function CatalogProductList({
               disabled={pending || !canPublish}
               title={
                 !canPublish
-                  ? 'Your seller account must be approved before you can publish products.'
+                  ? 'Your artist account must be approved before you can publish products.'
                   : undefined
               }
             >

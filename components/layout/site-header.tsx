@@ -14,7 +14,7 @@ export async function SiteHeader() {
   const userName = session?.user.name ?? null;
   const userEmail = session?.user.email ?? null;
 
-  // The "My shop" slot still needs to know whether the current user has an
+  // The "My studio" slot still needs to know whether the current user has an
   // artisan profile. Skipped entirely for anonymous visitors.
   let hasShop = false;
   if (session) {

@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { orderEvents, orders, user } from '@/db/schema';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
+import { workPath } from '@/lib/routes';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { OrderActionButtons } from '@/components/dashboard/order-action-buttons';
 import { OrderEventTimeline } from '@/components/dashboard/order-event-timeline';
@@ -71,7 +72,7 @@ export default async function SellerOrderDetailPage({
     .orderBy(asc(orderEvents.createdAt));
 
   const shipping = order.shippingAddressJson as ShippingAddressSnapshot;
-  const productLink = `/shop/${order.artisanSlugSnapshot}/${order.productSlugSnapshot}`;
+  const productLink = workPath(order.artisanSlugSnapshot, order.productSlugSnapshot);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-10 sm:px-6">

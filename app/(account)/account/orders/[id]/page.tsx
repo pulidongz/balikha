@@ -7,6 +7,7 @@ import { orderEvents, orders } from '@/db/schema';
 import { env } from '@/env';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
+import { workPath } from '@/lib/routes';
 import { BuyerOrderActionButtons } from '@/components/account/buyer-order-action-buttons';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { ReorderButton } from '@/components/account/reorder-button';
@@ -82,7 +83,7 @@ export default async function OrderDetailPage({
   // Snapshot slugs persist forever even if the underlying product/artisan
   // is renamed or deleted (FKs SET NULL). The link target is always
   // derivable from snapshot fields.
-  const productLink = `/shop/${order.artisanSlugSnapshot}/${order.productSlugSnapshot}`;
+  const productLink = workPath(order.artisanSlugSnapshot, order.productSlugSnapshot);
 
   return (
     <div className="space-y-8">

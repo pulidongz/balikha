@@ -7,7 +7,7 @@ import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
-  title: 'Seller Applications — Admin',
+  title: 'Artist Applications — Admin',
 };
 
 const PAGE_SIZE = 100;
@@ -74,9 +74,9 @@ export default async function AdminSellersPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="font-serif text-2xl tracking-tight">Seller Applications</h1>
+        <h1 className="font-serif text-2xl tracking-tight">Artist Applications</h1>
         <p className="text-muted-foreground text-sm">
-          Review incoming seller applications. Pending applications are the priority queue.
+          Review incoming artist applications. Pending applications are the priority queue.
         </p>
       </header>
 

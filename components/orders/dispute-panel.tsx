@@ -47,7 +47,7 @@ export async function DisputePanel({
   const viewerStatement = viewerRole === 'buyer' ? dispute.buyerStatement : dispute.sellerStatement;
   const counterpartyStatement =
     viewerRole === 'buyer' ? dispute.sellerStatement : dispute.buyerStatement;
-  const counterpartyLabel = viewerRole === 'buyer' ? 'Seller' : 'Buyer';
+  const counterpartyLabel = viewerRole === 'buyer' ? 'Artist' : 'Buyer';
 
   return (
     <section className="border-destructive/30 bg-destructive/5 space-y-4 rounded-md border p-4">

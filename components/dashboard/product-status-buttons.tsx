@@ -47,7 +47,7 @@ export function ProductStatusButtons({
               disabled={isPending || !canPublish}
               title={
                 !canPublish
-                  ? 'Your seller account must be approved before you can publish products.'
+                  ? 'Your artist account must be approved before you can publish products.'
                   : undefined
               }
             >
