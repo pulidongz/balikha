@@ -607,6 +607,8 @@ async function seed() {
           CRAFT_TAGS[seller.craft].length > 0
             ? {
                 instagram: `https://instagram.com/${seller.shopSlug}`,
+                facebook: `https://facebook.com/${seller.shopSlug}`,
+                tiktok: `https://tiktok.com/@${seller.shopSlug}`,
                 website: `https://${seller.shopSlug}.ph`,
               }
             : null,
