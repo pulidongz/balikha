@@ -18,10 +18,14 @@ export function AskTheMakerButton({
   productId,
   signedIn,
   productUrl,
+  prominent = false,
 }: {
   productId: string;
   signedIn: boolean;
   productUrl: string;
+  // T3: on showcase / commission works this is the page's primary action,
+  // so it takes the solid large treatment instead of the quiet outline.
+  prominent?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -61,7 +65,12 @@ export function AskTheMakerButton({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={handleClick}>
+      <Button
+        variant={prominent ? 'default' : 'outline'}
+        size={prominent ? 'lg' : 'sm'}
+        className={prominent ? 'h-11' : undefined}
+        onClick={handleClick}
+      >
         Ask the maker
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>

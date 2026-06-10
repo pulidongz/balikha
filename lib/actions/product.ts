@@ -61,6 +61,7 @@ function inputFromFormData(formData: FormData) {
   return {
     title: get('title'),
     description: get('description'),
+    salesMode: get('salesMode'),
     price: get('price'),
     currency: get('currency'),
     stockOnHand: get('stockOnHand'),
@@ -68,6 +69,22 @@ function inputFromFormData(formData: FormData) {
     materials,
     dimensions: dims,
   };
+}
+
+// Resolve the commerce columns from the validated sales mode. Non-sale works
+// always persist price NULL / stock 0 — predictable over clever: switching a
+// work back to for_sale asks the artist for a fresh price rather than
+// silently resurrecting a stale one. Returns null only on a state the
+// validator already rejects (for_sale without price) — callers treat that as
+// invalid input, never as a default to paper over.
+function resolveCommerceFields(input: {
+  salesMode: 'for_sale' | 'showcase' | 'commission_inquiries';
+  price?: string;
+  stockOnHand: number;
+}): { price: string | null; stockOnHand: number } | null {
+  if (input.salesMode !== 'for_sale') return { price: null, stockOnHand: 0 };
+  if (input.price === undefined) return null;
+  return { price: input.price, stockOnHand: input.stockOnHand };
 }
 
 export async function createProductAction(
@@ -93,8 +110,10 @@ export async function createProductAction(
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-  const { title, description, price, currency, stockOnHand, weightGrams, materials, dimensions } =
+  const { title, description, salesMode, currency, weightGrams, materials, dimensions } =
     parsed.data;
+  const commerce = resolveCommerceFields(parsed.data);
+  if (!commerce) return err('Price is required for works that are for sale.');
 
   // Slug must be unique within the artisan, not the catalog (composite
   // unique index on products(artisan_profile_id, slug)). Probe by that
@@ -116,9 +135,10 @@ export async function createProductAction(
       slug,
       title,
       description: description ?? null,
-      price,
+      salesMode,
+      price: commerce.price,
       currency,
-      stockOnHand,
+      stockOnHand: commerce.stockOnHand,
       status: 'draft',
       dimensions: dimensions ?? null,
       materials: materials ?? null,
@@ -154,8 +174,10 @@ export async function updateProductAction(
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-  const { title, description, price, currency, stockOnHand, weightGrams, materials, dimensions } =
+  const { title, description, salesMode, currency, weightGrams, materials, dimensions } =
     parsed.data;
+  const commerce = resolveCommerceFields(parsed.data);
+  if (!commerce) return err('Price is required for works that are for sale.');
 
   // Wrapped in a tx so the back-in-stock notification fan-out either
   // commits with the update or rolls back together — same rationale as
@@ -176,9 +198,10 @@ export async function updateProductAction(
       .set({
         title,
         description: description ?? null,
-        price,
+        salesMode,
+        price: commerce.price,
         currency,
-        stockOnHand,
+        stockOnHand: commerce.stockOnHand,
         dimensions: dimensions ?? null,
         materials: materials ?? null,
         weightGrams: weightGrams ?? null,
@@ -189,9 +212,12 @@ export async function updateProductAction(
     // Stock-driven back-in-stock: previous was unavailable, now available.
     // Status only changes via setProductStatusAction, so prev.status here
     // is identical to the new status — that simplifies the predicate.
+    // Only for_sale works participate: "back in stock" is meaningless for
+    // showcase/commission pieces (their stock is pinned to 0 anyway).
     if (prev) {
       const wasUnavailable = prev.status === 'sold_out' || prev.stockOnHand === 0;
-      const isAvailable = prev.status === 'published' && stockOnHand > 0;
+      const isAvailable =
+        salesMode === 'for_sale' && prev.status === 'published' && commerce.stockOnHand > 0;
       if (wasUnavailable && isAvailable) {
         await emitWishlistBackInStock(tx, {
           productId,
@@ -244,6 +270,7 @@ async function applyProductStatusInTx(
       slug: products.slug,
       title: products.title,
       status: products.status,
+      salesMode: products.salesMode,
       stockOnHand: products.stockOnHand,
       moderationStatus: products.moderationStatus,
     })
@@ -297,8 +324,10 @@ async function applyProductStatusInTx(
 
   // Back-in-stock: status flipped from sold_out → published while stock
   // is positive. (The stock-driven path lives in updateProductAction.)
+  // Only for_sale works participate — non-sale works have stock pinned to 0.
   const wasUnavailable = existing.status === 'sold_out' || existing.stockOnHand === 0;
-  const isAvailable = status === 'published' && existing.stockOnHand > 0;
+  const isAvailable =
+    existing.salesMode === 'for_sale' && status === 'published' && existing.stockOnHand > 0;
   if (wasUnavailable && isAvailable) {
     await emitWishlistBackInStock(tx, {
       productId,

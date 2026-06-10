@@ -98,6 +98,7 @@ export default async function ProductDetailPage({
         defaults={{
           title: product.title,
           description: product.description,
+          salesMode: product.salesMode,
           price: product.price,
           currency: product.currency,
           stockOnHand: product.stockOnHand,

@@ -9,9 +9,13 @@ export function productJsonLd(input: {
   sku: string;
   brandName: string;
   url: string; // absolute
-  currency: string;
-  price: string | number;
-  availability: 'InStock' | 'SoldOut' | 'OutOfStock';
+  // Omitted for showcase / commission works (T3): a schema.org Product
+  // without `offers` is valid — emitting price:null would not be.
+  offer?: {
+    currency: string;
+    price: string | number;
+    availability: 'InStock' | 'SoldOut' | 'OutOfStock';
+  };
 }): JsonLdObject {
   return {
     '@context': 'https://schema.org',
@@ -21,15 +25,17 @@ export function productJsonLd(input: {
     image: input.images,
     sku: input.sku,
     brand: { '@type': 'Brand', name: input.brandName },
-    offers: {
-      '@type': 'Offer',
-      url: input.url,
-      priceCurrency: input.currency,
-      price: input.price,
-      itemCondition: 'https://schema.org/NewCondition',
-      availability: `https://schema.org/${input.availability}`,
-      seller: { '@type': 'Organization', name: input.brandName },
-    },
+    offers: input.offer
+      ? {
+          '@type': 'Offer',
+          url: input.url,
+          priceCurrency: input.offer.currency,
+          price: input.offer.price,
+          itemCondition: 'https://schema.org/NewCondition',
+          availability: `https://schema.org/${input.offer.availability}`,
+          seller: { '@type': 'Organization', name: input.brandName },
+        }
+      : undefined,
   };
 }
 

@@ -8,7 +8,8 @@ export interface RecentProductRow {
   id: string;
   slug: string;
   title: string;
-  price: string;
+  // Null for showcase / commission works (T3) — render no price.
+  price: string | null;
   currency: string;
   artisanShopSlug: string;
   artisanShopName: string;

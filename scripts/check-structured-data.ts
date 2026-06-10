@@ -28,9 +28,7 @@ process.stdout.write('productJsonLd: basic shape and absolute-image-URL fix\n');
     sku: 'sku-123',
     brandName: 'Balikha Studio',
     url: 'https://balikha.art/studio/balikha-studio/test-bowl',
-    currency: 'PHP',
-    price: 450,
-    availability: 'InStock',
+    offer: { currency: 'PHP', price: 450, availability: 'InStock' },
   });
 
   assert(result['@type'] === 'Product', '@type is Product');
@@ -66,9 +64,7 @@ process.stdout.write('productJsonLd: SoldOut and OutOfStock availability mapping
     sku: 'sku-sold',
     brandName: 'Studio',
     url: 'https://balikha.art/studio/studio/sold-bowl',
-    currency: 'PHP',
-    price: 100,
-    availability: 'SoldOut',
+    offer: { currency: 'PHP', price: 100, availability: 'SoldOut' },
   });
   const oos = productJsonLd({
     name: 'OOS Bowl',
@@ -77,9 +73,7 @@ process.stdout.write('productJsonLd: SoldOut and OutOfStock availability mapping
     sku: 'sku-oos',
     brandName: 'Studio',
     url: 'https://balikha.art/studio/studio/oos-bowl',
-    currency: 'PHP',
-    price: 100,
-    availability: 'OutOfStock',
+    offer: { currency: 'PHP', price: 100, availability: 'OutOfStock' },
   });
   assert(
     (sold['offers'] as Record<string, unknown>)['availability'] === 'https://schema.org/SoldOut',
@@ -89,6 +83,20 @@ process.stdout.write('productJsonLd: SoldOut and OutOfStock availability mapping
     (oos['offers'] as Record<string, unknown>)['availability'] === 'https://schema.org/OutOfStock',
     "offers.availability is 'https://schema.org/OutOfStock' for availability: 'OutOfStock'",
   );
+}
+
+process.stdout.write('productJsonLd: showcase works omit offers entirely (T3)\n');
+{
+  const showcase = productJsonLd({
+    name: 'Showcase Bowl',
+    description: null,
+    images: [],
+    sku: 'sku-showcase',
+    brandName: 'Studio',
+    url: 'https://balikha.art/studio/studio/showcase-bowl',
+  });
+  assert(showcase['offers'] === undefined, 'offers is undefined when no offer is passed');
+  assert(showcase['@type'] === 'Product', '@type is still Product without an offer');
 }
 
 // --- organizationJsonLd ---
