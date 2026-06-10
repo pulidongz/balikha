@@ -12,6 +12,7 @@ import { AskTheMakerButton } from '@/components/marketplace/ask-the-maker-button
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
+import { ShareButton } from '@/components/marketplace/share-button';
 import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
@@ -382,6 +383,12 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
               />
             </div>
           )}
+
+          <ShareButton
+            title={`${product.title} — ${artisan.shopName}`}
+            text={product.description?.slice(0, 120)}
+            path={workPath(artisan.shopSlug, product.slug)}
+          />
 
           {product.description && (
             <p className="text-foreground text-base leading-relaxed whitespace-pre-line">

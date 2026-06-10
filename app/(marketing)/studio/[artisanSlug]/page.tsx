@@ -12,6 +12,7 @@ import { CatalogSection } from '@/components/marketplace/catalog-section';
 import { FollowToggle } from '@/components/marketplace/follow-toggle';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { SellerReputationSummary } from '@/components/marketplace/seller-reputation-summary';
+import { ShareButton } from '@/components/marketplace/share-button';
 import { JsonLd } from '@/components/seo/json-ld';
 import { CoverEditDialog } from '@/components/studio/cover-edit-dialog';
 import { EditStudioDialog } from '@/components/studio/edit-studio-dialog';
@@ -278,23 +279,30 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
               className="mt-1 justify-center md:justify-start"
             />
           </div>
-          {isOwner ? (
-            <EditStudioDialog
-              defaults={{
-                shopName: profile.shopName,
-                location: profile.location,
-                bio: profile.bio,
-                craftTags: profile.craftTags,
-                externalLinks: profile.externalLinks,
-              }}
+          <div className="flex items-center gap-2">
+            {isOwner ? (
+              <EditStudioDialog
+                defaults={{
+                  shopName: profile.shopName,
+                  location: profile.location,
+                  bio: profile.bio,
+                  craftTags: profile.craftTags,
+                  externalLinks: profile.externalLinks,
+                }}
+              />
+            ) : (
+              <FollowToggle
+                artisanProfileId={profile.id}
+                initiallyFollowing={initiallyFollowing}
+                isSignedIn={viewer !== null}
+              />
+            )}
+            <ShareButton
+              title={`${profile.shopName} on Balikha`}
+              text={profile.bio?.slice(0, 120)}
+              path={studioPath(profile.shopSlug)}
             />
-          ) : (
-            <FollowToggle
-              artisanProfileId={profile.id}
-              initiallyFollowing={initiallyFollowing}
-              isSignedIn={viewer !== null}
-            />
-          )}
+          </div>
         </div>
 
         {externalLinks.length > 0 && (
