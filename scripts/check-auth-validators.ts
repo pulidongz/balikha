@@ -63,7 +63,10 @@ process.stdout.write('profileUpdateSchema\n');
   const okMono = profileUpdateSchema.safeParse({ firstName: 'Lakan', lastName: '' });
   assert(okMono.success, 'empty lastName allowed (mononym)');
 }
-assert(!profileUpdateSchema.safeParse({ firstName: '', lastName: 'X' }).success, 'empty firstName fails');
+assert(
+  !profileUpdateSchema.safeParse({ firstName: '', lastName: 'X' }).success,
+  'empty firstName fails',
+);
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

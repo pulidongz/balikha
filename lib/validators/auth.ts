@@ -8,7 +8,10 @@ export const signUpSchema = z.object({
   // the signup form additionally requires it for the email/password path.
   lastName: z.string().max(40).optional().default(''),
   email: z.string().email('Enter a valid email address').max(254),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(200, 'Password too long'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(200, 'Password too long'),
   acceptTerms: z.literal(true, {
     error: 'You must accept the Terms to continue',
   }),
