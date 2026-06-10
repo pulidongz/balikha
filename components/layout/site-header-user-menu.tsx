@@ -26,10 +26,10 @@ function initialsOf(name: string): string {
 
 // Public-pages user menu — visible at md+ in the SiteHeader. "My account"
 // is always present. The next slot is mutually exclusive: "My studio" if the
-// user has an artisan profile, otherwise "Sell on Balikha" pointing at the
+// user has an artisan profile, otherwise "Share your work" pointing at the
 // become-seller flow. "Admin" only shows for the admin role. Keeps the menu
 // honest about which surfaces the current user actually has access to,
-// and gives buyers a discoverable path to start selling.
+// and gives buyers a discoverable path to open a studio of their own.
 export function SiteHeaderUserMenu({
   userName,
   userEmail,
@@ -96,7 +96,7 @@ export function SiteHeaderUserMenu({
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem render={<Link href="/dashboard/become-seller" />}>
-            <Store className="mr-2 h-4 w-4" /> Sell on Balikha
+            <Store className="mr-2 h-4 w-4" /> Share your work
           </DropdownMenuItem>
         )}
         {isAdmin && (

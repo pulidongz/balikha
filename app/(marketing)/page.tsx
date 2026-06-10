@@ -107,6 +107,18 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 Meet the makers
               </Link>
             </div>
+            {/* T4: the artist entry point leads with showcasing; selling is
+                mentioned as optional, not assumed. */}
+            <p className="text-muted-foreground text-sm">
+              Make things yourself?{' '}
+              <Link
+                href={viewer ? '/dashboard/become-seller' : '/sign-up?intent=seller'}
+                className="text-foreground underline-offset-4 hover:underline"
+              >
+                Share your work on Balikha
+              </Link>{' '}
+              — and sell it if you want to.
+            </p>
           </div>
           {hasHeroCollage && (
             <div className="hidden lg:col-span-5 lg:block">

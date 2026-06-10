@@ -49,7 +49,7 @@ export function FirstTimeBuyerWelcome({ firstName }: { firstName: string }) {
           href="/dashboard/become-seller"
           className="text-foreground font-medium underline-offset-4 hover:underline"
         >
-          Open a studio on Balikha
+          Share your work on Balikha
         </Link>
       </p>
     </div>

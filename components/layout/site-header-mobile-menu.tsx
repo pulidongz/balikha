@@ -74,7 +74,7 @@ export function SiteHeaderMobileMenu(props: Props) {
                   onClick={() => setOpen(false)}
                   className="hover:bg-secondary rounded-md px-3 py-2"
                 >
-                  Sell on Balikha
+                  Share your work
                 </Link>
               )}
               {props.role === 'admin' && (

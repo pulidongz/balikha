@@ -23,12 +23,27 @@ export const dynamic = 'force-dynamic';
 
 // SignUpForm reads the `next` query param via useSearchParams() — same
 // CSR-bailout-during-prerender pattern as the sign-in page.
-export default function SignUpPage() {
+//
+// T4 showcase-first framing: artist-intent arrivals (from the "Share your
+// work" entry points, ?intent=seller — internal analytics value) get copy
+// about showing work, with selling framed as optional. Everyone else gets
+// the discover-or-share line.
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ intent?: string }>;
+}) {
+  const { intent } = await searchParams;
+  const artistIntent = intent === 'seller';
   return (
     <Card>
       <CardHeader>
         <CardTitle className="font-serif text-2xl">Create your account</CardTitle>
-        <CardDescription>Join Balikha to discover or sell artisan work.</CardDescription>
+        <CardDescription>
+          {artistIntent
+            ? 'Open a studio, show your work the way a gallery would — and sell it if you want to.'
+            : 'Join Balikha to discover handmade work, or share your own.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Suspense fallback={null}>
