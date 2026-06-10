@@ -39,6 +39,7 @@ import {
   products,
 } from '@/db/schema/app';
 import { logger } from '@/lib/logger';
+import { splitFullName } from '@/lib/name';
 import { slugify, uniqueSlug } from '@/lib/slug';
 import { BUCKET, PUBLIC_URL_BASE, s3 } from '@/lib/storage/client';
 
@@ -491,7 +492,10 @@ async function uploadProductImage(buffer: Buffer, productId: string): Promise<st
 }
 
 async function createUser(email: string, password: string, name: string) {
-  const result = await auth.api.signUpEmail({ body: { email, password, name } });
+  const { firstName, lastName } = splitFullName(name);
+  const result = await auth.api.signUpEmail({
+    body: { email, password, name, firstName, lastName: lastName ?? '' },
+  });
   if (!result.user) throw new Error(`Failed to create user ${email}`);
   return result.user;
 }

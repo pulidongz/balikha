@@ -10,6 +10,9 @@ import { pgTable, text, timestamp, boolean, integer, bigint } from 'drizzle-orm/
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  firstName: text('first_name').notNull().default(''),
+  lastName: text('last_name'),
+  acceptedTermsAt: timestamp('accepted_terms_at'),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),

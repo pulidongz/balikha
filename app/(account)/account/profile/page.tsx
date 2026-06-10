@@ -17,11 +17,23 @@ export default async function AccountProfilePage() {
   // Better Auth's session.user can lag a write to user.image — read the
   // row directly so the avatar reflects the current state after upload.
   const [row] = await db
-    .select({ name: user.name, email: user.email, image: user.image })
+    .select({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+    })
     .from(user)
     .where(eq(user.id, current.id))
     .limit(1);
-  const profile = row ?? { name: current.name, email: current.email, image: null };
+  const profile = row ?? {
+    firstName: current.firstName ?? '',
+    lastName: current.lastName ?? null,
+    name: current.name,
+    email: current.email,
+    image: null,
+  };
 
   return (
     <div className="space-y-8">
@@ -37,7 +49,13 @@ export default async function AccountProfilePage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide uppercase">Details</h2>
-        <ProfileForm defaults={{ name: profile.name, email: profile.email }} />
+        <ProfileForm
+          defaults={{
+            firstName: profile.firstName,
+            lastName: profile.lastName ?? '',
+            email: profile.email,
+          }}
+        />
       </section>
     </div>
   );

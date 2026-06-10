@@ -9,7 +9,8 @@ import { updateProfileAction } from '@/lib/actions/profile';
 
 interface Props {
   defaults: {
-    name: string;
+    firstName: string;
+    lastName: string;
     email: string;
   };
 }
@@ -45,18 +46,37 @@ export function ProfileForm({ defaults }: Props) {
         });
       }}
     >
-      <div className="space-y-2">
-        <Label htmlFor="profile-name">Name</Label>
-        <Input
-          id="profile-name"
-          name="name"
-          defaultValue={defaults.name}
-          required
-          minLength={1}
-          maxLength={100}
-          aria-invalid={fieldError('name') ? true : undefined}
-        />
-        {fieldError('name') && <p className="text-destructive text-xs">{fieldError('name')}</p>}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="profile-first-name">First name</Label>
+          <Input
+            id="profile-first-name"
+            name="firstName"
+            defaultValue={defaults.firstName}
+            required
+            minLength={1}
+            maxLength={40}
+            autoComplete="given-name"
+            aria-invalid={fieldError('firstName') ? true : undefined}
+          />
+          {fieldError('firstName') && (
+            <p className="text-destructive text-xs">{fieldError('firstName')}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="profile-last-name">Last name</Label>
+          <Input
+            id="profile-last-name"
+            name="lastName"
+            defaultValue={defaults.lastName}
+            maxLength={40}
+            autoComplete="family-name"
+            aria-invalid={fieldError('lastName') ? true : undefined}
+          />
+          {fieldError('lastName') && (
+            <p className="text-destructive text-xs">{fieldError('lastName')}</p>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">

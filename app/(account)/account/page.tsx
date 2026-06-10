@@ -14,10 +14,6 @@ export const metadata = {
   title: 'Your account',
 };
 
-function firstName(fullName: string): string {
-  return fullName.split(' ')[0] ?? fullName;
-}
-
 export default async function AccountHome() {
   const current = await getCurrentUser();
   if (!current) redirect('/sign-in?next=/account');
@@ -50,7 +46,7 @@ export default async function AccountHome() {
     return (
       <div className="space-y-8">
         {!current.emailVerified && <ResendVerificationBanner email={current.email} />}
-        <FirstTimeBuyerWelcome name={current.name} />
+        <FirstTimeBuyerWelcome firstName={current.firstName ?? ''} />
       </div>
     );
   }
@@ -59,7 +55,7 @@ export default async function AccountHome() {
     <div className="space-y-12">
       {!current.emailVerified && <ResendVerificationBanner email={current.email} />}
       <header>
-        <h1 className="font-serif text-3xl">Hi, {firstName(current.name)}</h1>
+        <h1 className="font-serif text-3xl">Hi, {current.firstName}</h1>
       </header>
 
       <FeedPreview items={feedItems} wishlistedIds={wishlistedIds} />
