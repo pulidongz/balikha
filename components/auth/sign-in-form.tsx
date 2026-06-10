@@ -74,6 +74,27 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
       {googleEnabled && (
         <>
           <ContinueWithGoogleButton next={next} />
+          <p className="text-muted-foreground text-center text-xs">
+            By continuing with Google, you agree to our{' '}
+            <Link
+              href="/terms"
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline underline-offset-4"
+            >
+              Terms
+            </Link>{' '}
+            and{' '}
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline underline-offset-4"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
           <div className="flex items-center gap-3">
             <div className="bg-border h-px flex-1" />
             <span className="text-muted-foreground text-xs tracking-wider uppercase">or</span>
