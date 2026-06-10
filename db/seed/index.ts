@@ -632,8 +632,21 @@ async function seed() {
       const slug = await uniqueSlug(title, async (candidate) => slugSet.has(candidate));
       slugSet.add(slug);
 
-      const stockOnHand = status === 'sold_out' ? 0 : faker.number.int({ min: 0, max: 12 });
-      const price = faker.commerce.price({ min: 250, max: 8500, dec: 2 });
+      // T3: a slice of seeded works are showcase / commission pieces —
+      // seed content models the community norm that selling is optional.
+      // sold_out only makes sense for for_sale works, so those stay sales.
+      const salesMode =
+        status === 'sold_out'
+          ? ('for_sale' as const)
+          : faker.helpers.weightedArrayElement([
+              { value: 'for_sale' as const, weight: 7 },
+              { value: 'showcase' as const, weight: 2 },
+              { value: 'commission_inquiries' as const, weight: 1 },
+            ]);
+      const forSale = salesMode === 'for_sale';
+      const stockOnHand =
+        !forSale || status === 'sold_out' ? 0 : faker.number.int({ min: 0, max: 12 });
+      const price = forSale ? faker.commerce.price({ min: 250, max: 8500, dec: 2 }) : null;
 
       // ~5% of products have no images (edge case); rest have 1–4
       const imageCount =
@@ -651,6 +664,7 @@ async function seed() {
           slug,
           title,
           description: buildDescription(seller.craft),
+          salesMode,
           price,
           currency: 'PHP',
           stockOnHand,

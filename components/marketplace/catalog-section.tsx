@@ -6,7 +6,8 @@ type ProductLike = {
   id: string;
   slug: string;
   title: string;
-  price: string;
+  // Null for showcase / commission works (T3).
+  price: string | null;
   currency: string;
   primaryImage?: { url: string; altText: string | null } | null;
 };

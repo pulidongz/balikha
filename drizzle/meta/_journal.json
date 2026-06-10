@@ -71,6 +71,13 @@
       "when": 1781048055208,
       "tag": "0009_yielding_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781124201100,
+      "tag": "0010_last_wiccan",
+      "breakpoints": true
     }
   ]
 }

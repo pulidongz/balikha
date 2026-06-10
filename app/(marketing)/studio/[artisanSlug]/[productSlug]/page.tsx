@@ -140,8 +140,22 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
     }
   }
 
-  const inStock = product.status === 'published' && product.stockOnHand > 0;
-  const isSoldOut = product.status === 'sold_out';
+  // T3: commerce only exists for for_sale works. salePrice is non-null
+  // exactly when the work is for sale — every commerce block below gates
+  // on it, which also gives TypeScript the narrowing it needs.
+  let salePrice: string | null = null;
+  if (product.salesMode === 'for_sale') {
+    if (product.price === null) {
+      // The products_for_sale_has_price CHECK makes this unreachable; if it
+      // fires the row is corrupt — fail loud rather than render a price-less
+      // order flow.
+      throw new Error(`for_sale product ${product.id} has no price`);
+    }
+    salePrice = product.price;
+  }
+  const isForSale = salePrice !== null;
+  const inStock = isForSale && product.status === 'published' && product.stockOnHand > 0;
+  const isSoldOut = isForSale && product.status === 'sold_out';
   const isOwnProduct = viewer !== null && viewer.id === artisan.userId;
 
   // Addresses for the order dialog. Only loaded for signed-in viewers
@@ -190,9 +204,14 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
     sku: product.id,
     brandName: artisan.shopName,
     url: `${APP_URL}${workPath(artisan.shopSlug, product.slug)}`,
-    currency: product.currency,
-    price: product.price,
-    availability: inStock ? 'InStock' : isSoldOut ? 'SoldOut' : 'OutOfStock',
+    offer:
+      salePrice !== null
+        ? {
+            currency: product.currency,
+            price: salePrice,
+            availability: inStock ? 'InStock' : isSoldOut ? 'SoldOut' : 'OutOfStock',
+          }
+        : undefined,
   });
 
   // T1: the trail starts at the studio, not a marketplace "Shop" root.
@@ -274,59 +293,92 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
             </p>
           </header>
 
-          <div className="flex items-center gap-3">
-            <PriceTag price={product.price} currency={product.currency} size="lg" />
-            {isSoldOut && (
-              <Badge variant="secondary" className="tracking-wide uppercase">
-                Sold out
-              </Badge>
-            )}
-          </div>
+          {salePrice !== null && (
+            <div className="flex items-center gap-3">
+              <PriceTag price={salePrice} currency={product.currency} size="lg" />
+              {isSoldOut && (
+                <Badge variant="secondary" className="tracking-wide uppercase">
+                  Sold out
+                </Badge>
+              )}
+            </div>
+          )}
 
-          <div className="flex items-center gap-3">
-            <OrderButton
-              productId={product.id}
-              productTitle={product.title}
-              formattedPrice={formatPrice(product.price, product.currency)}
-              shopName={artisan.shopName}
-              state={
-                isSoldOut
-                  ? 'sold_out'
-                  : !inStock
-                    ? 'sold_out'
-                    : viewer === null
-                      ? 'signed_out'
-                      : isOwnProduct
-                        ? 'own_product'
-                        : 'in_stock'
-              }
-              addresses={orderAddresses.map((a) => ({
-                id: a.id,
-                label: a.label,
-                recipientName: a.recipientName,
-                line1: a.line1,
-                city: a.city,
-                province: a.province,
-              }))}
-              defaultAddressId={defaultAddressId}
-              sellerTrust={sellerTrust}
-              signInRedirect={workPath(artisan.shopSlug, product.slug)}
-            />
-            <WishlistToggle
-              productId={product.id}
-              initiallyInWishlist={wishlistedIds.has(product.id)}
-              isSignedIn={viewer !== null}
-              variant="inline"
-              className="h-11 w-11"
-            />
-          </div>
+          {product.salesMode === 'commission_inquiries' && (
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Open for commission inquiries — a piece like this can be made for you.
+            </p>
+          )}
 
-          {!isOwnProduct && (
-            <div>
-              <AskTheMakerButton
+          {salePrice !== null ? (
+            <>
+              <div className="flex items-center gap-3">
+                <OrderButton
+                  productId={product.id}
+                  productTitle={product.title}
+                  formattedPrice={formatPrice(salePrice, product.currency)}
+                  shopName={artisan.shopName}
+                  state={
+                    isSoldOut
+                      ? 'sold_out'
+                      : !inStock
+                        ? 'sold_out'
+                        : viewer === null
+                          ? 'signed_out'
+                          : isOwnProduct
+                            ? 'own_product'
+                            : 'in_stock'
+                  }
+                  addresses={orderAddresses.map((a) => ({
+                    id: a.id,
+                    label: a.label,
+                    recipientName: a.recipientName,
+                    line1: a.line1,
+                    city: a.city,
+                    province: a.province,
+                  }))}
+                  defaultAddressId={defaultAddressId}
+                  sellerTrust={sellerTrust}
+                  signInRedirect={workPath(artisan.shopSlug, product.slug)}
+                />
+                <WishlistToggle
+                  productId={product.id}
+                  initiallyInWishlist={wishlistedIds.has(product.id)}
+                  isSignedIn={viewer !== null}
+                  variant="inline"
+                  className="h-11 w-11"
+                />
+              </div>
+
+              {!isOwnProduct && (
+                <div>
+                  <AskTheMakerButton
+                    productId={product.id}
+                    signedIn={viewer !== null}
+                    productUrl={workPath(artisan.shopSlug, product.slug)}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            /* Showcase / commission works: no commerce UI — "Ask the maker"
+               is the primary action (T3). Wishlist still applies; saving a
+               showcase piece is a perfectly good signal. */
+            <div className="flex items-center gap-3">
+              {!isOwnProduct && (
+                <AskTheMakerButton
+                  productId={product.id}
+                  signedIn={viewer !== null}
+                  productUrl={workPath(artisan.shopSlug, product.slug)}
+                  prominent
+                />
+              )}
+              <WishlistToggle
                 productId={product.id}
-                signedIn={viewer !== null}
-                productUrl={workPath(artisan.shopSlug, product.slug)}
+                initiallyInWishlist={wishlistedIds.has(product.id)}
+                isSignedIn={viewer !== null}
+                variant="inline"
+                className="h-11 w-11"
               />
             </div>
           )}

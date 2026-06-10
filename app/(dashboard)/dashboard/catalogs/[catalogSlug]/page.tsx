@@ -116,6 +116,7 @@ export default async function CatalogDetailPage({
               title: p.title,
               price: p.price,
               currency: p.currency,
+              salesMode: p.salesMode,
               stockOnHand: p.stockOnHand,
               status: p.status,
             }))}

@@ -13,6 +13,7 @@ import {
   boolean,
   primaryKey,
   bigserial,
+  check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth';
@@ -35,6 +36,17 @@ export const productStatus = pgEnum('product_status', [
   'published',
   'sold_out',
   'archived',
+]);
+
+// Sales-mode axis (T3), orthogonal to lifecycle `status`. A work can be
+// published-and-showcase (no commerce UI) just as it can be published-and-
+// for-sale. 'commission_inquiries' is showcase plus an explicit invitation
+// to ask about commissions. Price/stock are only meaningful for 'for_sale';
+// the CHECK on `products` enforces that for_sale rows always carry a price.
+export const productSalesMode = pgEnum('product_sales_mode', [
+  'for_sale',
+  'showcase',
+  'commission_inquiries',
 ]);
 
 // Admin moderation axis for product listings (ticket #31).
@@ -138,10 +150,15 @@ export const products = pgTable(
     slug: text('slug').notNull(),
     title: text('title').notNull(),
     description: text('description'),
-    price: numeric('price', { precision: 10, scale: 2 }).notNull(),
+    // Nullable since T3: showcase / commission_inquiries works carry no
+    // price. The table CHECK below guarantees for_sale rows always have one.
+    price: numeric('price', { precision: 10, scale: 2 }),
     currency: text('currency').notNull().default('PHP'),
     stockOnHand: integer('stock_on_hand').notNull().default(0),
     status: productStatus('status').notNull().default('draft'),
+    // Sales-mode axis (T3) — see productSalesMode. Defaults to for_sale so
+    // every pre-T3 row keeps its commerce behavior unchanged.
+    salesMode: productSalesMode('sales_mode').notNull().default('for_sale'),
     // Admin-hidden marker (ticket #26). NULL = not admin-hidden. When an admin
     // suspends/bans the seller, each `published`/`sold_out` product's prior
     // status is captured here and `status` is set to `archived`; restore (on
@@ -185,6 +202,12 @@ export const products = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
+    // A for_sale work must have a price; the app validates this too, but the
+    // invariant lives here so no code path can persist a priceless sale item.
+    check(
+      'products_for_sale_has_price',
+      sql`${t.salesMode} <> 'for_sale' OR ${t.price} IS NOT NULL`,
+    ),
     index('products_catalog_idx').on(t.catalogId),
     index('products_artisan_idx').on(t.artisanProfileId),
     index('products_status_idx').on(t.status),

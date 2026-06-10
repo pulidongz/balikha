@@ -9,7 +9,10 @@ type Props = {
     id: string;
     slug: string;
     title: string;
-    price: string;
+    // Null for showcase / commission works (T3): the card simply shows no
+    // price — the work speaks for itself; the mode is explicit on the
+    // detail page.
+    price: string | null;
     currency: string;
   };
   artisan: {
@@ -76,7 +79,9 @@ export function ProductCard({
           {responseTimeLabel && (
             <p className="text-muted-foreground text-xs">Responds within {responseTimeLabel}</p>
           )}
-          <PriceTag price={product.price} currency={product.currency} size="md" />
+          {product.price !== null && (
+            <PriceTag price={product.price} currency={product.currency} size="md" />
+          )}
         </div>
       </Link>
       <WishlistToggle

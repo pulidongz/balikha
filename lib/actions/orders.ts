@@ -94,12 +94,20 @@ export async function reorderAction(input: {
     .select({
       productSlug: products.slug,
       artisanSlug: artisanProfiles.shopSlug,
+      salesMode: products.salesMode,
     })
     .from(products)
     .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
     .where(eq(products.id, order.productId))
     .limit(1);
   if (!row) return err('That piece is no longer available.');
+
+  // T3: the live product may have moved out of for_sale since the original
+  // order. ?reorder=1 would land on a page with no order dialog — tell the
+  // buyer up front instead.
+  if (row.salesMode !== 'for_sale') {
+    return err('That piece is no longer for sale.');
+  }
 
   return ok({
     productId: order.productId,
@@ -266,6 +274,17 @@ export async function placeOrder(
           if (!product) throw new OrderBusinessError('Product not found');
           if (product.status !== 'published') {
             throw new OrderBusinessError('Product is not available');
+          }
+          // T3: showcase / commission works carry no commerce. The detail
+          // page hides the order UI for them; this is the server-side gate.
+          if (product.salesMode !== 'for_sale') {
+            throw new OrderBusinessError('This work is not for sale');
+          }
+          if (product.price === null) {
+            // The products_for_sale_has_price CHECK makes this unreachable.
+            // If it ever fires the data is corrupt — fail loud, never
+            // snapshot a null price onto an order.
+            throw new Error(`for_sale product ${product.id} has no price`);
           }
           if (product.stockOnHand <= 0) {
             throw new OrderBusinessError('Product is out of stock');

@@ -71,6 +71,7 @@ export default async function DashboardPage() {
       price: products.price,
       currency: products.currency,
       status: products.status,
+      salesMode: products.salesMode,
       stockOnHand: products.stockOnHand,
       catalogSlug: catalogs.slug,
     })
@@ -214,11 +215,19 @@ export default async function DashboardPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{p.title}</p>
-                      <p className="text-muted-foreground text-xs">{p.stockOnHand} in stock</p>
+                      <p className="text-muted-foreground text-xs">
+                        {p.salesMode === 'for_sale'
+                          ? `${p.stockOnHand} in stock`
+                          : p.salesMode === 'showcase'
+                            ? 'Showcase'
+                            : 'Commissions'}
+                      </p>
                     </div>
-                    <div className="hidden text-right sm:block">
-                      <PriceTag price={p.price} currency={p.currency} size="sm" />
-                    </div>
+                    {p.price !== null && (
+                      <div className="hidden text-right sm:block">
+                        <PriceTag price={p.price} currency={p.currency} size="sm" />
+                      </div>
+                    )}
                     <Badge variant={STATUS_VARIANT[p.status] ?? 'outline'}>
                       {STATUS_LABEL[p.status] ?? p.status}
                     </Badge>

@@ -30,6 +30,25 @@ function formatPriceForDisplay(raw: string): string {
   });
 }
 
+type SalesMode = 'for_sale' | 'showcase' | 'commission_inquiries';
+
+// The sale question is asked AFTER the work itself (photos, story) — T3's
+// showcase-first ordering. Options are deliberately phrased from the
+// artist's point of view, not the inventory's.
+const SALES_MODE_OPTIONS: ReadonlyArray<{ value: SalesMode; label: string; hint: string }> = [
+  { value: 'for_sale', label: 'For sale', hint: 'Set a price and stock; buyers can order it.' },
+  {
+    value: 'showcase',
+    label: 'Showcase only',
+    hint: 'Show the work — sold pieces, experiments, work in progress.',
+  },
+  {
+    value: 'commission_inquiries',
+    label: 'Open to commission inquiries',
+    hint: 'Not for direct sale, but buyers can ask for a piece like it.',
+  },
+];
+
 type CreateMode = { mode: 'create'; catalogId: string; catalogSlug: string };
 type EditMode = {
   mode: 'edit';
@@ -37,7 +56,8 @@ type EditMode = {
   defaults: {
     title: string;
     description: string | null;
-    price: string;
+    salesMode: SalesMode;
+    price: string | null;
     currency: string;
     stockOnHand: number;
     weightGrams: number | null;
@@ -61,6 +81,10 @@ export function ProductForm(props: CreateMode | EditMode) {
   const d = isEdit ? props.defaults : null;
   // Controlled so the price can be reformatted with commas on blur.
   const [price, setPrice] = useState(() => formatPriceForDisplay(d?.price ?? ''));
+  // Controlled so the commerce fields (price/currency/stock) can reveal
+  // only when the work is for sale. Hidden fields submit nothing, so the
+  // server stores price NULL / stock 0 for showcase and commission works.
+  const [salesMode, setSalesMode] = useState<SalesMode>(d?.salesMode ?? 'for_sale');
 
   // --- Create-mode photo buffer -------------------------------------------
   // Photos are buffered client-side and uploaded after the product is created
@@ -185,55 +209,77 @@ export function ProductForm(props: CreateMode | EditMode) {
               <p className="text-destructive text-xs">{fieldError('description')}</p>
             )}
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="grid grid-cols-3 gap-4">
+      {/* Photos come before the sale question (T3): the work first, the
+          commerce decision after. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Photos</CardTitle>
+          <CardDescription>
+            The first photo is the preview buyers see on public pages.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {props.mode === 'create' ? (
             <div className="space-y-2">
-              <Label htmlFor="product-price">Price</Label>
+              <Label htmlFor="product-photos">Add photos</Label>
               <Input
-                id="product-price"
-                name="price"
-                inputMode="decimal"
-                placeholder="0.00"
-                required
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                onBlur={(e) => setPrice(formatPriceForDisplay(e.target.value))}
-                aria-invalid={fieldError('price') ? true : undefined}
+                id="product-photos"
+                type="file"
+                multiple
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                onChange={handleFilesPicked}
+                disabled={isPending}
               />
-              {fieldError('price') && (
-                <p className="text-destructive text-xs">{fieldError('price')}</p>
+              <p className="text-muted-foreground text-xs">
+                JPEG, PNG, WebP, or AVIF; up to 10 MB each.
+              </p>
+              {imageError && <p className="text-destructive text-xs">{imageError}</p>}
+              {images.length > 0 && (
+                <ul className="grid grid-cols-3 gap-3">
+                  {images.map((img, index) => (
+                    <li key={img.url} className="space-y-1 rounded-md border p-2">
+                      <div className="bg-muted relative aspect-square overflow-hidden rounded">
+                        <Image
+                          src={img.url}
+                          alt=""
+                          fill
+                          sizes="(min-width: 640px) 160px, 30vw"
+                          unoptimized
+                          className="object-cover"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => removeImage(index)}
+                        disabled={isPending}
+                      >
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="product-currency">Currency</Label>
-              <Input
-                id="product-currency"
-                name="currency"
-                maxLength={3}
-                defaultValue={d?.currency ?? 'PHP'}
-                aria-invalid={fieldError('currency') ? true : undefined}
-              />
-              {fieldError('currency') && (
-                <p className="text-destructive text-xs">{fieldError('currency')}</p>
-              )}
+          ) : (
+            <div className="space-y-4">
+              <ProductImageList images={props.images} />
+              <ProductImageUploader productId={props.productId} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="product-stock">Stock on hand</Label>
-              <Input
-                id="product-stock"
-                name="stockOnHand"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={d?.stockOnHand ?? 0}
-                aria-invalid={fieldError('stockOnHand') ? true : undefined}
-              />
-              {fieldError('stockOnHand') && (
-                <p className="text-destructive text-xs">{fieldError('stockOnHand')}</p>
-              )}
-            </div>
-          </div>
+          )}
+        </CardContent>
+      </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Craft details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="product-materials">Materials (comma-separated)</Label>
             <Input
@@ -328,62 +374,84 @@ export function ProductForm(props: CreateMode | EditMode) {
         </CardContent>
       </Card>
 
+      {/* The sale question comes last (T3): the work and its story are
+          captured first; selling is one option, not the premise. */}
       <Card>
         <CardHeader>
-          <CardTitle>Photos</CardTitle>
-          <CardDescription>
-            The first photo is the preview buyers see on public pages.
-          </CardDescription>
+          <CardTitle>Is this for sale?</CardTitle>
+          <CardDescription>You can change this anytime, even after publishing.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {props.mode === 'create' ? (
-            <div className="space-y-2">
-              <Label htmlFor="product-photos">Add photos</Label>
-              <Input
-                id="product-photos"
-                type="file"
-                multiple
-                accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                onChange={handleFilesPicked}
-                disabled={isPending}
-              />
-              <p className="text-muted-foreground text-xs">
-                JPEG, PNG, WebP, or AVIF; up to 10 MB each.
-              </p>
-              {imageError && <p className="text-destructive text-xs">{imageError}</p>}
-              {images.length > 0 && (
-                <ul className="grid grid-cols-3 gap-3">
-                  {images.map((img, index) => (
-                    <li key={img.url} className="space-y-1 rounded-md border p-2">
-                      <div className="bg-muted relative aspect-square overflow-hidden rounded">
-                        <Image
-                          src={img.url}
-                          alt=""
-                          fill
-                          sizes="(min-width: 640px) 160px, 30vw"
-                          unoptimized
-                          className="object-cover"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => removeImage(index)}
-                        disabled={isPending}
-                      >
-                        Remove
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <ProductImageList images={props.images} />
-              <ProductImageUploader productId={props.productId} />
+        <CardContent className="space-y-4">
+          <fieldset className="space-y-1.5">
+            <legend className="sr-only">Is this for sale?</legend>
+            {SALES_MODE_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className="border-input hover:bg-secondary/40 has-checked:bg-secondary/60 has-checked:border-foreground/40 flex cursor-pointer items-start gap-3 rounded-md border p-2.5 text-sm transition-colors"
+              >
+                <input
+                  type="radio"
+                  name="salesMode"
+                  value={opt.value}
+                  checked={salesMode === opt.value}
+                  onChange={() => setSalesMode(opt.value)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium">{opt.label}</span>
+                  <span className="text-muted-foreground block text-xs">{opt.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          {salesMode === 'for_sale' && (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="product-price">Price</Label>
+                <Input
+                  id="product-price"
+                  name="price"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  required
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  onBlur={(e) => setPrice(formatPriceForDisplay(e.target.value))}
+                  aria-invalid={fieldError('price') ? true : undefined}
+                />
+                {fieldError('price') && (
+                  <p className="text-destructive text-xs">{fieldError('price')}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="product-currency">Currency</Label>
+                <Input
+                  id="product-currency"
+                  name="currency"
+                  maxLength={3}
+                  defaultValue={d?.currency ?? 'PHP'}
+                  aria-invalid={fieldError('currency') ? true : undefined}
+                />
+                {fieldError('currency') && (
+                  <p className="text-destructive text-xs">{fieldError('currency')}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="product-stock">Stock on hand</Label>
+                <Input
+                  id="product-stock"
+                  name="stockOnHand"
+                  type="number"
+                  min={0}
+                  step={1}
+                  defaultValue={d?.stockOnHand ?? 0}
+                  aria-invalid={fieldError('stockOnHand') ? true : undefined}
+                />
+                {fieldError('stockOnHand') && (
+                  <p className="text-destructive text-xs">{fieldError('stockOnHand')}</p>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

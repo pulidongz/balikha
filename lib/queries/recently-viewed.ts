@@ -6,7 +6,8 @@ export interface RecentlyViewedItem {
   id: string;
   slug: string;
   title: string;
-  price: string;
+  // Null for showcase / commission works (T3) — strip renders no price.
+  price: string | null;
   currency: string;
   artisanShopSlug: string;
   artisanShopName: string;

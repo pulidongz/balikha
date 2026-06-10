@@ -54,7 +54,7 @@ export function RecentlyViewedStrip({ items, minItems = 4, heading = 'Recently v
                 {p.title}
               </p>
               <p className="text-muted-foreground line-clamp-1 text-xs">{p.artisanShopName}</p>
-              <PriceTag price={p.price} currency={p.currency} size="sm" />
+              {p.price !== null && <PriceTag price={p.price} currency={p.currency} size="sm" />}
             </div>
           </Link>
         ))}

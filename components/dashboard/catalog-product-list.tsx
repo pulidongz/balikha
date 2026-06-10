@@ -18,11 +18,20 @@ interface ProductRow {
   id: string;
   slug: string;
   title: string;
-  price: string;
+  // Null for showcase / commission works (T3) — the row shows the sales
+  // mode instead of a price.
+  price: string | null;
   currency: string;
+  salesMode: 'for_sale' | 'showcase' | 'commission_inquiries';
   stockOnHand: number;
   status: ProductStatus;
 }
+
+const SALES_MODE_LABEL: Record<ProductRow['salesMode'], string> = {
+  for_sale: 'For sale',
+  showcase: 'Showcase',
+  commission_inquiries: 'Commissions',
+};
 
 const STATUS_VARIANT: Record<ProductStatus, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -191,9 +200,13 @@ export function CatalogProductList({
               >
                 <div className="min-w-0 flex-1 space-y-1">
                   <h3 className="font-serif text-lg leading-tight">{p.title}</h3>
-                  <p className="text-muted-foreground text-xs">{p.stockOnHand} in stock</p>
+                  <p className="text-muted-foreground text-xs">
+                    {p.salesMode === 'for_sale'
+                      ? `${p.stockOnHand} in stock`
+                      : SALES_MODE_LABEL[p.salesMode]}
+                  </p>
                 </div>
-                <PriceTag price={p.price} currency={p.currency} size="sm" />
+                {p.price !== null && <PriceTag price={p.price} currency={p.currency} size="sm" />}
                 <Badge variant={STATUS_VARIANT[p.status]}>{STATUS_LABEL[p.status]}</Badge>
               </Link>
             </li>

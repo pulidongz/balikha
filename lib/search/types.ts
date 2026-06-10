@@ -7,7 +7,8 @@ export interface ProductHit {
   id: string;
   slug: string;
   title: string;
-  price: string;
+  /** Null for showcase / commission works (T3) — card renders no price. */
+  price: string | null;
   currency: string;
   imageUrl: string | null;
   artisanSlug: string;

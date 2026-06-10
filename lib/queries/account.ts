@@ -29,7 +29,8 @@ export interface PreviewProductItem {
   id: string;
   slug: string;
   title: string;
-  price: string;
+  // Null for showcase / commission works (T3) — preview cards show no price.
+  price: string | null;
   currency: string;
   artisanShopSlug: string;
   artisanShopName: string;
