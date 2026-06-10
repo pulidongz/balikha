@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanFollows, artisanProfiles, catalogs, productImages, products } from '@/db/schema';
 import { env } from '@/env';
@@ -15,6 +15,7 @@ import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { studioPath } from '@/lib/routes';
 import { organizationJsonLd } from '@/lib/seo/structured-data';
+import { isThinCount } from '@/lib/thin-count';
 
 const APP_URL = env.NEXT_PUBLIC_APP_URL;
 
@@ -22,6 +23,7 @@ const APP_URL = env.NEXT_PUBLIC_APP_URL;
 // becomes dynamic when getCurrentUser() reads request headers.
 
 type Params = Promise<{ artisanSlug: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 async function loadArtisan(artisanSlug: string) {
   const [profile] = await db
@@ -61,10 +63,21 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-export default async function ArtisanStorefrontPage({ params }: { params: Params }) {
+export default async function ArtisanStorefrontPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParams;
+}) {
   const { artisanSlug } = await params;
   const profile = await loadArtisan(artisanSlug);
   if (!profile) notFound();
+
+  // One-shot param set by FollowToggle's sign-in redirect; the toggle
+  // applies it client-side and strips it from the URL.
+  const { follow } = await searchParams;
+  const pendingFollowId = typeof follow === 'string' ? follow : null;
 
   // Published catalogs for this artisan
   const publishedCatalogs = await db
@@ -136,6 +149,12 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const reputation = await getSellerReputationCached(profile.id);
 
+  const [followerRow] = await db
+    .select({ value: count() })
+    .from(artisanFollows)
+    .where(eq(artisanFollows.artisanProfileId, profile.id));
+  const followerCount = followerRow?.value ?? 0;
+
   // Cheap PK lookup — only run for signed-in viewers.
   let initiallyFollowing = false;
   if (viewer) {
@@ -188,6 +207,11 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
             {profile.location && (
               <p className="text-muted-foreground text-sm">{profile.location}</p>
             )}
+            {/* Thin-count rule (T12): a "2 followers" badge advertises
+                emptiness, so the count only appears once it's meaningful. */}
+            {!isThinCount(followerCount) && (
+              <p className="text-muted-foreground text-sm">{followerCount} followers</p>
+            )}
             <SellerReputationSummary
               reputation={reputation}
               className="mt-1 justify-center md:justify-start"
@@ -197,6 +221,7 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
             artisanProfileId={profile.id}
             initiallyFollowing={initiallyFollowing}
             isSignedIn={viewer !== null}
+            pendingFollowId={pendingFollowId}
           />
         </div>
         {profile.bio && (
