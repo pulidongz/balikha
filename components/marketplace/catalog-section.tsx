@@ -77,6 +77,9 @@ export function CatalogSection({
               showArtisan={false}
               inWishlist={wishlistedIds.has(p.id)}
               isSignedIn={isSignedIn}
+              // canFeature is true exactly when the viewer owns this studio —
+              // owners get the pin control instead of a pointless heart.
+              showWishlist={!canFeature}
             />
             {canFeature && (
               <FeatureWorkButton productId={p.id} isFeatured={featuredProductId === p.id} />

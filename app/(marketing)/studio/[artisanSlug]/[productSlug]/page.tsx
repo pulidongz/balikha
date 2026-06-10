@@ -342,13 +342,15 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
                   sellerTrust={sellerTrust}
                   signInRedirect={workPath(artisan.shopSlug, product.slug)}
                 />
-                <WishlistToggle
-                  productId={product.id}
-                  initiallyInWishlist={wishlistedIds.has(product.id)}
-                  isSignedIn={viewer !== null}
-                  variant="inline"
-                  className="h-11 w-11"
-                />
+                {!isOwnProduct && (
+                  <WishlistToggle
+                    productId={product.id}
+                    initiallyInWishlist={wishlistedIds.has(product.id)}
+                    isSignedIn={viewer !== null}
+                    variant="inline"
+                    className="h-11 w-11"
+                  />
+                )}
               </div>
 
               {!isOwnProduct && (
@@ -364,7 +366,8 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
           ) : (
             /* Showcase / commission works: no commerce UI — "Ask the maker"
                is the primary action (T3). Wishlist still applies; saving a
-               showcase piece is a perfectly good signal. */
+               showcase piece is a perfectly good signal. Neither renders for
+               the owner — you can't inquire about or save your own work. */
             <div className="flex items-center gap-3">
               {!isOwnProduct && (
                 <AskTheMakerButton
@@ -374,13 +377,15 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
                   prominent
                 />
               )}
-              <WishlistToggle
-                productId={product.id}
-                initiallyInWishlist={wishlistedIds.has(product.id)}
-                isSignedIn={viewer !== null}
-                variant="inline"
-                className="h-11 w-11"
-              />
+              {!isOwnProduct && (
+                <WishlistToggle
+                  productId={product.id}
+                  initiallyInWishlist={wishlistedIds.has(product.id)}
+                  isSignedIn={viewer !== null}
+                  variant="inline"
+                  className="h-11 w-11"
+                />
+              )}
             </div>
           )}
 
