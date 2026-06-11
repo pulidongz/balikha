@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/db';
 import { artisanProfiles, notifications } from '@/db/schema';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { tryRequireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { dispatchSellerApplicationEmail } from '@/lib/email/notifications';
@@ -40,7 +40,7 @@ export async function approveSellerApplication(
   const parsed = approveInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -116,7 +116,7 @@ export async function rejectSellerApplication(
   const parsed = rejectInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();

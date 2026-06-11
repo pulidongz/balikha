@@ -16,7 +16,12 @@ import {
   products,
   userAddresses,
 } from '@/db/schema';
-import { assertVerifiedEmail, requireAdmin, requireArtisan, requireUser } from '@/lib/auth-helpers';
+import {
+  assertVerifiedEmail,
+  tryRequireAdmin,
+  tryRequireArtisan,
+  tryRequireUser,
+} from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import {
   logAnalyticsEvent,
@@ -73,7 +78,7 @@ class OrderBusinessError extends Error {}
 export async function reorderAction(input: {
   orderId: string;
 }): Promise<Result<{ productId: string; productSlug: string; artisanSlug: string }>> {
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   const [order] = await db
@@ -120,9 +125,10 @@ export async function reorderAction(input: {
  * Place an order for a single product.
  *
  * Why the auth runs OUTSIDE `withIdempotency`: the wrapper caches
- * `Result<T>` returns, not thrown errors. Calling `requireUser` inside
- * the callback would let UnauthorizedError bubble out of the cache
- * window unrecorded. Auth-first keeps the failure shape consistent.
+ * `Result<T>` returns, not thrown errors. Running auth inside the
+ * callback would let an infra failure mid-session-lookup (which
+ * tryRequireUser rethrows) bubble out of the cache window unrecorded.
+ * Auth-first keeps the failure shape consistent.
  *
  * Why `placeOrder` needs an advisory lock + cache re-check on top of
  * `withIdempotency`: the wrapper's outer cache check happens BEFORE
@@ -165,7 +171,7 @@ export async function placeOrder(
   // Auth first — outside withIdempotency so the failure shape is
   // consistent and uncached (re-trying after sign-in shouldn't see a
   // cached "Not authenticated" forever).
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   const verified = assertVerifiedEmail(buyer);
@@ -877,7 +883,7 @@ export async function acceptOrder(input: unknown): Promise<Result<{ orderId: str
   const parsed = orderTransitionInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   return transitionOrder({
@@ -897,7 +903,7 @@ export async function declineOrder(input: unknown): Promise<Result<{ orderId: st
   const parsed = orderCancelInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   return transitionOrder({
@@ -924,7 +930,7 @@ export async function markPaymentReceived(input: unknown): Promise<Result<{ orde
   const parsed = orderTransitionInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   return transitionOrder({
@@ -944,7 +950,7 @@ export async function markShipped(input: unknown): Promise<Result<{ orderId: str
   const parsed = orderTransitionInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   return transitionOrder({
@@ -964,7 +970,7 @@ export async function cancelAsSeller(input: unknown): Promise<Result<{ orderId: 
   const parsed = orderCancelInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   return transitionOrder({
@@ -994,7 +1000,7 @@ export async function cancelAsBuyer(input: unknown): Promise<Result<{ orderId: s
   const parsed = orderCancelInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   const verified = assertVerifiedEmail(buyer);
@@ -1027,7 +1033,7 @@ export async function markReceived(input: unknown): Promise<Result<{ orderId: st
   const parsed = orderTransitionInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   const verified = assertVerifiedEmail(buyer);
@@ -1068,7 +1074,7 @@ export async function fileDispute(input: unknown): Promise<Result<{ disputeId: s
   const parsed = fileDisputeInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid dispute input', parsed.error.flatten().fieldErrors);
 
-  const filer = await requireUser().catch(() => null);
+  const filer = await tryRequireUser();
   if (!filer) return err('Not authenticated');
 
   // Determine which side the filer is on. The dispute-row's
@@ -1169,7 +1175,7 @@ export async function respondToDispute(input: unknown): Promise<Result<{ dispute
   const parsed = disputeRespondInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid dispute response', parsed.error.flatten().fieldErrors);
 
-  const responder = await requireUser().catch(() => null);
+  const responder = await tryRequireUser();
   if (!responder) return err('Not authenticated');
 
   // The read-check-update runs in one transaction with the active
@@ -1271,7 +1277,7 @@ export async function resolveDispute(input: unknown): Promise<Result<{ orderId: 
   const parsed = disputeResolveInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   // Load the order to determine pre/post shipment for the stock matrix.
@@ -1365,7 +1371,7 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
   const parsed = adminForceActionInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   return transitionOrder({
@@ -1402,7 +1408,7 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
   const parsed = adminForceActionInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   return transitionOrder({

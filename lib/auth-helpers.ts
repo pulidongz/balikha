@@ -117,6 +117,36 @@ export async function requireAdmin() {
   return u;
 }
 
+// --- Non-throwing variants for server actions (E1) ---------------------------
+// Auth rejections (signed out, banned, no artisan profile, not admin) come
+// back as null so the action can return a clean Result.err. Anything else —
+// a DB outage mid-session-lookup, a network failure — rethrows instead of
+// masquerading as a signed-out user. Never replace these with a bare
+// `.catch(() => null)`: that is exactly the bug this section removes.
+
+function nullIfAuthError(error: unknown): null {
+  if (
+    error instanceof UnauthorizedError ||
+    error instanceof ForbiddenError ||
+    error instanceof AdminRequiredError
+  ) {
+    return null;
+  }
+  throw error;
+}
+
+export async function tryRequireUser() {
+  return requireUser().catch(nullIfAuthError);
+}
+
+export async function tryRequireArtisan() {
+  return requireArtisan().catch(nullIfAuthError);
+}
+
+export async function tryRequireAdmin() {
+  return requireAdmin().catch(nullIfAuthError);
+}
+
 // --- Page-level redirect variant --------------------------------------------
 // For dashboard sub-pages that only make sense for sellers. Redirects to
 // /dashboard (which shows the become-seller form) if the user has no profile.
