@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/marketplace/empty-state';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
+import { UpdateCard } from '@/components/marketplace/update-card';
 import { getAppreciationCounts } from '@/lib/queries/appreciations';
 import { getRecentProducts, type RecentProductRow } from '@/lib/queries/products';
 import { getFollowedFeed, getStudiosToFollow, followsAnyStudio } from '@/lib/queries/feed';
@@ -132,7 +133,7 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
   const feed = hasFollows ? await getFollowedFeed(viewerId, { cursor }) : null;
   const showFeed = feed !== null && feed.items.length > 0;
   const feedAppreciationCounts = showFeed
-    ? await getAppreciationCounts(feed.items.map((p) => p.id))
+    ? await getAppreciationCounts(feed.items.filter((i) => i.kind === 'work').map((p) => p.id))
     : new Map<string, number>();
   // The platform-wide fallback renders whenever the personal feed has
   // nothing to show: no follows yet, or followed studios are quiet.
@@ -151,26 +152,35 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
       {showFeed && (
         <>
           <ProductGrid cols={3}>
-            {feed.items.map((p) => (
-              <li key={p.id}>
-                <ProductCard
-                  product={{
-                    id: p.id,
-                    slug: p.slug,
-                    title: p.title,
-                    price: p.price,
-                    currency: p.currency,
-                  }}
-                  artisan={{ shopSlug: p.artisanShopSlug, shopName: p.artisanShopName }}
-                  primaryImage={p.primaryImage}
-                  inWishlist={wishlistedIds.has(p.id)}
-                  isSignedIn
-                  artisanAvatarUrl={p.artisanPhotoUrl}
-                  relativeTimeLabel={formatRelativeTime(p.createdAt)}
-                  appreciationCount={feedAppreciationCounts.get(p.id)}
-                />
-              </li>
-            ))}
+            {feed.items.map((item) =>
+              item.kind === 'work' ? (
+                <li key={`work-${item.id}`}>
+                  <ProductCard
+                    product={{
+                      id: item.id,
+                      slug: item.slug,
+                      title: item.title,
+                      price: item.price,
+                      currency: item.currency,
+                    }}
+                    artisan={{ shopSlug: item.artisanShopSlug, shopName: item.artisanShopName }}
+                    primaryImage={item.primaryImage}
+                    inWishlist={wishlistedIds.has(item.id)}
+                    isSignedIn
+                    artisanAvatarUrl={item.artisanPhotoUrl}
+                    relativeTimeLabel={formatRelativeTime(item.createdAt)}
+                    appreciationCount={feedAppreciationCounts.get(item.id)}
+                  />
+                </li>
+              ) : (
+                <li key={`update-${item.id}`}>
+                  <UpdateCard
+                    update={item}
+                    relativeTimeLabel={formatRelativeTime(item.createdAt)}
+                  />
+                </li>
+              ),
+            )}
           </ProductGrid>
 
           {feed.nextCursor && (

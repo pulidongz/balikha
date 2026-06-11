@@ -444,6 +444,40 @@ export const artisanFollows = pgTable(
   ],
 );
 
+// Studio updates (T9): the cheap content unit between drops — 1–4 photos
+// plus short text, no price/shipping. Distributed to the studio page's
+// Updates section and followers' home feeds (T6).
+export const studioUpdates = pgTable(
+  'studio_updates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    artisanProfileId: uuid('artisan_profile_id')
+      .notNull()
+      .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
+    body: text('body').notNull().default(''),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Studio page (per artisan, newest first) and the feed's
+    // join-through-follows both sort this way.
+    index('studio_updates_artisan_created_idx').on(t.artisanProfileId, t.createdAt),
+  ],
+);
+
+export const studioUpdateImages = pgTable(
+  'studio_update_images',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    updateId: uuid('update_id')
+      .notNull()
+      .references(() => studioUpdates.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    position: integer('position').notNull().default(0),
+  },
+  (t) => [index('studio_update_images_update_idx').on(t.updateId)],
+);
+
 // Comments on works (T8): flat list, the artist↔buyer conversation
 // surface. Hard delete (author or work owner) — reports snapshot the
 // body below, so moderation evidence survives deletion.
