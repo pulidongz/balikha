@@ -8,6 +8,8 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
+import { emitDedupedNotification } from '@/lib/notifications/emit';
+import { workPath } from '@/lib/routes';
 
 const toggleSchema = z.object({
   productId: z.string().uuid(),
@@ -37,7 +39,13 @@ export async function toggleAppreciationAction(
     // (T11) and notifications (T10). Removal stays unguarded: an existing
     // row should always be deletable.
     const [work] = await db
-      .select({ artisanProfileId: products.artisanProfileId, ownerUserId: artisanProfiles.userId })
+      .select({
+        artisanProfileId: products.artisanProfileId,
+        ownerUserId: artisanProfiles.userId,
+        title: products.title,
+        slug: products.slug,
+        shopSlug: artisanProfiles.shopSlug,
+      })
       .from(products)
       .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
       .where(eq(products.id, productId))
@@ -55,6 +63,16 @@ export async function toggleAppreciationAction(
       artisanProfileId: work.artisanProfileId,
       entityType: 'product',
       entityId: productId,
+    });
+
+    // T10: tell the artist. Anonymous like the public count (appreciation
+    // identities are never surfaced); deduped on unread per work.
+    await emitDedupedNotification({
+      userId: work.ownerUserId,
+      type: 'work_appreciated',
+      title: `“${work.title}” received an appreciation`,
+      body: null,
+      target: { kind: 'product', id: productId, url: workPath(work.shopSlug, work.slug) },
     });
   } else {
     await db

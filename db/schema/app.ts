@@ -614,7 +614,21 @@ export const notificationType = pgEnum('notification_type', [
   'seller_application_approved',
   'seller_application_rejected',
   'listing_taken_down',
+  // T10 — artist traction signals.
+  'new_follower',
+  'work_appreciated',
+  'work_commented',
 ]);
+
+// T10: weekly-digest preference, stored as an opt-OUT so the default is
+// enabled with no row. The unsubscribe link and the dashboard toggle both
+// write here.
+export const emailDigestOptOuts = pgTable('email_digest_opt_outs', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
 
 export const notifications = pgTable(
   'notifications',
