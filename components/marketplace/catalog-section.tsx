@@ -33,6 +33,7 @@ export function CatalogSection({
   isSignedIn,
   canFeature = false,
   featuredProductId = null,
+  appreciationCounts,
 }: {
   catalog: CatalogLike;
   artisan: ArtisanLike;
@@ -42,6 +43,8 @@ export function CatalogSection({
   // T2 owner view: shows a small Feature/Unpin control under each work.
   canFeature?: boolean;
   featuredProductId?: string | null;
+  // T7: per-product appreciation counts; absent products read as zero.
+  appreciationCounts?: Map<string, number>;
 }) {
   if (products.length === 0) return null;
 
@@ -80,6 +83,7 @@ export function CatalogSection({
               // canFeature is true exactly when the viewer owns this studio —
               // owners get the pin control instead of a pointless heart.
               showWishlist={!canFeature}
+              appreciationCount={appreciationCounts?.get(p.id)}
             />
             {canFeature && (
               <FeatureWorkButton productId={p.id} isFeatured={featuredProductId === p.id} />

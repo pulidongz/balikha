@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/marketplace/empty-state';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
+import { getAppreciationCounts } from '@/lib/queries/appreciations';
 import { getRecentProducts, type RecentProductRow } from '@/lib/queries/products';
 import { getFollowedFeed, getStudiosToFollow, followsAnyStudio } from '@/lib/queries/feed';
 import { getCurrentUser } from '@/lib/auth-helpers';
@@ -69,6 +70,7 @@ async function RecentListingsSection({
   const reputationByProfileId = await getSellerReputationsForArtisans(
     Array.from(profileIdBySlug.values()),
   );
+  const appreciationCounts = await getAppreciationCounts(recent.items.map((p) => p.id));
 
   if (recent.items.length === 0) {
     return <p className="text-muted-foreground">No products listed yet.</p>;
@@ -100,6 +102,7 @@ async function RecentListingsSection({
                 inWishlist={wishlistedIds.has(p.id)}
                 isSignedIn={isSignedIn}
                 responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
+                appreciationCount={appreciationCounts.get(p.id)}
               />
             </li>
           );
@@ -128,6 +131,9 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
 
   const feed = hasFollows ? await getFollowedFeed(viewerId, { cursor }) : null;
   const showFeed = feed !== null && feed.items.length > 0;
+  const feedAppreciationCounts = showFeed
+    ? await getAppreciationCounts(feed.items.map((p) => p.id))
+    : new Map<string, number>();
   // The platform-wide fallback renders whenever the personal feed has
   // nothing to show: no follows yet, or followed studios are quiet.
   const fallbackRecent = showFeed ? null : await getRecentProducts({ cursor });
@@ -161,6 +167,7 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
                   isSignedIn
                   artisanAvatarUrl={p.artisanPhotoUrl}
                   relativeTimeLabel={formatRelativeTime(p.createdAt)}
+                  appreciationCount={feedAppreciationCounts.get(p.id)}
                 />
               </li>
             ))}

@@ -7,6 +7,7 @@ import { db } from '@/db';
 import { artisanProfiles, productImages, products, userAddresses } from '@/db/schema';
 import { env } from '@/env';
 import { Badge } from '@/components/ui/badge';
+import { AppreciateButton } from '@/components/marketplace/appreciate-button';
 import { OrderButton } from '@/components/marketplace/order-button';
 import { AskTheMakerButton } from '@/components/marketplace/ask-the-maker-button';
 import { PriceTag } from '@/components/marketplace/price-tag';
@@ -16,6 +17,7 @@ import { ShareButton } from '@/components/marketplace/share-button';
 import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
+import { getAppreciationCounts, hasAppreciated } from '@/lib/queries/appreciations';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
@@ -74,14 +76,27 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-export default async function ProductPublicPage({ params }: { params: Params }) {
+export default async function ProductPublicPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { artisanSlug, productSlug } = await params;
   const row = await loadProductWithArtisan(artisanSlug, productSlug);
   if (!row) notFound();
   const { product, artisan } = row;
 
+  // One-shot param set by AppreciateButton's sign-in redirect; the button
+  // applies it client-side and strips it from the URL (T5 pattern).
+  const { appreciate } = await searchParams;
+  const pendingAppreciateId = typeof appreciate === 'string' ? appreciate : null;
+
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
+  const appreciationCounts = await getAppreciationCounts([product.id]);
+  const viewerAppreciated = await hasAppreciated(viewer?.id ?? null, product.id);
 
   // Track this view. Fire-and-forget — the helper swallows its own
   // errors so a tracking failure can't break the product page render.
@@ -389,11 +404,24 @@ export default async function ProductPublicPage({ params }: { params: Params }) 
             </div>
           )}
 
-          <ShareButton
-            title={`${product.title} — ${artisan.shopName}`}
-            text={product.description?.slice(0, 120)}
-            path={workPath(artisan.shopSlug, product.slug)}
-          />
+          {/* Appreciation + share. The appreciate button never renders for
+              the owner (own-work rule) — the server action guards too. */}
+          <div className="flex items-center gap-2">
+            {!isOwnProduct && (
+              <AppreciateButton
+                productId={product.id}
+                initiallyAppreciated={viewerAppreciated}
+                initialCount={appreciationCounts.get(product.id) ?? 0}
+                isSignedIn={viewer !== null}
+                pendingAppreciateId={pendingAppreciateId}
+              />
+            )}
+            <ShareButton
+              title={`${product.title} — ${artisan.shopName}`}
+              text={product.description?.slice(0, 120)}
+              path={workPath(artisan.shopSlug, product.slug)}
+            />
+          </div>
 
           {product.description && (
             <p className="text-foreground text-base leading-relaxed whitespace-pre-line">
