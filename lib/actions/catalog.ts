@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
-import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
+import { requireOwnership, tryRequireArtisan } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import {
   catalogCreateSchema,
@@ -15,7 +15,7 @@ import {
 } from '@/lib/validators/catalog';
 
 export async function createCatalogAction(formData: FormData): Promise<Result<{ slug: string }>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   const parsed = catalogCreateSchema.safeParse(Object.fromEntries(formData));
@@ -51,7 +51,7 @@ export async function updateCatalogAction(
   catalogId: string,
   formData: FormData,
 ): Promise<Result<null>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   // Load + ownership check, fetching only what's needed for the response.
@@ -95,7 +95,7 @@ export async function setCatalogStatusAction(
   catalogId: string,
   status: CatalogStatus,
 ): Promise<Result<null>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   const parsedStatus = catalogStatusSchema.safeParse(status);

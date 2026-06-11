@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { tryRequireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { recordAdminAction } from '@/lib/admin/audit';
@@ -45,7 +45,7 @@ export async function removeListing(input: unknown): Promise<Result<{ productId:
   const parsed = removeInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -104,7 +104,7 @@ export async function flagListing(input: unknown): Promise<Result<{ productId: s
   const parsed = flagInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -147,7 +147,7 @@ export async function reinstateListing(input: unknown): Promise<Result<{ product
   const parsed = reinstateInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();

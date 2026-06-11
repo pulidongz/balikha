@@ -12,7 +12,7 @@ import {
   wishlistItems,
 } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
-import { requireArtisan, requireOwnership } from '@/lib/auth-helpers';
+import { requireOwnership, tryRequireArtisan } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { workPath } from '@/lib/routes';
 import { logger } from '@/lib/logger';
@@ -91,7 +91,7 @@ export async function createProductAction(
   catalogId: string,
   formData: FormData,
 ): Promise<Result<{ slug: string; productId: string }>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   // Verify catalog ownership before doing anything expensive.
@@ -156,7 +156,7 @@ export async function updateProductAction(
   productId: string,
   formData: FormData,
 ): Promise<Result<null>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   const [product] = await db
@@ -345,7 +345,7 @@ export async function setProductStatusAction(
   productId: string,
   status: ProductStatus,
 ): Promise<Result<null>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   const parsedStatus = productStatusSchema.safeParse(status);
@@ -411,7 +411,7 @@ export async function setProductsStatusAction(
   productIds: string[],
   status: ProductStatus,
 ): Promise<Result<{ updated: number }>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   const parsedStatus = productStatusSchema.safeParse(status);
@@ -486,7 +486,7 @@ export async function setProductsStatusAction(
 }
 
 export async function deleteProductImageAction(imageId: string): Promise<Result<null>> {
-  const profile = await requireArtisan().catch(() => null);
+  const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
   // Image ownership comes via JOIN to the parent product. Also fetch

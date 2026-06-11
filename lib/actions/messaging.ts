@@ -14,7 +14,7 @@ import {
   products,
   sellerBlockedBuyers,
 } from '@/db/schema';
-import { requireUser, requireArtisan } from '@/lib/auth-helpers';
+import { tryRequireUser, tryRequireArtisan } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
@@ -74,7 +74,7 @@ export async function createPrePurchaseThread(
 
   // Auth first — outside withIdempotency so a transient "Not
   // authenticated" isn't permanently pinned to the key.
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   return withIdempotency({
@@ -343,7 +343,7 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
 
-  const sender = await requireUser().catch(() => null);
+  const sender = await tryRequireUser();
   if (!sender) return err('Not authenticated');
 
   const accessResult = await assertThreadAccess(parsed.data.threadId, sender.id);
@@ -463,7 +463,7 @@ export async function markThreadRead(input: unknown): Promise<Result<null>> {
   const parsed = markThreadReadSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const current = await requireUser().catch(() => null);
+  const current = await tryRequireUser();
   if (!current) return err('Not authenticated');
 
   // Defense-in-depth participant check. Today's invariant
@@ -528,7 +528,7 @@ export async function blockBuyer(input: unknown): Promise<Result<null>> {
   const parsed = blockBuyerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   // Self-block protection.
@@ -558,7 +558,7 @@ export async function unblockBuyer(input: unknown): Promise<Result<null>> {
   const parsed = unblockBuyerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const seller = await requireArtisan().catch(() => null);
+  const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
   await db
@@ -589,7 +589,7 @@ export async function blockSeller(input: unknown): Promise<Result<null>> {
   const parsed = blockSellerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   // Self-block protection — the buyer can't block an artisan they own.
@@ -627,7 +627,7 @@ export async function unblockSeller(input: unknown): Promise<Result<null>> {
   const parsed = unblockSellerSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const buyer = await requireUser().catch(() => null);
+  const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
 
   await db

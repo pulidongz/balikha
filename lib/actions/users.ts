@@ -7,7 +7,7 @@ import { count, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { user } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { tryRequireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { recordAdminAction } from '@/lib/admin/audit';
@@ -45,7 +45,7 @@ export async function suspendUser(input: unknown): Promise<Result<{ userId: stri
   const parsed = suspendInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -109,7 +109,7 @@ export async function unsuspendUser(input: unknown): Promise<Result<{ userId: st
   const parsed = userIdInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -168,7 +168,7 @@ export async function banUser(input: unknown): Promise<Result<{ userId: string }
   const parsed = banInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -225,7 +225,7 @@ export async function unbanUser(input: unknown): Promise<Result<{ userId: string
   const parsed = userIdInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -282,7 +282,7 @@ export async function promoteToAdmin(input: unknown): Promise<Result<{ userId: s
   const parsed = userIdInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
@@ -333,7 +333,7 @@ export async function demoteToUser(input: unknown): Promise<Result<{ userId: str
   const parsed = userIdInputSchema.safeParse(input);
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
-  const admin = await requireAdmin().catch(() => null);
+  const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
   const log = await getRequestLogger();
