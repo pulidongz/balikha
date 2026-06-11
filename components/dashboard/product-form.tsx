@@ -63,6 +63,8 @@ type EditMode = {
     weightGrams: number | null;
     materials: string[] | null;
     dimensions: { width?: number; height?: number; depth?: number; unit?: 'cm' | 'in' } | null;
+    technique: string | null;
+    careInstructions: string | null;
   };
   images: ImageRow[];
 };
@@ -197,14 +199,19 @@ export function ProductForm(props: CreateMode | EditMode) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="product-description">Description</Label>
+            <Label htmlFor="product-description">The story</Label>
             <Textarea
               id="product-description"
               name="description"
-              rows={4}
+              rows={5}
+              placeholder="What is it? How did you make it? What makes it yours?"
               defaultValue={d?.description ?? ''}
               aria-invalid={fieldError('description') ? true : undefined}
             />
+            {/* Soft nudge (T13) — informative, never blocking. */}
+            <p className="text-muted-foreground text-xs">
+              Works with a story get more appreciations — even three sentences carry it.
+            </p>
             {fieldError('description') && (
               <p className="text-destructive text-xs">{fieldError('description')}</p>
             )}
@@ -218,7 +225,8 @@ export function ProductForm(props: CreateMode | EditMode) {
         <CardHeader>
           <CardTitle>Photos</CardTitle>
           <CardDescription>
-            The first photo is the preview buyers see on public pages.
+            The first photo is the preview buyers see on public pages. A good set: the front, a
+            close detail, and one for scale or in context.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -236,6 +244,13 @@ export function ProductForm(props: CreateMode | EditMode) {
               <p className="text-muted-foreground text-xs">
                 JPEG, PNG, WebP, or AVIF; up to 10 MB each.
               </p>
+              {/* Soft minimum of three (T13): a nudge, never a block. */}
+              {images.length > 0 && images.length < 3 && (
+                <p className="text-muted-foreground text-xs">
+                  {3 - images.length} more would round out the set — buyers trust pieces they can
+                  see from every side.
+                </p>
+              )}
               {imageError && <p className="text-destructive text-xs">{imageError}</p>}
               {images.length > 0 && (
                 <ul className="grid grid-cols-3 gap-3">
@@ -355,6 +370,37 @@ export function ProductForm(props: CreateMode | EditMode) {
               <p className="text-destructive text-xs">{fieldError('dimensions')}</p>
             )}
           </fieldset>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-technique">Technique</Label>
+            <Input
+              id="product-technique"
+              name="technique"
+              placeholder="hand-built, slab construction, reduction fired"
+              maxLength={200}
+              defaultValue={d?.technique ?? ''}
+              aria-invalid={fieldError('technique') ? true : undefined}
+            />
+            {fieldError('technique') && (
+              <p className="text-destructive text-xs">{fieldError('technique')}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-care">Care instructions</Label>
+            <Textarea
+              id="product-care"
+              name="careInstructions"
+              rows={2}
+              placeholder="Hand-wash; avoid sudden temperature changes."
+              maxLength={2000}
+              defaultValue={d?.careInstructions ?? ''}
+              aria-invalid={fieldError('careInstructions') ? true : undefined}
+            />
+            {fieldError('careInstructions') && (
+              <p className="text-destructive text-xs">{fieldError('careInstructions')}</p>
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="product-weight">Weight (grams, optional)</Label>

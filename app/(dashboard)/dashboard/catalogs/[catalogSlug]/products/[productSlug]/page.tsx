@@ -105,6 +105,8 @@ export default async function ProductDetailPage({
           weightGrams: product.weightGrams,
           materials: product.materials,
           dimensions: product.dimensions,
+          technique: product.technique,
+          careInstructions: product.careInstructions,
         }}
       />
     </div>

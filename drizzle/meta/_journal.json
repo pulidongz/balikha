@@ -127,6 +127,13 @@
       "when": 1781175592897,
       "tag": "0017_last_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781176682447,
+      "tag": "0018_square_mister_sinister",
+      "breakpoints": true
     }
   ]
 }

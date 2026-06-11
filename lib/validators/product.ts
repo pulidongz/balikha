@@ -66,6 +66,8 @@ export const productCreateSchema = z
     weightGrams: z.coerce.number().int().nonnegative().optional().nullable(),
     materials: materialsField,
     dimensions: dimensionsField,
+    technique: z.string().max(200).optional().nullable(),
+    careInstructions: z.string().max(2000).optional().nullable(),
   })
   .superRefine(requirePriceWhenForSale);
 
@@ -84,6 +86,8 @@ export const productUpdateSchema = z
     weightGrams: z.coerce.number().int().nonnegative().optional().nullable(),
     materials: materialsField,
     dimensions: dimensionsField,
+    technique: z.string().max(200).optional().nullable(),
+    careInstructions: z.string().max(2000).optional().nullable(),
   })
   .superRefine(requirePriceWhenForSale);
 

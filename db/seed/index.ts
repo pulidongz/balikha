@@ -529,6 +529,37 @@ function buildMaterials(craft: Craft): string[] {
   return faker.helpers.arrayElements(pool, count);
 }
 
+// T13 craft fields — seed content models the full standard (technique +
+// care on every work) because seed content sets community norms.
+const TECHNIQUES: Record<Craft, string[]> = {
+  pottery: ['Wheel-thrown, reduction fired', 'Slab-built, oxidation fired', 'Hand-pinched, raku'],
+  weaves: ['Backstrap loom, ikat-dyed', 'Floor loom, plain weave', 'Handloom, supplementary weft'],
+  wood: ['Hand-carved, oil finished', 'Turned on the lathe', 'Carved and burnished'],
+  silver: ['Hand-forged, oxidised', 'Lost-wax cast', 'Filigree, hand-soldered'],
+  leather: ['Hand-stitched, saddle stitch', 'Vegetable-tanned, hand-burnished'],
+  glass: ['Lampworked', 'Sand-cast, polished', 'Blown, annealed'],
+  soap: ['Cold-process, small batch', 'Hot-process, hand-cut'],
+  textiles: ['Natural-dyed, hand-printed', 'Block-printed, fiber-reactive dyes'],
+  paper: ['Hand-pulled print', 'Letterpress on handmade paper'],
+  coffee: ['Small-batch roasted', 'Drum-roasted, single origin'],
+};
+
+const CARE_INSTRUCTIONS: Record<Craft, string[]> = {
+  pottery: [
+    'Hand-wash; avoid sudden temperature changes.',
+    'Dishwasher-safe on a gentle cycle; avoid thermal shock.',
+  ],
+  weaves: ['Spot-clean or gentle hand-wash; dry flat in shade.'],
+  wood: ['Hand-wash and dry immediately; re-oil monthly with food-safe mineral oil.'],
+  silver: ['Polish with a soft cloth; store dry in the pouch provided.'],
+  leather: ['Keep dry; condition with leather balm every few months.'],
+  glass: ['Hand-wash with a soft sponge; handle annealed edges with care.'],
+  soap: ['Keep on a draining dish between uses.'],
+  textiles: ['Cold hand-wash with mild soap; iron on reverse.'],
+  paper: ['Keep out of direct sunlight; frame behind glass.'],
+  coffee: ['Store airtight, away from light; best within a month of roast.'],
+};
+
 // T2 studio identity: craft practice tags per craft. Soap and coffee
 // deliberately get none — a couple of seeded studios should exercise the
 // empty-collapse path on the studio page.
@@ -699,6 +730,8 @@ async function seed() {
           stockOnHand,
           status,
           materials: buildMaterials(seller.craft),
+          technique: faker.helpers.arrayElement(TECHNIQUES[seller.craft]),
+          careInstructions: faker.helpers.arrayElement(CARE_INSTRUCTIONS[seller.craft]),
         })
         .returning();
       if (!product) throw new Error('Failed to create product');
