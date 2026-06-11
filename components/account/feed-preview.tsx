@@ -4,8 +4,8 @@ import { EmptyInline } from './empty-inline';
 import type { PreviewProductItem } from '@/lib/queries/account';
 
 // 6 most-recent products from artisans the buyer follows. 3-up grid on
-// md+ — same shape as the dedicated /account/feed page so they feel
-// consistent when the buyer "View all →"s through.
+// md+ — "View all" leads to the homepage feed (T6 moved the full feed
+// there).
 export function FeedPreview({
   items,
   wishlistedIds,
@@ -17,7 +17,7 @@ export function FeedPreview({
     <section>
       <SectionHeader
         title="From artisans you follow"
-        viewAllHref="/account/feed"
+        viewAllHref="/"
         showViewAll={items.length > 0}
       />
       {items.length === 0 ? (

@@ -234,6 +234,10 @@ export const products = pgTable(
     ),
     index('products_catalog_idx').on(t.catalogId),
     index('products_artisan_idx').on(t.artisanProfileId),
+    // Home feed (T6): newest published work across the set of followed
+    // studios — the join filters by artisan_profile_id, then sorts by
+    // created_at, so the composite avoids a per-studio sort.
+    index('products_artisan_created_idx').on(t.artisanProfileId, t.createdAt),
     index('products_status_idx').on(t.status),
     index('products_moderation_status_idx').on(t.moderationStatus),
     uniqueIndex('products_slug_per_artisan').on(t.artisanProfileId, t.slug),

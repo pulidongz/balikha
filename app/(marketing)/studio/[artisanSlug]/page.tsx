@@ -19,6 +19,7 @@ import { EditStudioDialog } from '@/components/studio/edit-studio-dialog';
 import { FeatureWorkButton } from '@/components/studio/feature-work-button';
 import { PhotoEditDialog } from '@/components/studio/photo-edit-dialog';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { initialsOf } from '@/lib/initials';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { studioPath, workPath } from '@/lib/routes';
@@ -40,13 +41,6 @@ async function loadArtisan(artisanSlug: string) {
     .where(eq(artisanProfiles.shopSlug, artisanSlug))
     .limit(1);
   return profile ?? null;
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '?';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase();
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {

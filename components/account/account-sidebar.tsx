@@ -10,7 +10,6 @@ import {
   Home,
   MapPin,
   MessageCircle,
-  Rss,
   ShoppingBag,
   User,
   Users,
@@ -31,7 +30,6 @@ interface NavItem {
 // and would otherwise highlight on every /account/* page.
 const CONTENT_NAV: readonly NavItem[] = [
   { href: '/account', label: 'Home', Icon: Home, exact: true },
-  { href: '/account/feed', label: 'New listings', Icon: Rss, exact: false },
   { href: '/account/wishlist', label: 'Wishlist', Icon: Heart, exact: false },
   { href: '/account/following', label: 'Following', Icon: Users, exact: false },
   { href: '/account/messages', label: 'Messages', Icon: MessageCircle, exact: false },

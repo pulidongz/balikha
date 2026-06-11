@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { initialsOf } from '@/lib/initials';
 import { workPath } from '@/lib/routes';
 import { PriceTag } from './price-tag';
 import { WishlistToggle } from './wishlist-toggle';
@@ -36,6 +38,14 @@ type Props = {
   // grid, never pulls the server-only reputation/db module into the
   // client bundle. Omitted when the seller has no response history.
   responseTimeLabel?: string;
+  // Feed variant (T6): pass the studio's photo (null still renders the
+  // initials fallback) to swap the plain artisan-name line for an
+  // avatar + name row. Undefined keeps the classic card.
+  artisanAvatarUrl?: string | null;
+  // Pre-formatted relative time ("2 days ago"), appended to the artisan
+  // row. Formatted by the caller — same plain-string reasoning as
+  // responseTimeLabel.
+  relativeTimeLabel?: string;
 };
 
 const DEFAULT_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw';
@@ -53,6 +63,8 @@ export function ProductCard({
   isSignedIn = false,
   showWishlist = true,
   responseTimeLabel,
+  artisanAvatarUrl,
+  relativeTimeLabel,
 }: Props) {
   return (
     <div className="group relative space-y-3">
@@ -79,7 +91,23 @@ export function ProductCard({
           <h3 className="text-foreground group-hover:text-accent text-base leading-snug transition-colors">
             {product.title}
           </h3>
-          {showArtisan && <p className="text-muted-foreground text-xs">{artisan.shopName}</p>}
+          {showArtisan &&
+            (artisanAvatarUrl !== undefined ? (
+              <span className="flex items-center gap-1.5">
+                <Avatar className="h-5 w-5">
+                  <AvatarImage src={artisanAvatarUrl ?? undefined} alt="" />
+                  <AvatarFallback className="text-[9px]">
+                    {initialsOf(artisan.shopName)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-muted-foreground text-xs">
+                  {artisan.shopName}
+                  {relativeTimeLabel && ` · ${relativeTimeLabel}`}
+                </span>
+              </span>
+            ) : (
+              <p className="text-muted-foreground text-xs">{artisan.shopName}</p>
+            ))}
           {responseTimeLabel && (
             <p className="text-muted-foreground text-xs">Responds within {responseTimeLabel}</p>
           )}

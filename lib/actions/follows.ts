@@ -57,6 +57,7 @@ export async function toggleFollowAction(input: unknown): Promise<Result<{ follo
   }
 
   revalidatePath('/account/following');
-  revalidatePath('/account/feed');
+  // The signed-in homepage is the feed (T6).
+  revalidatePath('/');
   return ok({ following: follow });
 }
