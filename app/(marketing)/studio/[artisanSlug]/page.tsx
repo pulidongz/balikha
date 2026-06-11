@@ -18,6 +18,7 @@ import { CoverEditDialog } from '@/components/studio/cover-edit-dialog';
 import { EditStudioDialog } from '@/components/studio/edit-studio-dialog';
 import { FeatureWorkButton } from '@/components/studio/feature-work-button';
 import { PhotoEditDialog } from '@/components/studio/photo-edit-dialog';
+import { UpdatesSection } from '@/components/studio/updates-section';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { initialsOf } from '@/lib/initials';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
@@ -416,20 +417,7 @@ export default async function ArtisanStorefrontPage({
           ))
         )}
 
-        {/* Updates section: owner-only teaser until T9 ships the real
-            thing — visitors never see an empty section advertising absence. */}
-        {isOwner && (
-          <section
-            aria-label="Updates (coming soon)"
-            className="rounded-lg border border-dashed p-6"
-          >
-            <h2 className="font-serif text-xl tracking-tight">Updates</h2>
-            <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
-              Coming soon — share kiln-openings, works in progress, and process shots from here.
-              Only you can see this section for now.
-            </p>
-          </section>
-        )}
+        <UpdatesSection artisanProfileId={profile.id} isOwner={isOwner} />
       </div>
     </div>
   );
