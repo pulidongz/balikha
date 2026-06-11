@@ -71,9 +71,9 @@ Community direction requires the artist to read as a person/practice, not invent
 
 **Acceptance criteria.**
 
-- [ ] Old `/shop/...` URLs 301 to `/studio/...`.
-- [ ] No user-facing "shop" strings remain (verified by grep + manual pass).
-- [ ] Meta/OG/sitemap reflect new URLs and labels.
+- [x] Old `/shop/...` URLs 301 to `/studio/...`.
+- [x] No user-facing "shop" strings remain (verified by grep + manual pass).
+- [x] Meta/OG/sitemap reflect new URLs and labels.
 
 ## T2 — Studio page v2: identity + personalization
 
@@ -99,10 +99,10 @@ zero followers on Balikha.
 
 **Acceptance criteria.**
 
-- [ ] Owner can edit every field above from the page itself.
-- [ ] Page looks complete with exactly 1 work and minimal profile data.
-- [ ] OG/share image derives from cover or profile photo (full version in T18).
-- [ ] Mobile layout verified.
+- [x] Owner can edit every field above from the page itself.
+- [x] Page looks complete with exactly 1 work and minimal profile data.
+- [x] OG/share image derives from cover or profile photo (full version in T18).
+- [x] Mobile layout verified.
 
 ## T3 — Price-optional works (showcase mode)
 
@@ -122,10 +122,10 @@ are filtered out at the door.
 
 **Acceptance criteria.**
 
-- [ ] A work can be published with no price and renders correctly in grids and
+- [x] A work can be published with no price and renders correctly in grids and
       detail view.
-- [ ] For-sale works are unchanged.
-- [ ] Status is editable after publishing.
+- [x] For-sale works are unchanged.
+- [x] Status is editable after publishing.
 
 ## T4 — Entry CTA and sign-up reframe
 
@@ -143,7 +143,7 @@ showcase-first artists — the opposite of the community goal.
 
 **Acceptance criteria.**
 
-- [ ] All entry points updated; sign-up copy reflects showcase-first framing.
+- [x] All entry points updated; sign-up copy reflects showcase-first framing.
 
 ---
 
@@ -166,9 +166,9 @@ interacting does nothing.
 
 **Acceptance criteria.**
 
-- [ ] Follow/unfollow persists across sessions; counts accurate.
-- [ ] Counts hidden below threshold.
-- [ ] Post-auth redirect completes the original follow.
+- [x] Follow/unfollow persists across sessions; counts accurate.
+- [x] Counts hidden below threshold.
+- [x] Post-auth redirect completes the original follow.
 
 ## T6 — Home feed
 
@@ -188,9 +188,9 @@ visits. The loop is follow → feed → return.
 
 **Acceptance criteria.**
 
-- [ ] New work from a followed studio appears in the feed.
-- [ ] Empty/fallback states designed (see global conventions).
-- [ ] Signed-out homepage keeps the editorial landing.
+- [x] New work from a followed studio appears in the feed.
+- [x] Empty/fallback states designed (see global conventions).
+- [x] Signed-out homepage keeps the editorial landing.
 
 ## T7 — Appreciations
 
@@ -207,8 +207,8 @@ also the artist's first traction signal.
 
 **Acceptance criteria.**
 
-- [ ] Toggle works and persists; counts accurate under repeat clicks.
-- [ ] Events recorded in a way T10 (notifications) and T11 (stats) can consume.
+- [x] Toggle works and persists; counts accurate under repeat clicks.
+- [x] Events recorded in a way T10 (notifications) and T11 (stats) can consume.
 
 ## T8 — Comments
 
@@ -227,8 +227,8 @@ create the artist↔buyer↔artist conversation surface the community needs.
 
 **Acceptance criteria.**
 
-- [ ] Post, render, delete work as specified.
-- [ ] Rate limit verified; report writes a record an admin can see.
+- [x] Post, render, delete work as specified.
+- [x] Rate limit verified; report writes a record an admin can see.
 
 ## T9 — Studio updates (lightweight posts)
 
@@ -247,8 +247,8 @@ that keeps the feed alive.
 
 **Acceptance criteria.**
 
-- [ ] An artist can publish an update in under a minute on mobile.
-- [ ] Updates appear on studio page and in followers' feeds.
+- [x] An artist can publish an update in under a minute on mobile.
+- [x] Updates appear on studio page and in followers' feeds.
 
 ## T10 — Notifications (in-app + email digest)
 
@@ -267,8 +267,8 @@ mechanism for the supply side.
 
 **Acceptance criteria.**
 
-- [ ] Each event type generates exactly one notification.
-- [ ] Digest sends on schedule, suppressed when empty, honors preferences.
+- [x] Each event type generates exactly one notification.
+- [x] Digest sends on schedule, suppressed when empty, honors preferences.
 
 ## T11 — Artist stats (traction dashboard)
 
@@ -286,8 +286,8 @@ private answer to "is anyone seeing my work?"
 
 **Acceptance criteria.**
 
-- [ ] Numbers consistent with raw data; visible only to the studio owner.
-- [ ] Renders sensibly at near-zero volume (no sad empty charts — use plain
+- [x] Numbers consistent with raw data; visible only to the studio owner.
+- [x] Renders sensibly at near-zero volume (no sad empty charts — use plain
       numbers until there is enough data to chart).
 
 ---
@@ -310,8 +310,8 @@ emptiness. Early-stage platforms must manage the cold start, not display it.
 
 **Acceptance criteria.**
 
-- [ ] No raw low counts appear anywhere user-facing.
-- [ ] Each empty/sparse state has copy + a CTA.
+- [x] No raw low counts appear anywhere user-facing.
+- [x] Each empty/sparse state has copy + a CTA.
 
 ## T13 — Guided work upload (story, materials, photos)
 
@@ -337,9 +337,9 @@ shipping-calculator fields, not craft fields.
 
 **Acceptance criteria.**
 
-- [ ] New flow captures photos + story + craft fields.
-- [ ] Existing works editable to add the new fields.
-- [ ] Detail page renders the new fields (full redesign lands in T16).
+- [x] New flow captures photos + story + craft fields.
+- [x] Existing works editable to add the new fields.
+- [x] Detail page renders the new fields (full redesign lands in T16).
 
 ## T14 — Search v2: honest suggestions
 
@@ -357,8 +357,8 @@ two clicks.
 
 **Acceptance criteria.**
 
-- [ ] Every suggested query returns at least one result.
-- [ ] Studio names are findable.
+- [x] Every suggested query returns at least one result.
+- [x] Studio names are findable.
 
 ## T15 — Editorial featuring (curated, never paid)
 
@@ -379,9 +379,9 @@ Paid placement is explicitly out of scope, indefinitely.
 
 **Acceptance criteria.**
 
-- [ ] Founder can change the featured artist/works without a code deploy (or with
+- [x] Founder can change the featured artist/works without a code deploy (or with
       a trivial config edit — document whichever is chosen).
-- [ ] Homepage renders the editorial block; clearly curated in tone.
+- [x] Homepage renders the editorial block; clearly curated in tone.
 
 ---
 
@@ -409,9 +409,9 @@ and the maker — the page must deliver the gallery treatment the brand promises
 
 **Acceptance criteria.**
 
-- [ ] Renders both for-sale and showcase variants correctly.
-- [ ] All T13 fields displayed; mobile-first layout verified.
-- [ ] No layout shift on image load (set dimensions/aspect ratios).
+- [x] Renders both for-sale and showcase variants correctly.
+- [x] All T13 fields displayed; mobile-first layout verified.
+- [x] No layout shift on image load (set dimensions/aspect ratios).
 
 ## T17 — Header search affordance
 
@@ -428,7 +428,7 @@ it is broken copy.
 
 **Acceptance criteria.**
 
-- [ ] Search affordance reads as search on desktop and mobile.
+- [x] Search affordance reads as search on desktop and mobile.
 
 ## T18 — Share cards and SEO for the link-in-bio loop
 
@@ -447,8 +447,8 @@ Facebook/TikTok bios. The page must index well and unfurl beautifully.
 
 **Acceptance criteria.**
 
-- [ ] Link previews show rich, correct cards on the platforms above.
-- [ ] Sitemap includes all studios and works; pages indexable.
+- [x] Link previews show rich, correct cards on the platforms above.
+- [x] Sitemap includes all studios and works; pages indexable.
 
 ---
 
@@ -481,8 +481,8 @@ signed-out user. This violates the project's no-error-swallowing rule.
 
 **Acceptance criteria.**
 
-- [ ] No `.catch(() => null)` remains on any `require*()` call (grep-verified).
-- [ ] A simulated DB failure during auth surfaces as a thrown/logged error, not
+- [x] No `.catch(() => null)` remains on any `require*()` call (grep-verified).
+- [x] A simulated DB failure during auth surfaces as a thrown/logged error, not
       as "Not authenticated".
 
 ## E2 — Route-level loading and error boundaries
@@ -503,8 +503,8 @@ with no recovery UI.
 
 **Acceptance criteria.**
 
-- [ ] Every segment that fetches data has both boundaries.
-- [ ] A thrown error in a page renders the error boundary with a working retry.
+- [x] Every segment that fetches data has both boundaries.
+- [x] A thrown error in a page renders the error boundary with a working retry.
 
 ## E3 — Per-request memoization of profile/session lookups
 
@@ -522,8 +522,8 @@ every render of every dashboard page.
 
 **Acceptance criteria.**
 
-- [ ] One DB session/profile query per request (verified via query logging in dev).
-- [ ] No behavior change otherwise.
+- [x] One DB session/profile query per request (verified via query logging in dev).
+- [x] No behavior change otherwise.
 
 ## E4 — Extract inline admin query logic to lib/queries
 
@@ -542,8 +542,8 @@ pattern is copy-pasted per page and will drift.
 
 **Acceptance criteria.**
 
-- [ ] Admin pages call shared query helpers; no inline WHERE assembly remains.
-- [ ] Behavior identical (same filters, same pagination).
+- [x] Admin pages call shared query helpers; no inline WHERE assembly remains.
+- [x] Behavior identical (same filters, same pagination).
 
 ---
 
