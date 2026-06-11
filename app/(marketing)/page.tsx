@@ -375,9 +375,14 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
                     </div>
                   </div>
                 )}
+                {/* No banner → take the full row. A spanless child of the
+                    12-col grid would sit in a single ~90px track and wrap
+                    one word per line. */}
                 <div
                   className={
-                    feature.artisan.bannerImageUrl ? 'space-y-4 md:col-span-7' : 'space-y-4'
+                    feature.artisan.bannerImageUrl
+                      ? 'space-y-4 md:col-span-7'
+                      : 'space-y-4 md:col-span-12'
                   }
                 >
                   <h2 className="font-serif text-3xl tracking-tight md:text-4xl">
