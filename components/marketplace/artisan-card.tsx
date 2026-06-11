@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { initialsOf } from '@/lib/initials';
 import { studioPath } from '@/lib/routes';
 
 type Props = {
@@ -11,13 +12,6 @@ type Props = {
   };
   productCount?: number;
 };
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '?';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase();
-}
 
 export function ArtisanCard({ artisan, productCount }: Props) {
   return (

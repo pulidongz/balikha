@@ -5,40 +5,58 @@ import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
 import { buttonVariants } from '@/components/ui/button';
 import { ArtisanCard } from '@/components/marketplace/artisan-card';
+import { EmptyState } from '@/components/marketplace/empty-state';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
-import { getRecentProducts } from '@/lib/queries/products';
+import { getRecentProducts, type RecentProductRow } from '@/lib/queries/products';
+import { getFollowedFeed, getStudiosToFollow, followsAnyStudio } from '@/lib/queries/feed';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
 import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
+import { formatRelativeTime } from '@/lib/format';
+import type { Page } from '@/lib/queries/paginate';
 
 // Previously cached for 5 min, but personalized wishlist hearts make this
 // per-user. Calling getCurrentUser() opts the page into dynamic rendering
 // anyway via headers(); the explicit revalidate is dropped for clarity.
 
 const FEATURED_ARTISANS = 4;
+const STUDIOS_TO_FOLLOW = 4;
 
 interface HomePageProps {
   searchParams: Promise<{ cursor?: string }>;
 }
 
+// T6: the signed-in homepage is the feed — the loop is follow → feed →
+// return. Signed-out visitors keep the editorial landing.
 export default async function HomePage({ searchParams }: HomePageProps) {
   const { cursor } = await searchParams;
-
-  // Cursor-paginated. Forward-only: nextCursor lets us build "Next →";
-  // browser back covers "Previous". Stable under concurrent inserts —
-  // a new product appearing between page loads doesn't shift rows around.
-  const recent = await getRecentProducts({ cursor });
-
   const viewer = await getCurrentUser();
-  const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
-  const recentlyViewed = await getRecentlyViewed(viewer?.id ?? null, 12);
 
-  // Seller reputation for the recent-listings grid. getRecentProducts
-  // carries shop slug, not profile id, so resolve slugs → ids in one
-  // query, then batch-fetch reputations in one more — no N+1 per card.
+  if (viewer) return <HomeFeed viewerId={viewer.id} cursor={cursor} />;
+  return <EditorialLanding cursor={cursor} />;
+}
+
+/**
+ * Recent-listings grid with seller response-time labels and the
+ * cursor-paginated "Next →" link. Shared by the signed-out landing and the
+ * signed-in fallback (following nothing / nothing new) so the reputation
+ * lookup logic lives once.
+ */
+async function RecentListingsSection({
+  recent,
+  isSignedIn,
+  wishlistedIds,
+}: {
+  recent: Page<RecentProductRow>;
+  isSignedIn: boolean;
+  wishlistedIds: Set<string>;
+}) {
+  // Seller reputation for the grid. getRecentProducts carries shop slug,
+  // not profile id, so resolve slugs → ids in one query, then batch-fetch
+  // reputations in one more — no N+1 per card.
   const recentShopSlugs = Array.from(new Set(recent.items.map((p) => p.artisanShopSlug)));
   const profileIdBySlug = new Map<string, string>();
   if (recentShopSlugs.length > 0) {
@@ -51,6 +69,166 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const reputationByProfileId = await getSellerReputationsForArtisans(
     Array.from(profileIdBySlug.values()),
   );
+
+  if (recent.items.length === 0) {
+    return <p className="text-muted-foreground">No products listed yet.</p>;
+  }
+
+  return (
+    <>
+      <ProductGrid cols={4}>
+        {recent.items.map((p) => {
+          const profileId = profileIdBySlug.get(p.artisanShopSlug);
+          const bucket = profileId
+            ? reputationByProfileId.get(profileId)?.responseTimeBucket
+            : null;
+          return (
+            <li key={p.id}>
+              <ProductCard
+                product={{
+                  id: p.id,
+                  slug: p.slug,
+                  title: p.title,
+                  price: p.price,
+                  currency: p.currency,
+                }}
+                artisan={{
+                  shopSlug: p.artisanShopSlug,
+                  shopName: p.artisanShopName,
+                }}
+                primaryImage={p.primaryImage ?? undefined}
+                inWishlist={wishlistedIds.has(p.id)}
+                isSignedIn={isSignedIn}
+                responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
+              />
+            </li>
+          );
+        })}
+      </ProductGrid>
+
+      {recent.nextCursor && (
+        <div className="mt-12 flex justify-center">
+          <Link
+            href={`/?cursor=${recent.nextCursor}#recent`}
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            Next →
+          </Link>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Signed-in homepage: reverse-chronological work from followed studios. */
+async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string | undefined }) {
+  const hasFollows = await followsAnyStudio(viewerId);
+  const wishlistedIds = await getWishlistProductIds(viewerId);
+  const recentlyViewed = await getRecentlyViewed(viewerId, 12);
+
+  const feed = hasFollows ? await getFollowedFeed(viewerId, { cursor }) : null;
+  const showFeed = feed !== null && feed.items.length > 0;
+  // The platform-wide fallback renders whenever the personal feed has
+  // nothing to show: no follows yet, or followed studios are quiet.
+  const fallbackRecent = showFeed ? null : await getRecentProducts({ cursor });
+  const studiosToFollow = hasFollows ? [] : await getStudiosToFollow(viewerId, STUDIOS_TO_FOLLOW);
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
+      <header className="mb-10">
+        <h1 className="font-serif text-3xl tracking-tight md:text-4xl">
+          New from studios you follow
+        </h1>
+        <p className="text-muted-foreground mt-2 text-sm">The latest works, newest first.</p>
+      </header>
+
+      {showFeed && (
+        <>
+          <ProductGrid cols={3}>
+            {feed.items.map((p) => (
+              <li key={p.id}>
+                <ProductCard
+                  product={{
+                    id: p.id,
+                    slug: p.slug,
+                    title: p.title,
+                    price: p.price,
+                    currency: p.currency,
+                  }}
+                  artisan={{ shopSlug: p.artisanShopSlug, shopName: p.artisanShopName }}
+                  primaryImage={p.primaryImage}
+                  inWishlist={wishlistedIds.has(p.id)}
+                  isSignedIn
+                  artisanAvatarUrl={p.artisanPhotoUrl}
+                  relativeTimeLabel={formatRelativeTime(p.createdAt)}
+                />
+              </li>
+            ))}
+          </ProductGrid>
+
+          {feed.nextCursor && (
+            <div className="mt-12 flex justify-center">
+              <Link
+                href={`/?cursor=${feed.nextCursor}`}
+                className={buttonVariants({ variant: 'outline' })}
+              >
+                Next →
+              </Link>
+            </div>
+          )}
+        </>
+      )}
+
+      {!showFeed && hasFollows && (
+        <EmptyState
+          title="Nothing new from your studios yet"
+          description="The studios you follow haven't shared new work. Meanwhile, here's what's fresh across Balikha."
+        />
+      )}
+
+      {!hasFollows && (
+        <section aria-label="Studios to follow" className="mb-16">
+          <div className="mb-6">
+            <h2 className="font-serif text-2xl tracking-tight">Studios to follow</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Follow a studio and its new work lands here.
+            </p>
+          </div>
+          {studiosToFollow.length === 0 ? (
+            <p className="text-muted-foreground">No studios yet — you are early.</p>
+          ) : (
+            <ul className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-4">
+              {studiosToFollow.map((a) => (
+                <li key={a.id}>
+                  <ArtisanCard artisan={a} productCount={a.productCount} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {fallbackRecent && (
+        <section id="recent" aria-label="Recent works" className="mt-12">
+          <h2 className="mb-6 font-serif text-2xl tracking-tight">Recent works across Balikha</h2>
+          <RecentListingsSection recent={fallbackRecent} isSignedIn wishlistedIds={wishlistedIds} />
+        </section>
+      )}
+
+      {/* Only renders with 4+ tracked views; returns null below the threshold. */}
+      <section className="mt-16">
+        <RecentlyViewedStrip items={recentlyViewed} minItems={4} />
+      </section>
+    </div>
+  );
+}
+
+/** Signed-out homepage: the editorial landing, unchanged by T6. */
+async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
+  // Cursor-paginated. Forward-only: nextCursor lets us build "Next →";
+  // browser back covers "Previous". Stable under concurrent inserts —
+  // a new product appearing between page loads doesn't shift rows around.
+  const recent = await getRecentProducts({ cursor });
 
   // Featured artisans — those with at least one published product, plus a count.
   // Not paginated; this is a "homepage hero" slot. Ordered by most recently
@@ -112,7 +290,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <p className="text-muted-foreground text-sm">
               Make things yourself?{' '}
               <Link
-                href={viewer ? '/dashboard/become-seller' : '/sign-up?intent=seller'}
+                href="/sign-up?intent=seller"
                 className="text-foreground underline-offset-4 hover:underline"
               >
                 Share your work on Balikha
@@ -185,59 +363,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </Link>
             )}
           </div>
-          {recent.items.length === 0 ? (
-            <p className="text-muted-foreground">No products listed yet.</p>
-          ) : (
-            <>
-              <ProductGrid cols={4}>
-                {recent.items.map((p) => {
-                  const profileId = profileIdBySlug.get(p.artisanShopSlug);
-                  const bucket = profileId
-                    ? reputationByProfileId.get(profileId)?.responseTimeBucket
-                    : null;
-                  return (
-                    <li key={p.id}>
-                      <ProductCard
-                        product={{
-                          id: p.id,
-                          slug: p.slug,
-                          title: p.title,
-                          price: p.price,
-                          currency: p.currency,
-                        }}
-                        artisan={{
-                          shopSlug: p.artisanShopSlug,
-                          shopName: p.artisanShopName,
-                        }}
-                        primaryImage={p.primaryImage ?? undefined}
-                        inWishlist={wishlistedIds.has(p.id)}
-                        isSignedIn={viewer !== null}
-                        responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
-                      />
-                    </li>
-                  );
-                })}
-              </ProductGrid>
-
-              {recent.nextCursor && (
-                <div className="mt-12 flex justify-center">
-                  <Link
-                    href={`/?cursor=${recent.nextCursor}#recent`}
-                    className={buttonVariants({ variant: 'outline' })}
-                  >
-                    Next →
-                  </Link>
-                </div>
-              )}
-            </>
-          )}
+          <RecentListingsSection recent={recent} isSignedIn={false} wishlistedIds={new Set()} />
         </div>
-      </section>
-
-      {/* Recently viewed — only renders for signed-in viewers with 4+
-          tracked views. Component returns null below the threshold. */}
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-        <RecentlyViewedStrip items={recentlyViewed} minItems={4} />
       </section>
     </div>
   );

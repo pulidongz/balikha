@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 // enough to communicate the grouping at this scale.
 const ITEMS = [
   { href: '/account', label: 'Home', exact: true },
-  { href: '/account/feed', label: 'New listings', exact: false },
   { href: '/account/wishlist', label: 'Wishlist', exact: false },
   { href: '/account/following', label: 'Following', exact: false },
   { href: '/account/messages', label: 'Messages', exact: false },

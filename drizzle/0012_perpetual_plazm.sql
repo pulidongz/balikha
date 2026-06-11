@@ -1,0 +1,1 @@
+CREATE INDEX "products_artisan_created_idx" ON "products" USING btree ("artisan_profile_id","created_at");
