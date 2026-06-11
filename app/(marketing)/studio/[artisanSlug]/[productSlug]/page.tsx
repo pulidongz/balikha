@@ -340,7 +340,7 @@ export default async function ProductPublicPage({
                   }))}
                   defaultAddressId={defaultAddressId}
                   sellerTrust={sellerTrust}
-                  signInRedirect={workPath(artisan.shopSlug, product.slug)}
+                  productPath={workPath(artisan.shopSlug, product.slug)}
                 />
                 {!isOwnProduct && (
                   <WishlistToggle

@@ -55,3 +55,6 @@ next-env.d.ts
 # dev-mode rendered emails (captured by sendEmail's no-send path)
 /.dev-mail/
 
+
+# brainstorming visual-companion artifacts
+/.superpowers/

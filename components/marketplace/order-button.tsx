@@ -43,12 +43,14 @@ interface OrderButtonProps {
   formattedPrice: string;
   shopName: string;
   // 'in_stock' = render the dialog trigger; 'sold_out' = render disabled label;
-  // 'own_product' = render "Your listing"; 'signed_out' = link to sign-in.
+  // 'own_product' = render "Your listing"; 'signed_out' = render the dialog in guest mode.
   state: 'in_stock' | 'sold_out' | 'own_product' | 'signed_out';
   addresses: AddressOption[];
   defaultAddressId: string | null;
   sellerTrust: SellerTrust;
-  signInRedirect?: string;
+  // Path back to this product (no query string) — used by GuestAuthPanel
+  // to build sign-up/sign-in links that round-trip with ?order=1.
+  productPath: string;
 }
 
 export function OrderButton(props: OrderButtonProps) {
@@ -57,16 +59,6 @@ export function OrderButton(props: OrderButtonProps) {
   }
   if (props.state === 'own_product') {
     return <DisabledStateButton label="Your listing" title="You can't order your own product" />;
-  }
-  if (props.state === 'signed_out') {
-    return (
-      <Link
-        href={`/sign-in${props.signInRedirect ? `?next=${encodeURIComponent(props.signInRedirect)}` : ''}`}
-        className={buttonVariants({ size: 'lg', className: 'flex-1 md:flex-none' })}
-      >
-        Sign in to order
-      </Link>
-    );
   }
   return <OrderDialog {...props} />;
 }
@@ -107,7 +99,7 @@ function OrderSteps({ shopName }: { shopName: string }) {
           return (
             <li key={i} className="flex gap-3">
               <div className="flex flex-col items-center" aria-hidden="true">
-                <span className="border-border text-foreground flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums">
+                <span className="bg-primary text-primary-foreground flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums">
                   {i + 1}
                 </span>
                 {!isLast && <span className="border-border w-0 flex-1 border-l" />}
@@ -145,18 +137,52 @@ function SellerTrustBlock({ trust, shopName }: { trust: SellerTrust; shopName: s
   );
 }
 
+// Shown to signed-out visitors in place of the order form. Sign-up leads:
+// a guest browsing without an account most likely doesn't have one yet.
+// Both links carry ?next= back to this product with ?order=1 appended so
+// the dialog reopens after auth — the same rail ?reorder=1 rides. `next`
+// survives email verification and Google OAuth (see sign-up-form.tsx).
+function GuestAuthPanel({ productPath }: { productPath: string }) {
+  const next = encodeURIComponent(`${productPath}?order=1`);
+  return (
+    <section className="bg-secondary space-y-1 rounded-md p-4">
+      <h3 className="text-sm font-medium">Sign up to send this request</h3>
+      <p className="text-muted-foreground text-sm">
+        It&rsquo;s free &mdash; the maker replies to you directly.
+      </p>
+      <Link href={`/sign-up?next=${next}`} className={buttonVariants({ className: 'mt-2 w-full' })}>
+        Create an account
+      </Link>
+      <p className="text-muted-foreground pt-1 text-center text-sm">
+        Already have one?{' '}
+        <Link
+          href={`/sign-in?next=${next}`}
+          className="text-foreground underline-offset-4 hover:underline"
+        >
+          Sign in
+        </Link>
+      </p>
+    </section>
+  );
+}
+
 function OrderDialog(props: OrderButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // Reorder flow: ReorderButton routes here with ?reorder=1.
   // Thread→order flow: ThreadView's "Order this piece" CTA routes here
-  // with ?threadId=<id> (§6.10a). Both auto-open the dialog by deriving
-  // the INITIAL state from the URL via lazy useState init (computed once
-  // at mount). The follow-up effect strips both params so a refresh
-  // doesn't reopen — no setState inside an effect.
+  // with ?threadId=<id> (§6.10a). Post-auth flow: GuestAuthPanel's
+  // sign-up/sign-in links round-trip back here with ?order=1. All three
+  // auto-open the dialog by deriving the INITIAL state from the URL via
+  // lazy useState init (computed once at mount). The follow-up effect
+  // strips the params so a refresh doesn't reopen — no setState inside
+  // an effect.
   const [open, setOpen] = useState<boolean>(
-    () => searchParams.get('reorder') === '1' || searchParams.get('threadId') !== null,
+    () =>
+      searchParams.get('reorder') === '1' ||
+      searchParams.get('order') === '1' ||
+      searchParams.get('threadId') !== null,
   );
   // threadId carried into placeOrder. Read once at mount — the strip
   // effect below removes it from the URL, so don't re-read it later.
@@ -164,9 +190,14 @@ function OrderDialog(props: OrderButtonProps) {
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (searchParams.get('reorder') === '1' || searchParams.get('threadId') !== null) {
+    if (
+      searchParams.get('reorder') === '1' ||
+      searchParams.get('order') === '1' ||
+      searchParams.get('threadId') !== null
+    ) {
       const next = new URLSearchParams(searchParams.toString());
       next.delete('reorder');
+      next.delete('order');
       next.delete('threadId');
       const query = next.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -180,6 +211,8 @@ function OrderDialog(props: OrderButtonProps) {
   const [notes, setNotes] = useState('');
   const [understood, setUnderstood] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const guest = props.state === 'signed_out';
 
   const noAddresses = props.addresses.length === 0;
   const canSubmit = !pending && understood && addressId !== '' && !noAddresses;
@@ -238,7 +271,8 @@ function OrderDialog(props: OrderButtonProps) {
       <DialogContent className="flex max-h-[calc(100svh-2rem)] flex-col sm:max-w-md">
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Order this piece</DialogTitle>
+            <DialogTitle className="font-serif text-xl">Order this piece</DialogTitle>
+            <div aria-hidden="true" className="bg-accent h-0.5 w-9 rounded-full" />
             <DialogDescription>
               {props.productTitle} from {props.shopName} · {props.formattedPrice}
             </DialogDescription>
@@ -251,7 +285,7 @@ function OrderDialog(props: OrderButtonProps) {
 
             <SellerTrustBlock trust={props.sellerTrust} shopName={props.shopName} />
 
-            <div className="bg-secondary/50 rounded-md p-3 text-sm">
+            <div className="bg-background border-border rounded-md border p-3 text-sm">
               <p className="text-foreground font-medium">You are not locked in</p>
               <p className="text-muted-foreground mt-1">
                 Nothing happens until {props.shopName} accepts. If you cannot agree on payment, they
@@ -260,77 +294,88 @@ function OrderDialog(props: OrderButtonProps) {
               </p>
             </div>
 
-            {noAddresses ? (
-              <div className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
-                You need a shipping address before you can order.{' '}
-                <Link
-                  href="/account/addresses"
-                  className="text-foreground underline-offset-4 hover:underline"
-                >
-                  Add an address
-                </Link>{' '}
-                first, then come back.
-              </div>
+            {guest ? (
+              <GuestAuthPanel productPath={props.productPath} />
             ) : (
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Ship to</legend>
-                <div className="space-y-2">
-                  {props.addresses.map((a) => (
-                    <label
-                      key={a.id}
-                      className="border-input hover:bg-secondary/40 has-checked:bg-secondary/60 has-checked:border-foreground/40 flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
+              <>
+                {noAddresses ? (
+                  <div className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
+                    You need a shipping address before you can order.{' '}
+                    <Link
+                      href={`/account/addresses/new?next=${encodeURIComponent(`${props.productPath}?order=1`)}`}
+                      className="text-foreground underline-offset-4 hover:underline"
                     >
-                      <input
-                        type="radio"
-                        name="shippingAddressId"
-                        value={a.id}
-                        checked={addressId === a.id}
-                        onChange={() => setAddressId(a.id)}
-                        className="mt-1"
-                      />
-                      <div className="text-sm">
-                        <p className="font-medium">
-                          {a.recipientName}
-                          {a.label ? (
-                            <span className="text-muted-foreground"> · {a.label}</span>
-                          ) : null}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {a.line1}, {a.city}, {a.province}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
+                      Add an address
+                    </Link>{' '}
+                    and you&rsquo;ll come right back to this order.
+                  </div>
+                ) : (
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium">Ship to</legend>
+                    <div className="space-y-2">
+                      {props.addresses.map((a) => (
+                        <label
+                          key={a.id}
+                          className="border-input hover:bg-secondary/40 has-checked:bg-secondary/60 has-checked:border-foreground/40 flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
+                        >
+                          <input
+                            type="radio"
+                            name="shippingAddressId"
+                            value={a.id}
+                            checked={addressId === a.id}
+                            onChange={() => setAddressId(a.id)}
+                            className="mt-1"
+                          />
+                          <div className="text-sm">
+                            <p className="font-medium">
+                              {a.recipientName}
+                              {a.label ? (
+                                <span className="text-muted-foreground"> · {a.label}</span>
+                              ) : null}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                              {a.line1}, {a.city}, {a.province}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes-from-buyer">Note to the maker (optional)</Label>
+                  <Textarea
+                    id="notes-from-buyer"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Anything the maker should know: special handling, a delivery preference, a question."
+                    maxLength={2000}
+                    rows={3}
+                  />
                 </div>
-              </fieldset>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="notes-from-buyer">Note to the maker (optional)</Label>
-              <Textarea
-                id="notes-from-buyer"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything the maker should know: special handling, a delivery preference, a question."
-                maxLength={2000}
-                rows={3}
-              />
-            </div>
+                <label className="flex cursor-pointer gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={understood}
+                    onChange={(e) => setUnderstood(e.target.checked)}
+                    className="mt-0.5 size-4 shrink-0"
+                  />
+                  <span>
+                    I understand I&rsquo;ll arrange payment with {props.shopName} directly.
+                  </span>
+                </label>
 
-            <label className="flex cursor-pointer gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={understood}
-                onChange={(e) => setUnderstood(e.target.checked)}
-                className="mt-0.5 size-4 shrink-0"
-              />
-              <span>I understand I&rsquo;ll arrange payment with {props.shopName} directly.</span>
-            </label>
-
-            {error && (
-              <p className="text-destructive bg-destructive/10 rounded-md p-2 text-sm" role="alert">
-                {error}
-              </p>
+                {error && (
+                  <p
+                    className="text-destructive bg-destructive/10 rounded-md p-2 text-sm"
+                    role="alert"
+                  >
+                    {error}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -343,9 +388,11 @@ function OrderDialog(props: OrderButtonProps) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              {pending ? 'Placing…' : 'Place order'}
-            </Button>
+            {!guest && (
+              <Button type="submit" disabled={!canSubmit}>
+                {pending ? 'Placing…' : 'Place order'}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
