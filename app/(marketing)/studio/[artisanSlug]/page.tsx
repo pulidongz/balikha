@@ -63,13 +63,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       title: profile.shopName,
       description,
       url: studioPath(profile.shopSlug),
-      // T2: prefer the cover; fall back to the profile photo. The full
-      // composed OG card is T18.
-      images: profile.bannerImageUrl
-        ? [{ url: profile.bannerImageUrl }]
-        : profile.profilePhotoUrl
-          ? [{ url: profile.profilePhotoUrl }]
-          : undefined,
+      // No images here: the composed share card comes from the sibling
+      // opengraph-image.tsx (T18) — explicit images would override it.
     },
     twitter: { card: 'summary_large_image' },
   };

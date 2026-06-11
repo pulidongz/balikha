@@ -57,13 +57,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const row = await loadProductWithArtisan(artisanSlug, productSlug);
   if (!row) return { title: 'Product not found' };
 
-  const [primary] = await db
-    .select({ url: productImages.url })
-    .from(productImages)
-    .where(eq(productImages.productId, row.product.id))
-    .orderBy(asc(productImages.position))
-    .limit(1);
-
   const description = row.product.description ?? `${row.product.title} by ${row.artisan.shopName}.`;
   return {
     title: `${row.product.title} — ${row.artisan.shopName}`,
@@ -73,7 +66,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       title: row.product.title,
       description,
       url: workPath(row.artisan.shopSlug, row.product.slug),
-      images: primary ? [{ url: primary.url }] : undefined,
+      // No images here: the composed share card comes from the sibling
+      // opengraph-image.tsx (T18).
     },
     twitter: { card: 'summary_large_image' },
   };
