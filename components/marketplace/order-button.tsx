@@ -99,7 +99,7 @@ function OrderSteps({ shopName }: { shopName: string }) {
           return (
             <li key={i} className="flex gap-3">
               <div className="flex flex-col items-center" aria-hidden="true">
-                <span className="border-border text-foreground flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums">
+                <span className="bg-primary text-primary-foreground flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums">
                   {i + 1}
                 </span>
                 {!isLast && <span className="border-border w-0 flex-1 border-l" />}
@@ -271,7 +271,8 @@ function OrderDialog(props: OrderButtonProps) {
       <DialogContent className="flex max-h-[calc(100svh-2rem)] flex-col sm:max-w-md">
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Order this piece</DialogTitle>
+            <DialogTitle className="font-serif text-xl">Order this piece</DialogTitle>
+            <div aria-hidden="true" className="bg-accent h-0.5 w-9 rounded-full" />
             <DialogDescription>
               {props.productTitle} from {props.shopName} · {props.formattedPrice}
             </DialogDescription>
@@ -284,7 +285,7 @@ function OrderDialog(props: OrderButtonProps) {
 
             <SellerTrustBlock trust={props.sellerTrust} shopName={props.shopName} />
 
-            <div className="bg-secondary/50 rounded-md p-3 text-sm">
+            <div className="bg-background border-border rounded-md border p-3 text-sm">
               <p className="text-foreground font-medium">You are not locked in</p>
               <p className="text-muted-foreground mt-1">
                 Nothing happens until {props.shopName} accepts. If you cannot agree on payment, they
