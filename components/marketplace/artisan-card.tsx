@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { initialsOf } from '@/lib/initials';
 import { studioPath } from '@/lib/routes';
+import { isThinCount } from '@/lib/thin-count';
 
 type Props = {
   artisan: {
@@ -38,7 +39,10 @@ export function ArtisanCard({ artisan, productCount }: Props) {
         <h3 className="font-serif text-lg leading-tight">{artisan.shopName}</h3>
         <p className="text-muted-foreground text-xs">
           {artisan.location ?? '—'}
+          {/* Thin-count rule (T12): "· 2 pieces" advertises a sparse
+              studio; the count joins once it carries weight. */}
           {productCount !== undefined &&
+            !isThinCount(productCount) &&
             ` · ${productCount} ${productCount === 1 ? 'piece' : 'pieces'}`}
         </p>
       </div>
