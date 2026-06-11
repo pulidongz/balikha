@@ -330,6 +330,7 @@ export const analyticsEventType = pgEnum('analytics_event_type', [
   'product_viewed',
   'wishlist_added',
   'artisan_followed',
+  'work_appreciated',
   'thread_started',
   'order_placed',
   'order_accepted',
@@ -440,6 +441,29 @@ export const artisanFollows = pgTable(
     primaryKey({ columns: [t.userId, t.artisanProfileId] }),
     index('artisan_follows_artisan_idx').on(t.artisanProfileId),
     index('artisan_follows_user_idx').on(t.userId),
+  ],
+);
+
+// Appreciations (T7): the public, nearly-free response unit — one per
+// user per work. Same shape as artisan_follows: composite PK makes the
+// toggle structurally idempotent. Unlike the wishlist (private save),
+// appreciations feed public counts, notifications (T10), and artist
+// stats (T11).
+export const appreciations = pgTable(
+  'appreciations',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.productId] }),
+    index('appreciations_product_idx').on(t.productId),
+    index('appreciations_user_idx').on(t.userId),
   ],
 );
 

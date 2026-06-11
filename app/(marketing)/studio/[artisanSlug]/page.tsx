@@ -21,6 +21,7 @@ import { PhotoEditDialog } from '@/components/studio/photo-edit-dialog';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { initialsOf } from '@/lib/initials';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
+import { getAppreciationCounts } from '@/lib/queries/appreciations';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { studioPath, workPath } from '@/lib/routes';
 import { organizationJsonLd } from '@/lib/seo/structured-data';
@@ -157,6 +158,7 @@ export default async function ArtisanStorefrontPage({
   const isOwner = viewer !== null && viewer.id === profile.userId;
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const reputation = await getSellerReputationCached(profile.id);
+  const appreciationCounts = await getAppreciationCounts(productList.map((p) => p.id));
 
   const [followerRow] = await db
     .select({ value: count() })
@@ -409,6 +411,7 @@ export default async function ArtisanStorefrontPage({
               isSignedIn={viewer !== null}
               canFeature={isOwner}
               featuredProductId={profile.featuredProductId}
+              appreciationCounts={appreciationCounts}
             />
           ))
         )}

@@ -1,8 +1,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Flower2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { initialsOf } from '@/lib/initials';
 import { workPath } from '@/lib/routes';
+import { isThinCount } from '@/lib/thin-count';
 import { PriceTag } from './price-tag';
 import { WishlistToggle } from './wishlist-toggle';
 
@@ -46,6 +48,10 @@ type Props = {
   // row. Formatted by the caller — same plain-string reasoning as
   // responseTimeLabel.
   relativeTimeLabel?: string;
+  // Appreciation count (T7), shown subtly beside the price. Hidden below
+  // the thin-count threshold (T12) — undefined and a thin count render
+  // identically.
+  appreciationCount?: number;
 };
 
 const DEFAULT_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw';
@@ -65,7 +71,9 @@ export function ProductCard({
   responseTimeLabel,
   artisanAvatarUrl,
   relativeTimeLabel,
+  appreciationCount,
 }: Props) {
+  const showAppreciations = appreciationCount !== undefined && !isThinCount(appreciationCount);
   return (
     <div className="group relative space-y-3">
       <Link
@@ -111,8 +119,19 @@ export function ProductCard({
           {responseTimeLabel && (
             <p className="text-muted-foreground text-xs">Responds within {responseTimeLabel}</p>
           )}
-          {product.price !== null && (
-            <PriceTag price={product.price} currency={product.currency} size="md" />
+          {(product.price !== null || showAppreciations) && (
+            <span className="flex items-center gap-3">
+              {product.price !== null && (
+                <PriceTag price={product.price} currency={product.currency} size="md" />
+              )}
+              {showAppreciations && (
+                <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                  <Flower2 className="h-3.5 w-3.5" aria-hidden />
+                  {appreciationCount}
+                  <span className="sr-only">appreciations</span>
+                </span>
+              )}
+            </span>
           )}
         </div>
       </Link>
