@@ -11,6 +11,7 @@
 **Verification model:** This repo has NO component-test framework (only `tsx` check-scripts for pure logic). Every task verifies with `npm run check` (tsc + eslint + prettier) and the final task runs a manual browser pass. Work on branch `feature/guest-order-modal` (already created; spec is committed there).
 
 **Files touched (whole plan):**
+
 - Modify: `components/marketplace/order-button.tsx` (all tasks)
 - Modify: `app/(marketing)/studio/[artisanSlug]/[productSlug]/page.tsx` (Task 2 only, one prop rename)
 
@@ -21,6 +22,7 @@
 The dialog already auto-opens when the URL has `?reorder=1` or `?threadId=` — initial `open` state is computed once at mount via lazy `useState` init, then an effect strips the params so refresh doesn't reopen. Add `?order=1` to both spots. No visible behavior change yet (nothing links with `?order=1` until Task 2).
 
 **Files:**
+
 - Modify: `components/marketplace/order-button.tsx:158-174`
 
 - [ ] **Step 1: Add `order` to the lazy open-init**
@@ -28,25 +30,25 @@ The dialog already auto-opens when the URL has `?reorder=1` or `?threadId=` — 
 In `OrderDialog`, change the `open` state init:
 
 ```tsx
-  const [open, setOpen] = useState<boolean>(
-    () =>
-      searchParams.get('reorder') === '1' ||
-      searchParams.get('order') === '1' ||
-      searchParams.get('threadId') !== null,
-  );
+const [open, setOpen] = useState<boolean>(
+  () =>
+    searchParams.get('reorder') === '1' ||
+    searchParams.get('order') === '1' ||
+    searchParams.get('threadId') !== null,
+);
 ```
 
 Also update the comment above it — it currently names only the reorder and thread flows. Replace the first sentence block with:
 
 ```tsx
-  // Reorder flow: ReorderButton routes here with ?reorder=1.
-  // Thread→order flow: ThreadView's "Order this piece" CTA routes here
-  // with ?threadId=<id> (§6.10a). Post-auth flow: GuestAuthPanel's
-  // sign-up/sign-in links round-trip back here with ?order=1. All three
-  // auto-open the dialog by deriving the INITIAL state from the URL via
-  // lazy useState init (computed once at mount). The follow-up effect
-  // strips the params so a refresh doesn't reopen — no setState inside
-  // an effect.
+// Reorder flow: ReorderButton routes here with ?reorder=1.
+// Thread→order flow: ThreadView's "Order this piece" CTA routes here
+// with ?threadId=<id> (§6.10a). Post-auth flow: GuestAuthPanel's
+// sign-up/sign-in links round-trip back here with ?order=1. All three
+// auto-open the dialog by deriving the INITIAL state from the URL via
+// lazy useState init (computed once at mount). The follow-up effect
+// strips the params so a refresh doesn't reopen — no setState inside
+// an effect.
 ```
 
 - [ ] **Step 2: Strip `order` in the cleanup effect**
@@ -54,20 +56,20 @@ Also update the comment above it — it currently names only the reorder and thr
 Change the effect body:
 
 ```tsx
-  useEffect(() => {
-    if (
-      searchParams.get('reorder') === '1' ||
-      searchParams.get('order') === '1' ||
-      searchParams.get('threadId') !== null
-    ) {
-      const next = new URLSearchParams(searchParams.toString());
-      next.delete('reorder');
-      next.delete('order');
-      next.delete('threadId');
-      const query = next.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    }
-  }, [searchParams, pathname, router]);
+useEffect(() => {
+  if (
+    searchParams.get('reorder') === '1' ||
+    searchParams.get('order') === '1' ||
+    searchParams.get('threadId') !== null
+  ) {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('reorder');
+    next.delete('order');
+    next.delete('threadId');
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+}, [searchParams, pathname, router]);
 ```
 
 - [ ] **Step 3: Verify gates**
@@ -89,6 +91,7 @@ git commit -m "feat(order): auto-open order dialog from ?order=1 param"
 Replace the `signed_out` early-return link with the dialog in guest mode. The `signInRedirect?: string` prop becomes a required `productPath: string` (the product page already passes `workPath(...)` unconditionally). Guests see explainer → trust → "not locked in" → `GuestAuthPanel`; the address fieldset, notes, checkbox, error slot, and submit button do not render.
 
 **Files:**
+
 - Modify: `components/marketplace/order-button.tsx`
 - Modify: `app/(marketing)/studio/[artisanSlug]/[productSlug]/page.tsx:343`
 
@@ -97,9 +100,9 @@ Replace the `signed_out` early-return link with the dialog in guest mode. The `s
 Replace `signInRedirect?: string;` with:
 
 ```tsx
-  // Path back to this product (no query string) — used by GuestAuthPanel
-  // to build sign-up/sign-in links that round-trip with ?order=1.
-  productPath: string;
+// Path back to this product (no query string) — used by GuestAuthPanel
+// to build sign-up/sign-in links that round-trip with ?order=1.
+productPath: string;
 ```
 
 - [ ] **Step 2: Delete the `signed_out` early return in `OrderButton`**
@@ -107,16 +110,16 @@ Replace `signInRedirect?: string;` with:
 Remove this block entirely (the `signed_out` state now falls through to `<OrderDialog {...props} />`):
 
 ```tsx
-  if (props.state === 'signed_out') {
-    return (
-      <Link
-        href={`/sign-in${props.signInRedirect ? `?next=${encodeURIComponent(props.signInRedirect)}` : ''}`}
-        className={buttonVariants({ size: 'lg', className: 'flex-1 md:flex-none' })}
-      >
-        Sign in to order
-      </Link>
-    );
-  }
+if (props.state === 'signed_out') {
+  return (
+    <Link
+      href={`/sign-in${props.signInRedirect ? `?next=${encodeURIComponent(props.signInRedirect)}` : ''}`}
+      className={buttonVariants({ size: 'lg', className: 'flex-1 md:flex-none' })}
+    >
+      Sign in to order
+    </Link>
+  );
+}
 ```
 
 Keep the `Link` and `buttonVariants` imports — both are still used (no-addresses notice, `DisabledStateButton`, and the new panel below).
@@ -161,7 +164,7 @@ function GuestAuthPanel({ productPath }: { productPath: string }) {
 At the top of `OrderDialog`, after the hook declarations (the hooks all stay unconditional — React requires it; the form state is simply unused for guests):
 
 ```tsx
-  const guest = props.state === 'signed_out';
+const guest = props.state === 'signed_out';
 ```
 
 In the JSX body, wrap the form-only content. The explainer, trust block, and "not locked in" panel stay shared; everything from the address logic through the error slot becomes the signed-in branch:
@@ -191,21 +194,16 @@ In the JSX body, wrap the form-only content. The explainer, trust block, and "no
 In the footer, render the submit only for signed-in:
 
 ```tsx
-          <DialogFooter className="shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={pending}
-            >
-              Cancel
-            </Button>
-            {!guest && (
-              <Button type="submit" disabled={!canSubmit}>
-                {pending ? 'Placing…' : 'Place order'}
-              </Button>
-            )}
-          </DialogFooter>
+<DialogFooter className="shrink-0">
+  <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+    Cancel
+  </Button>
+  {!guest && (
+    <Button type="submit" disabled={!canSubmit}>
+      {pending ? 'Placing…' : 'Place order'}
+    </Button>
+  )}
+</DialogFooter>
 ```
 
 The `<form>` wrapper stays for both branches; with no submit button rendered and `canSubmit` false (no address, unchecked consent), `placeOrder` is unreachable for guests — matching the server action's own auth guard.
@@ -249,6 +247,7 @@ git commit -m "feat(order): open order dialog for guests with sign-up callout"
 Three styling changes inside `order-button.tsx`, applying to both guest and signed-in states. No structural changes.
 
 **Files:**
+
 - Modify: `components/marketplace/order-button.tsx`
 
 - [ ] **Step 1: Serif title + vermilion accent rule**
