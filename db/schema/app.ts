@@ -328,6 +328,7 @@ export const searchEvents = pgTable(
 // them as at-least-once and aggregate by DISTINCT artisan_profile_id.
 export const analyticsEventType = pgEnum('analytics_event_type', [
   'product_viewed',
+  'studio_viewed',
   'wishlist_added',
   'artisan_followed',
   'work_appreciated',

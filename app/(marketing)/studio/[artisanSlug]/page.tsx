@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanFollows, artisanProfiles, catalogs, productImages, products } from '@/db/schema';
@@ -24,6 +25,7 @@ import { initialsOf } from '@/lib/initials';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getAppreciationCounts } from '@/lib/queries/appreciations';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 import { studioPath, workPath } from '@/lib/routes';
 import { organizationJsonLd } from '@/lib/seo/structured-data';
 import { isThinCount } from '@/lib/thin-count';
@@ -157,6 +159,22 @@ export default async function ArtisanStorefrontPage({
 
   const viewer = await getCurrentUser();
   const isOwner = viewer !== null && viewer.id === profile.userId;
+
+  // T11 view tracking. after() so the page render never waits on it;
+  // logAnalyticsEvent owns its try/catch. Owner visits don't count —
+  // checking your own page is not traction.
+  if (!isOwner) {
+    after(() =>
+      logAnalyticsEvent({
+        type: 'studio_viewed',
+        userId: viewer?.id ?? null,
+        artisanProfileId: profile.id,
+        entityType: 'artisan',
+        entityId: profile.id,
+      }),
+    );
+  }
+
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const reputation = await getSellerReputationCached(profile.id);
   const appreciationCounts = await getAppreciationCounts(productList.map((p) => p.id));
