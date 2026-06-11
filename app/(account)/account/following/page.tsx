@@ -57,7 +57,12 @@ export default async function FollowingPage() {
           {list.map((a) => (
             <li key={a.id} className="space-y-3">
               <ArtisanCard artisan={a} />
-              <FollowToggle artisanProfileId={a.id} initiallyFollowing isSignedIn />
+              <FollowToggle
+                artisanProfileId={a.id}
+                initiallyFollowing
+                isSignedIn
+                pendingFollowId={null}
+              />
             </li>
           ))}
         </ul>
