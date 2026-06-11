@@ -1,15 +1,12 @@
 import Link from 'next/link';
-import { count, desc, inArray } from 'drizzle-orm';
-import { db } from '@/db';
-import { adminActions, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
+import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
+import { parsePageParam } from '@/lib/queries/admin-params';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Audit Log — Admin',
 };
-
-const PAGE_SIZE = 50;
 
 const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
   year: 'numeric',
@@ -28,12 +25,6 @@ const ACTION_PILL: Record<string, string> = {
   demote_admin: 'bg-gray-100 text-gray-700',
 };
 
-function parsePage(raw: string | string[] | undefined): number {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  const n = Number.parseInt(value ?? '1', 10);
-  return Number.isFinite(n) && n > 0 ? n : 1;
-}
-
 export default async function AdminAuditLogPage({
   searchParams,
 }: {
@@ -41,47 +32,9 @@ export default async function AdminAuditLogPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const page = parsePage(params.page);
-  const offset = (page - 1) * PAGE_SIZE;
+  const page = parsePageParam(params.page);
 
-  const [list, totalRow] = await Promise.all([
-    db
-      .select({
-        id: adminActions.id,
-        action: adminActions.action,
-        reason: adminActions.reason,
-        createdAt: adminActions.createdAt,
-        actorId: adminActions.actorUserId,
-        targetId: adminActions.targetUserId,
-      })
-      .from(adminActions)
-      .orderBy(desc(adminActions.createdAt))
-      .limit(PAGE_SIZE)
-      .offset(offset),
-    db.select({ value: count() }).from(adminActions),
-  ]);
-
-  // Collect all referenced user ids and resolve names + emails in one query.
-  const allUserIds = Array.from(
-    new Set(list.flatMap((r) => [r.actorId, r.targetId]).filter((id): id is string => id !== null)),
-  );
-
-  const userNameMap = new Map<string, string>();
-  const userEmailMap = new Map<string, string>();
-
-  if (allUserIds.length > 0) {
-    const users = await db
-      .select({ id: user.id, name: user.name, email: user.email })
-      .from(user)
-      .where(inArray(user.id, allUserIds));
-    for (const u of users) {
-      userNameMap.set(u.id, u.name);
-      userEmailMap.set(u.id, u.email);
-    }
-  }
-
-  const total = totalRow[0]?.value ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const { list, total, totalPages, usersById } = await getAdminAuditLog(page);
 
   function pageHref(p: number) {
     if (p <= 1) return '/admin/audit-log';
@@ -108,13 +61,13 @@ export default async function AdminAuditLogPage({
         <ul className="space-y-2">
           {list.map((entry) => {
             const actorName = entry.actorId
-              ? (userNameMap.get(entry.actorId) ?? 'deleted user')
+              ? (usersById.get(entry.actorId)?.name ?? 'deleted user')
               : 'system';
-            const actorEmail = entry.actorId ? (userEmailMap.get(entry.actorId) ?? '') : '';
+            const actorEmail = entry.actorId ? (usersById.get(entry.actorId)?.email ?? '') : '';
             const targetName = entry.targetId
-              ? (userNameMap.get(entry.targetId) ?? 'deleted user')
+              ? (usersById.get(entry.targetId)?.name ?? 'deleted user')
               : '—';
-            const targetEmail = entry.targetId ? (userEmailMap.get(entry.targetId) ?? '') : '';
+            const targetEmail = entry.targetId ? (usersById.get(entry.targetId)?.email ?? '') : '';
             return (
               <li
                 key={entry.id}

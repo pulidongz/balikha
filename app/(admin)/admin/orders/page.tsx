@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { and, count, desc, eq, inArray, type SQL } from 'drizzle-orm';
-import { db } from '@/db';
-import { orders } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { formatPrice, formatRelativeTime } from '@/lib/format';
+import {
+  type AdminOrderFilter,
+  getAdminOrders,
+  parseOrderFilter,
+} from '@/lib/queries/admin-orders';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { cn } from '@/lib/utils';
 
@@ -11,46 +13,7 @@ export const metadata = {
   title: 'Orders — Admin',
 };
 
-const PAGE_SIZE = 100;
-
-type AdminFilter = 'all' | 'disputed' | 'in_progress' | 'completed' | 'cancelled';
-
-function statusesForFilter(filter: AdminFilter): readonly string[] | null {
-  switch (filter) {
-    case 'all':
-      return null;
-    case 'disputed':
-      return ['disputed'];
-    case 'in_progress':
-      return [
-        'pending_seller_response',
-        'pending_payment_arrangement',
-        'payment_received',
-        'shipped',
-      ];
-    case 'completed':
-      return ['completed'];
-    case 'cancelled':
-      return ['cancelled_by_buyer', 'cancelled_by_seller', 'auto_cancelled'];
-  }
-}
-
-function parseFilter(raw: string | string[] | undefined): AdminFilter {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  switch (value) {
-    case 'all':
-    case 'in_progress':
-    case 'completed':
-    case 'cancelled':
-      return value;
-    case 'disputed':
-    case undefined:
-    default:
-      return 'disputed';
-  }
-}
-
-const TABS: readonly { value: AdminFilter; label: string }[] = [
+const TABS: readonly { value: AdminOrderFilter; label: string }[] = [
   { value: 'disputed', label: 'Disputed' },
   { value: 'in_progress', label: 'In progress' },
   { value: 'all', label: 'All' },
@@ -65,33 +28,9 @@ export default async function AdminOrdersPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const filter = parseFilter(params.status);
-  const statuses = statusesForFilter(filter);
+  const filter = parseOrderFilter(params.status);
 
-  const whereClauses: SQL[] = [];
-  if (statuses) {
-    whereClauses.push(inArray(orders.status, statuses as readonly (typeof orders.status._.data)[]));
-  }
-
-  const [list, disputedCountRow] = await Promise.all([
-    db
-      .select({
-        id: orders.id,
-        reference: orders.reference,
-        status: orders.status,
-        productTitleSnapshot: orders.productTitleSnapshot,
-        priceSnapshot: orders.priceSnapshot,
-        currency: orders.currency,
-        placedAt: orders.placedAt,
-      })
-      .from(orders)
-      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
-      .orderBy(desc(orders.placedAt))
-      .limit(PAGE_SIZE),
-    db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
-  ]);
-
-  const disputedCount = disputedCountRow[0]?.value ?? 0;
+  const { list, disputedCount } = await getAdminOrders(filter);
 
   return (
     <div className="space-y-6">
