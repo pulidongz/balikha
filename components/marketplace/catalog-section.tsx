@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { FeatureWorkButton } from '@/components/studio/feature-work-button';
+import { isThinCount } from '@/lib/thin-count';
 import { ProductCard } from './product-card';
 import { ProductGrid } from './product-grid';
 
@@ -55,9 +56,12 @@ export function CatalogSection({
           <h2 className="font-serif text-2xl tracking-tight">{catalog.title}</h2>
           {catalog.isLimitedEdition && <Badge variant="limited">Limited</Badge>}
         </div>
-        <p className="text-muted-foreground text-sm">
-          {products.length} {products.length === 1 ? 'piece' : 'pieces'}
-        </p>
+        {/* Thin-count rule (T12). */}
+        {!isThinCount(products.length) && (
+          <p className="text-muted-foreground text-sm">
+            {products.length} {products.length === 1 ? 'piece' : 'pieces'}
+          </p>
+        )}
       </div>
       {catalog.description && (
         <p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">

@@ -18,6 +18,7 @@ import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
 import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
 import { formatRelativeTime } from '@/lib/format';
+import { isThinCount } from '@/lib/thin-count';
 import type { Page } from '@/lib/queries/paginate';
 
 // Previously cached for 5 min, but personalized wishlist hearts make this
@@ -74,7 +75,18 @@ async function RecentListingsSection({
   const appreciationCounts = await getAppreciationCounts(recent.items.map((p) => p.id));
 
   if (recent.items.length === 0) {
-    return <p className="text-muted-foreground">No products listed yet.</p>;
+    return (
+      <p className="text-muted-foreground">
+        The first pieces are still on the wheel.{' '}
+        <Link
+          href="/sign-up?intent=seller"
+          className="text-foreground underline underline-offset-4"
+        >
+          Share your work on Balikha
+        </Link>{' '}
+        and open the catalog.
+      </p>
+    );
   }
 
   return (
@@ -342,11 +354,13 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
       <section id="artisans" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
         <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="font-serif text-3xl tracking-tight">Featured artisans</h2>
-          <p className="text-muted-foreground text-sm">
-            {featuredArtisans.length === 0
-              ? 'No studios yet.'
-              : `${featuredArtisans.length} ${featuredArtisans.length === 1 ? 'studio' : 'studios'}`}
-          </p>
+          {/* Thin-count rule (T12): a "2 studios" headline advertises the
+              cold start. The grid speaks for itself until the count does. */}
+          {!isThinCount(featuredArtisans.length) && (
+            <p className="text-muted-foreground text-sm">
+              {featuredArtisans.length} {featuredArtisans.length === 1 ? 'studio' : 'studios'}
+            </p>
+          )}
         </div>
         {featuredArtisans.length === 0 ? (
           <p className="text-muted-foreground">

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { formatRelativeTime } from '@/lib/format';
 import { getWorkComments } from '@/lib/queries/comments';
+import { isThinCount } from '@/lib/thin-count';
 import { CommentForm } from './comment-form';
 import { CommentItemActions } from './comment-item-actions';
 
@@ -28,7 +29,9 @@ export async function CommentsSection({
     <section aria-label="Comments" className="space-y-6 border-t pt-8">
       <h2 className="font-serif text-2xl tracking-tight">
         Conversation
-        {comments.length > 0 && (
+        {/* Thin-count rule (T12): the list shows itself; the numeral
+            joins once it stops underlining how quiet things are. */}
+        {!isThinCount(comments.length) && (
           <span className="text-muted-foreground ml-2 text-base">{comments.length}</span>
         )}
       </h2>
