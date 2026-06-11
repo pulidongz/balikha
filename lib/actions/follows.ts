@@ -4,11 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanFollows } from '@/db/schema';
+import { artisanFollows, artisanProfiles } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
+import { emitDedupedNotification } from '@/lib/notifications/emit';
+import { studioPath } from '@/lib/routes';
 
 const toggleSchema = z.object({
   artisanProfileId: z.string().uuid(),
@@ -44,6 +46,24 @@ export async function toggleFollowAction(input: unknown): Promise<Result<{ follo
       entityType: 'artisan',
       entityId: artisanProfileId,
     });
+
+    // T10: tell the artist. ANONYMOUS by design — sellers must never see
+    // follower identities (see artisan_follows docblock). Deduped on
+    // unread so follow/unfollow toggling doesn't stack rows.
+    const [studio] = await db
+      .select({ ownerUserId: artisanProfiles.userId, shopSlug: artisanProfiles.shopSlug })
+      .from(artisanProfiles)
+      .where(eq(artisanProfiles.id, artisanProfileId))
+      .limit(1);
+    if (studio && studio.ownerUserId !== current.id) {
+      await emitDedupedNotification({
+        userId: studio.ownerUserId,
+        type: 'new_follower',
+        title: 'Someone new follows your studio',
+        body: 'Your work is reaching people — new followers see your updates and listings in their feed.',
+        target: { kind: 'studio', id: artisanProfileId, url: studioPath(studio.shopSlug) },
+      });
+    }
   } else {
     await db
       .delete(artisanFollows)

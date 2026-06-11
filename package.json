@@ -24,6 +24,7 @@
     "email:test": "tsx --env-file=.env.development db/scripts/send-test-email.tsx",
     "email:preview:notifications": "tsx --env-file=.env.development db/scripts/preview-notification-emails.tsx",
     "orders:tick": "tsx --env-file=.env.development db/scripts/orders-tick.ts",
+    "digest:weekly": "tsx --env-file=.env.development db/scripts/send-weekly-digest.ts",
     "admin:bootstrap": "tsx --env-file=.env.development db/scripts/bootstrap-admin.ts",
     "test:images": "tsx scripts/check-sanitize-image.ts",
     "test:sentry": "tsx scripts/check-sentry-scrub.ts",

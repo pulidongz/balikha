@@ -1,4 +1,4 @@
-import type { InferInsertModel } from 'drizzle-orm';
+import { and, eq, isNull, sql, type InferInsertModel } from 'drizzle-orm';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
 import { logger } from '@/lib/logger';
@@ -26,5 +26,42 @@ export async function emitNotifications(
     await db.insert(notifications).values(items);
   } catch (e) {
     logger.error({ err: e, count: items.length }, 'emitNotifications failed');
+  }
+}
+
+/**
+ * Emit unless an UNREAD notification with the same (user, type, target.id)
+ * already exists — the toggle-spam guard for T10's traction signals
+ * (follow/unfollow/follow must not stack rows the artist clears one by
+ * one). Mirrors the new_message one-unread-per-thread behavior, but
+ * app-level: target is jsonb, so the messages-style partial unique index
+ * isn't available. The check-then-insert race is acceptable — the loser
+ * adds one duplicate row, never breaks the action.
+ *
+ * Same error contract as emitNotifications: log and continue, never
+ * bubble into the already-committed user action.
+ */
+export async function emitDedupedNotification(
+  item: Omit<NotificationInsert, 'id' | 'createdAt' | 'readAt'> & {
+    target: { kind: string; id: string; url?: string };
+  },
+): Promise<void> {
+  try {
+    const [existing] = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, item.userId),
+          eq(notifications.type, item.type),
+          isNull(notifications.readAt),
+          sql`${notifications.target}->>'id' = ${item.target.id}`,
+        ),
+      )
+      .limit(1);
+    if (existing) return;
+    await db.insert(notifications).values(item);
+  } catch (e) {
+    logger.error({ err: e, type: item.type }, 'emitDedupedNotification failed');
   }
 }

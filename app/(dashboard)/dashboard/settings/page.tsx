@@ -1,6 +1,10 @@
 import Link from 'next/link';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { emailDigestOptOuts } from '@/db/schema';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BannerUploader } from '@/components/dashboard/banner-uploader';
+import { DigestPreferenceToggle } from '@/components/dashboard/digest-preference-toggle';
 import { SettingsForm } from '@/components/dashboard/settings-form';
 import { requireSellerProfile } from '@/lib/auth-helpers';
 import { studioPath } from '@/lib/routes';
@@ -11,6 +15,13 @@ export const metadata = {
 
 export default async function SettingsPage() {
   const profile = await requireSellerProfile();
+
+  const [optOut] = await db
+    .select({ userId: emailDigestOptOuts.userId })
+    .from(emailDigestOptOuts)
+    .where(eq(emailDigestOptOuts.userId, profile.userId))
+    .limit(1);
+  const digestEnabled = !optOut;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-10 sm:px-6">
@@ -77,6 +88,16 @@ export default async function SettingsPage() {
           >
             Manage blocked buyers →
           </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-xl">Notifications</CardTitle>
+          <CardDescription>How Balikha keeps you posted about your studio.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DigestPreferenceToggle initiallyEnabled={digestEnabled} />
         </CardContent>
       </Card>
     </div>

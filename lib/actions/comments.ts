@@ -8,6 +8,8 @@ import { getCurrentUser, tryRequireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { COMMENT_MAX_LENGTH } from '@/lib/comments/constants';
+import { emitDedupedNotification } from '@/lib/notifications/emit';
+import { workPath } from '@/lib/routes';
 
 // Abuse guards (T8). Burst limit catches rapid-fire spam; the daily cap
 // bounds total volume. Tune in code if observed in production — same
@@ -45,10 +47,18 @@ export async function postWorkCommentAction(
 
   const { productId, body } = parsed.data;
 
-  // Comments only land on published works.
+  // Comments only land on published works. Owner + slugs come along for
+  // the notification below.
   const [work] = await db
-    .select({ id: products.id })
+    .select({
+      id: products.id,
+      title: products.title,
+      slug: products.slug,
+      ownerUserId: artisanProfiles.userId,
+      shopSlug: artisanProfiles.shopSlug,
+    })
     .from(products)
+    .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
     .where(and(eq(products.id, productId), eq(products.status, 'published')))
     .limit(1);
   if (!work) return err('That work could not be found.');
@@ -69,6 +79,20 @@ export async function postWorkCommentAction(
   if (!inserted) return err('Could not post your comment. Please try again.');
 
   log.info({ userId: current.id, productId, commentId: inserted.id }, 'Comment posted');
+
+  // T10: tell the artist — unless they commented on their own work.
+  // Comments are public with names, so the notification names the author.
+  // Deduped on unread per work: a burst of comments reads as one row.
+  if (work.ownerUserId !== current.id) {
+    await emitDedupedNotification({
+      userId: work.ownerUserId,
+      type: 'work_commented',
+      title: `${current.name} commented on “${work.title}”`,
+      body: body.slice(0, 120),
+      target: { kind: 'product', id: productId, url: workPath(work.shopSlug, work.slug) },
+    });
+  }
+
   return ok({ id: inserted.id, createdAt: inserted.createdAt.toISOString() });
 }
 
