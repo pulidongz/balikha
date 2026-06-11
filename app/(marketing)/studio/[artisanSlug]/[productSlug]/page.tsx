@@ -8,6 +8,7 @@ import { artisanProfiles, productImages, products, userAddresses } from '@/db/sc
 import { env } from '@/env';
 import { Badge } from '@/components/ui/badge';
 import { AppreciateButton } from '@/components/marketplace/appreciate-button';
+import { CommentsSection } from '@/components/marketplace/comments-section';
 import { OrderButton } from '@/components/marketplace/order-button';
 import { AskTheMakerButton } from '@/components/marketplace/ask-the-maker-button';
 import { PriceTag } from '@/components/marketplace/price-tag';
@@ -460,6 +461,13 @@ export default async function ProductPublicPage({
               </div>
             )}
           </dl>
+
+          <CommentsSection
+            productId={product.id}
+            workPathname={workPath(artisan.shopSlug, product.slug)}
+            viewerUserId={viewer?.id ?? null}
+            ownerUserId={artisan.userId}
+          />
         </section>
       </div>
 
