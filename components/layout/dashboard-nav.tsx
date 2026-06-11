@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Folder, LayoutDashboard, MessageCircle, Settings, ShoppingBag } from 'lucide-react';
+import {
+  BarChart3,
+  Folder,
+  LayoutDashboard,
+  MessageCircle,
+  Settings,
+  ShoppingBag,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ITEMS = [
@@ -10,6 +17,7 @@ const ITEMS = [
   { href: '/dashboard/orders', label: 'Orders', Icon: ShoppingBag, exact: false },
   { href: '/dashboard/messages', label: 'Messages', Icon: MessageCircle, exact: false },
   { href: '/dashboard/catalogs', label: 'Catalogs', Icon: Folder, exact: false },
+  { href: '/dashboard/stats', label: 'Stats', Icon: BarChart3, exact: false },
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings, exact: false },
 ] as const;
 

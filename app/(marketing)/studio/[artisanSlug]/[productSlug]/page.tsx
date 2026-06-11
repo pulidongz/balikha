@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products, userAddresses } from '@/db/schema';
@@ -21,6 +22,7 @@ import { formatPrice } from '@/lib/format';
 import { getAppreciationCounts, hasAppreciated } from '@/lib/queries/appreciations';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
+import { logAnalyticsEvent } from '@/lib/analytics/log';
 import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
 import { studioPath, workPath } from '@/lib/routes';
 import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo/structured-data';
@@ -103,6 +105,20 @@ export default async function ProductPublicPage({
   // errors so a tracking failure can't break the product page render.
   // No-op for anonymous viewers (helper checks current user).
   await recordRecentlyViewedAction({ productId: product.id });
+
+  // T11: anonymous views (recordRecentlyViewedAction only covers
+  // signed-in viewers). after() keeps it off the render path; owner
+  // self-views are excluded at stats-query time by user id.
+  if (!viewer) {
+    after(() =>
+      logAnalyticsEvent({
+        type: 'product_viewed',
+        userId: null,
+        entityType: 'product',
+        entityId: product.id,
+      }),
+    );
+  }
 
   const images = await db
     .select({
