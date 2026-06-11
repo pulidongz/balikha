@@ -11,6 +11,7 @@ import { ProductGrid } from '@/components/marketplace/product-grid';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 import { UpdateCard } from '@/components/marketplace/update-card';
 import { getAppreciationCounts } from '@/lib/queries/appreciations';
+import { getEditorialFeature } from '@/lib/queries/editorial-feature';
 import { getRecentProducts, type RecentProductRow } from '@/lib/queries/products';
 import { getFollowedFeed, getStudiosToFollow, followsAnyStudio } from '@/lib/queries/feed';
 import { getCurrentUser } from '@/lib/auth-helpers';
@@ -18,6 +19,7 @@ import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
 import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
 import { formatRelativeTime } from '@/lib/format';
+import { studioPath } from '@/lib/routes';
 import { isThinCount } from '@/lib/thin-count';
 import type { Page } from '@/lib/queries/paginate';
 
@@ -252,12 +254,13 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
   );
 }
 
-/** Signed-out homepage: the editorial landing, unchanged by T6. */
+/** Signed-out homepage: the editorial landing. */
 async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
   // Cursor-paginated. Forward-only: nextCursor lets us build "Next →";
   // browser back covers "Previous". Stable under concurrent inserts —
   // a new product appearing between page loads doesn't shift rows around.
   const recent = await getRecentProducts({ cursor });
+  const feature = await getEditorialFeature();
 
   // Featured artisans — those with at least one published product, plus a count.
   // Not paginated; this is a "homepage hero" slot. Ordered by most recently
@@ -349,6 +352,82 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
           )}
         </div>
       </section>
+
+      {/* Editorial feature (T15) — founder-curated, never paid. Magazine
+          treatment, deliberately distinct from the auto-populated grids:
+          this is the gallery's wall text, not a sponsored card. */}
+      {feature && (
+        <section aria-label="In focus" className="bg-secondary/30 border-b">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
+            <p className="text-accent text-xs font-medium tracking-[0.2em] uppercase">In focus</p>
+            {feature.artisan && (
+              <div className="mt-6 grid gap-8 md:grid-cols-12 md:items-center">
+                {feature.artisan.bannerImageUrl && (
+                  <div className="md:col-span-5">
+                    <div className="bg-secondary relative aspect-[4/3] overflow-hidden rounded-lg">
+                      <Image
+                        src={feature.artisan.bannerImageUrl}
+                        alt={feature.artisan.shopName}
+                        fill
+                        sizes="(min-width: 768px) 40vw, 100vw"
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={
+                    feature.artisan.bannerImageUrl ? 'space-y-4 md:col-span-7' : 'space-y-4'
+                  }
+                >
+                  <h2 className="font-serif text-3xl tracking-tight md:text-4xl">
+                    {feature.artisan.shopName}
+                  </h2>
+                  {feature.artisan.location && (
+                    <p className="text-muted-foreground text-sm">{feature.artisan.location}</p>
+                  )}
+                  {feature.editorialText && (
+                    <p className="max-w-xl font-serif text-lg leading-relaxed">
+                      {feature.editorialText}
+                    </p>
+                  )}
+                  <Link
+                    href={studioPath(feature.artisan.shopSlug)}
+                    className={buttonVariants({ variant: 'outline' })}
+                  >
+                    Visit the studio →
+                  </Link>
+                </div>
+              </div>
+            )}
+            {feature.works.length > 0 && (
+              <div className="mt-12">
+                <h3 className="text-muted-foreground mb-6 text-sm tracking-wider uppercase">
+                  Selected works
+                </h3>
+                <ProductGrid cols={4}>
+                  {feature.works.map((w) => (
+                    <li key={w.id}>
+                      <ProductCard
+                        product={{
+                          id: w.id,
+                          slug: w.slug,
+                          title: w.title,
+                          price: w.price,
+                          currency: w.currency,
+                        }}
+                        artisan={{ shopSlug: w.artisanShopSlug, shopName: w.artisanShopName }}
+                        primaryImage={w.primaryImage}
+                        isSignedIn={false}
+                      />
+                    </li>
+                  ))}
+                </ProductGrid>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Featured artisans */}
       <section id="artisans" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
