@@ -1,31 +1,16 @@
 import Link from 'next/link';
-import { count, desc, eq } from 'drizzle-orm';
-import { db } from '@/db';
-import { artisanProfiles, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { formatRelativeTime } from '@/lib/format';
+import {
+  type ApprovalFilter,
+  getAdminSellerApplications,
+  parseApprovalFilter,
+} from '@/lib/queries/admin-sellers';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Artist Applications — Admin',
 };
-
-const PAGE_SIZE = 100;
-
-type ApprovalFilter = 'pending' | 'approved' | 'rejected';
-
-function parseFilter(raw: string | string[] | undefined): ApprovalFilter {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  switch (value) {
-    case 'approved':
-    case 'rejected':
-      return value;
-    case 'pending':
-    case undefined:
-    default:
-      return 'pending';
-  }
-}
 
 const TABS: readonly { value: ApprovalFilter; label: string }[] = [
   { value: 'pending', label: 'Pending' },
@@ -46,30 +31,9 @@ export default async function AdminSellersPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const filter = parseFilter(params.status);
+  const filter = parseApprovalFilter(params.status);
 
-  const [list, pendingCountRow] = await Promise.all([
-    db
-      .select({
-        id: artisanProfiles.id,
-        shopName: artisanProfiles.shopName,
-        approvalStatus: artisanProfiles.approvalStatus,
-        createdAt: artisanProfiles.createdAt,
-        applicantName: user.name,
-        applicantEmail: user.email,
-      })
-      .from(artisanProfiles)
-      .innerJoin(user, eq(user.id, artisanProfiles.userId))
-      .where(eq(artisanProfiles.approvalStatus, filter))
-      .orderBy(desc(artisanProfiles.createdAt))
-      .limit(PAGE_SIZE),
-    db
-      .select({ value: count() })
-      .from(artisanProfiles)
-      .where(eq(artisanProfiles.approvalStatus, 'pending')),
-  ]);
-
-  const pendingCount = pendingCountRow[0]?.value ?? 0;
+  const { list, pendingCount } = await getAdminSellerApplications(filter);
 
   return (
     <div className="space-y-6">

@@ -1,9 +1,12 @@
 import Link from 'next/link';
-import { and, count, desc, eq, ilike, type SQL } from 'drizzle-orm';
-import { db } from '@/db';
-import { artisanProfiles, products } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { formatRelativeTime } from '@/lib/format';
+import { parsePageParam, parseSearchParam } from '@/lib/queries/admin-params';
+import {
+  type AdminProductFilter,
+  getAdminProducts,
+  parseProductFilter,
+} from '@/lib/queries/admin-products';
 import { workPath } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 import { AdminProductActions } from '@/components/admin/admin-product-actions';
@@ -12,35 +15,7 @@ export const metadata = {
   title: 'Products — Admin',
 };
 
-const PAGE_SIZE = 50;
-
-type ProductFilter = 'all' | 'live' | 'flagged' | 'removed';
-
-function parseFilter(raw: string | string[] | undefined): ProductFilter {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  switch (value) {
-    case 'all':
-    case 'live':
-    case 'flagged':
-    case 'removed':
-      return value;
-    default:
-      return 'all';
-  }
-}
-
-function parsePage(raw: string | string[] | undefined): number {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  const n = Number.parseInt(value ?? '1', 10);
-  return Number.isFinite(n) && n > 0 ? n : 1;
-}
-
-function parseSearch(raw: string | string[] | undefined): string {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-const TABS: readonly { value: ProductFilter; label: string }[] = [
+const TABS: readonly { value: AdminProductFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'live', label: 'Live' },
   { value: 'flagged', label: 'Flagged' },
@@ -63,60 +38,11 @@ export default async function AdminProductsPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const search = parseSearch(params.q);
-  const page = parsePage(params.page);
-  const filter = parseFilter(params.filter);
-  const offset = (page - 1) * PAGE_SIZE;
+  const search = parseSearchParam(params.q);
+  const page = parsePageParam(params.page);
+  const filter = parseProductFilter(params.filter);
 
-  const whereClauses: SQL[] = [];
-
-  if (search.length > 0) {
-    whereClauses.push(ilike(products.title, `%${search}%`));
-  }
-
-  switch (filter) {
-    case 'all':
-      break;
-    case 'live':
-      whereClauses.push(eq(products.status, 'published'));
-      break;
-    case 'flagged':
-      whereClauses.push(eq(products.moderationStatus, 'flagged'));
-      break;
-    case 'removed':
-      whereClauses.push(eq(products.moderationStatus, 'removed'));
-      break;
-  }
-
-  const whereExpr = whereClauses.length > 0 ? and(...whereClauses) : undefined;
-
-  const [list, totalRow] = await Promise.all([
-    db
-      .select({
-        id: products.id,
-        title: products.title,
-        slug: products.slug,
-        status: products.status,
-        moderationStatus: products.moderationStatus,
-        createdAt: products.createdAt,
-        shopName: artisanProfiles.shopName,
-        artisanSlug: artisanProfiles.shopSlug,
-      })
-      .from(products)
-      .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
-      .where(whereExpr)
-      .orderBy(desc(products.createdAt))
-      .limit(PAGE_SIZE)
-      .offset(offset),
-    db
-      .select({ value: count() })
-      .from(products)
-      .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
-      .where(whereExpr),
-  ]);
-
-  const total = totalRow[0]?.value ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const { list, total, totalPages } = await getAdminProducts({ search, filter, page });
 
   function pageHref(p: number) {
     const sp = new URLSearchParams();
@@ -127,7 +53,7 @@ export default async function AdminProductsPage({
     return `/admin/products${qs ? `?${qs}` : ''}`;
   }
 
-  function filterHref(f: ProductFilter) {
+  function filterHref(f: AdminProductFilter) {
     const sp = new URLSearchParams();
     if (search) sp.set('q', search);
     if (f !== 'all') sp.set('filter', f);
