@@ -146,7 +146,7 @@ function GuestAuthPanel({ productPath }: { productPath: string }) {
   const next = encodeURIComponent(`${productPath}?order=1`);
   return (
     <section className="bg-secondary space-y-1 rounded-md p-4">
-      <p className="text-sm font-medium">Sign up to send this request</p>
+      <h3 className="text-sm font-medium">Sign up to send this request</h3>
       <p className="text-muted-foreground text-sm">
         It&rsquo;s free &mdash; the maker replies to you directly.
       </p>
