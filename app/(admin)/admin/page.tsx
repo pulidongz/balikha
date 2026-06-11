@@ -64,6 +64,7 @@ export default async function AdminOverview() {
         <DisputesNeedingAttention count={disputedCount} />
         <CommentReportsCard count={openReportsCount} />
         <SalesOverviewCard metrics={orderMetrics} />
+        <EditorialFeaturingCard />
       </section>
     </div>
   );
@@ -153,6 +154,30 @@ function DisputesNeedingAttention({ count }: { count: number }) {
         </p>
         <Link href="/admin/orders" className="text-foreground mt-3 inline-block text-sm underline">
           View queue →
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+// T15: founder-curated homepage feature — a link card, the editing
+// happens on its own page.
+function EditorialFeaturingCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Editorial featuring</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Set the homepage feature: one studio, your words, a row of selected works. Curated, never
+          paid.
+        </p>
+        <Link
+          href="/admin/featuring"
+          className="text-foreground mt-3 inline-block text-sm underline"
+        >
+          Edit feature →
         </Link>
       </CardContent>
     </Card>

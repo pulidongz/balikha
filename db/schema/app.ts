@@ -449,6 +449,21 @@ export const artisanFollows = pgTable(
   ],
 );
 
+// Editorial featuring (T15): founder-curated, never paid. A singleton row
+// (id = 'homepage') holds the featured artist + editorial text and the
+// featured-works selection. Admin-edited at /admin/featuring — changing
+// the feature is a form submit, not a deploy.
+export const homepageFeature = pgTable('homepage_feature', {
+  id: text('id').primaryKey().default('homepage'),
+  artisanProfileId: uuid('artisan_profile_id').references(() => artisanProfiles.id, {
+    onDelete: 'set null',
+  }),
+  editorialText: text('editorial_text'),
+  featuredProductIds: uuid('featured_product_ids').array().notNull().default([]),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  updatedById: text('updated_by_id').references(() => user.id, { onDelete: 'set null' }),
+});
+
 // Studio updates (T9): the cheap content unit between drops — 1–4 photos
 // plus short text, no price/shipping. Distributed to the studio page's
 // Updates section and followers' home feeds (T6).
