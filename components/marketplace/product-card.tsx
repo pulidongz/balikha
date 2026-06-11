@@ -26,6 +26,9 @@ type Props = {
   showArtisan?: boolean;
   inWishlist?: boolean;
   isSignedIn?: boolean;
+  // False when the viewer owns the work (e.g. an artist browsing their own
+  // studio page) — saving your own work is meaningless, so no heart.
+  showWishlist?: boolean;
   // Pre-formatted seller response-time label (e.g. "a day"), surfaced
   // subtly below the artisan name. The listing page derives this from
   // SellerReputation via bucketLabel — kept as a plain string here so
@@ -48,6 +51,7 @@ export function ProductCard({
   showArtisan = true,
   inWishlist = false,
   isSignedIn = false,
+  showWishlist = true,
   responseTimeLabel,
 }: Props) {
   return (
@@ -84,12 +88,14 @@ export function ProductCard({
           )}
         </div>
       </Link>
-      <WishlistToggle
-        productId={product.id}
-        initiallyInWishlist={inWishlist}
-        isSignedIn={isSignedIn}
-        className="absolute top-2 right-2"
-      />
+      {showWishlist && (
+        <WishlistToggle
+          productId={product.id}
+          initiallyInWishlist={inWishlist}
+          isSignedIn={isSignedIn}
+          className="absolute top-2 right-2"
+        />
+      )}
     </div>
   );
 }

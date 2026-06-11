@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { wishlistItems } from '@/db/schema';
+import { artisanProfiles, products, wishlistItems } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -34,6 +34,18 @@ export async function toggleWishlistAction(
   const { productId, add } = parsed.data;
 
   if (add) {
+    // Saving your own work is meaningless as a signal — the heart is hidden
+    // on owned products in the UI, and this is the server-side guard for
+    // surfaces (home, search) where per-card ownership isn't known.
+    // Removal stays unguarded: if a row exists it should always be deletable.
+    const [owned] = await db
+      .select({ id: products.id })
+      .from(products)
+      .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
+      .where(and(eq(products.id, productId), eq(artisanProfiles.userId, current.id)))
+      .limit(1);
+    if (owned) return err("This is your own work — it's already yours to keep.");
+
     // onConflictDoNothing — second click within the optimistic window
     // shouldn't error, the row already exists.
     await db.insert(wishlistItems).values({ userId: current.id, productId }).onConflictDoNothing();

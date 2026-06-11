@@ -529,6 +529,22 @@ function buildMaterials(craft: Craft): string[] {
   return faker.helpers.arrayElements(pool, count);
 }
 
+// T2 studio identity: craft practice tags per craft. Soap and coffee
+// deliberately get none — a couple of seeded studios should exercise the
+// empty-collapse path on the studio page.
+const CRAFT_TAGS: Record<Craft, string[]> = {
+  pottery: ['pottery', 'stoneware', 'glazing'],
+  weaves: ['weaving', 'handloom'],
+  wood: ['woodworking', 'carving'],
+  silver: ['silversmithing', 'jewelry'],
+  leather: ['leatherwork', 'hand stitching'],
+  glass: ['glasswork', 'lampworking'],
+  soap: [],
+  textiles: ['textiles', 'natural dye'],
+  paper: ['papercraft', 'printmaking'],
+  coffee: [],
+};
+
 // --- Main ------------------------------------------------------------------
 
 async function seed() {
@@ -583,6 +599,19 @@ async function seed() {
         shopName: seller.shopName,
         bio: seller.bio,
         location: seller.location,
+        // T2 identity fields. Tags follow the craft; links are plausible
+        // dev-only URLs. Crafts with no tags also get no links, so two
+        // studios exercise the page's empty-collapse rendering.
+        craftTags: CRAFT_TAGS[seller.craft].length > 0 ? CRAFT_TAGS[seller.craft] : null,
+        externalLinks:
+          CRAFT_TAGS[seller.craft].length > 0
+            ? {
+                instagram: `https://instagram.com/${seller.shopSlug}`,
+                facebook: `https://facebook.com/${seller.shopSlug}`,
+                tiktok: `https://tiktok.com/@${seller.shopSlug}`,
+                website: `https://${seller.shopSlug}.ph`,
+              }
+            : null,
         // Seeded sellers are approved so their directly-inserted `published`
         // products below are consistent with the approval gate (Task 1.1).
         approvalStatus: 'approved',

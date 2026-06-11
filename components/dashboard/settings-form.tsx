@@ -15,7 +15,21 @@ type Defaults = {
   bio: string | null;
   location: string | null;
   policies: string | null;
+  craftTags: string[] | null;
+  externalLinks: {
+    instagram?: string;
+    facebook?: string;
+    tiktok?: string;
+    website?: string;
+  } | null;
 };
+
+const LINK_FIELDS = [
+  { name: 'instagram', label: 'Instagram' },
+  { name: 'facebook', label: 'Facebook' },
+  { name: 'tiktok', label: 'TikTok' },
+  { name: 'website', label: 'Website' },
+] as const;
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
   const router = useRouter();
@@ -31,6 +45,13 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
   const [location, setLocation] = useState(defaults.location ?? '');
   const [bio, setBio] = useState(defaults.bio ?? '');
   const [policies, setPolicies] = useState(defaults.policies ?? '');
+  const [craftTags, setCraftTags] = useState(defaults.craftTags?.join(', ') ?? '');
+  const [links, setLinks] = useState<Record<(typeof LINK_FIELDS)[number]['name'], string>>({
+    instagram: defaults.externalLinks?.instagram ?? '',
+    facebook: defaults.externalLinks?.facebook ?? '',
+    tiktok: defaults.externalLinks?.tiktok ?? '',
+    website: defaults.externalLinks?.website ?? '',
+  });
 
   function fieldError(name: string): string | undefined {
     return fieldErrors[name]?.[0];
@@ -126,6 +147,47 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           <p className="text-destructive text-xs">{fieldError('policies')}</p>
         )}
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="settings-craft-tags">Craft (comma-separated, up to 6)</Label>
+        <Input
+          id="settings-craft-tags"
+          name="craftTags"
+          value={craftTags}
+          onChange={(e) => setCraftTags(e.target.value)}
+          placeholder="pottery, stoneware, glazing"
+          aria-invalid={fieldError('craftTags') ? true : undefined}
+        />
+        {fieldError('craftTags') && (
+          <p className="text-destructive text-xs">{fieldError('craftTags')}</p>
+        )}
+      </div>
+
+      <fieldset className="space-y-3 rounded-md border p-4">
+        <legend className="text-sm font-medium">Links</legend>
+        <p className="text-muted-foreground text-xs">
+          Full https:// URLs — shown under your name on your studio page.
+        </p>
+        {LINK_FIELDS.map((link) => (
+          <div key={link.name} className="space-y-1">
+            <Label htmlFor={`settings-link-${link.name}`} className="text-xs">
+              {link.label}
+            </Label>
+            <Input
+              id={`settings-link-${link.name}`}
+              name={link.name}
+              type="url"
+              placeholder="https://…"
+              value={links[link.name]}
+              onChange={(e) => setLinks((prev) => ({ ...prev, [link.name]: e.target.value }))}
+              aria-invalid={fieldError(link.name) ? true : undefined}
+            />
+            {fieldError(link.name) && (
+              <p className="text-destructive text-xs">{fieldError(link.name)}</p>
+            )}
+          </div>
+        ))}
+      </fieldset>
 
       {error && (
         <p role="alert" className="text-destructive text-sm">

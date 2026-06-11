@@ -1,19 +1,27 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanFollows, artisanProfiles, catalogs, productImages, products } from '@/db/schema';
 import { env } from '@/env';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { CatalogSection } from '@/components/marketplace/catalog-section';
 import { FollowToggle } from '@/components/marketplace/follow-toggle';
+import { PriceTag } from '@/components/marketplace/price-tag';
 import { SellerReputationSummary } from '@/components/marketplace/seller-reputation-summary';
+import { ShareButton } from '@/components/marketplace/share-button';
 import { JsonLd } from '@/components/seo/json-ld';
+import { CoverEditDialog } from '@/components/studio/cover-edit-dialog';
+import { EditStudioDialog } from '@/components/studio/edit-studio-dialog';
+import { FeatureWorkButton } from '@/components/studio/feature-work-button';
+import { PhotoEditDialog } from '@/components/studio/photo-edit-dialog';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
-import { studioPath } from '@/lib/routes';
+import { studioPath, workPath } from '@/lib/routes';
 import { organizationJsonLd } from '@/lib/seo/structured-data';
 
 const APP_URL = env.NEXT_PUBLIC_APP_URL;
@@ -55,7 +63,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       title: profile.shopName,
       description,
       url: studioPath(profile.shopSlug),
-      images: profile.bannerImageUrl ? [{ url: profile.bannerImageUrl }] : undefined,
+      // T2: prefer the cover; fall back to the profile photo. The full
+      // composed OG card is T18.
+      images: profile.bannerImageUrl
+        ? [{ url: profile.bannerImageUrl }]
+        : profile.profilePhotoUrl
+          ? [{ url: profile.profilePhotoUrl }]
+          : undefined,
     },
     twitter: { card: 'summary_large_image' },
   };
@@ -133,8 +147,59 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
   });
 
   const viewer = await getCurrentUser();
+  const isOwner = viewer !== null && viewer.id === profile.userId;
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const reputation = await getSellerReputationCached(profile.id);
+
+  // Pinned featured work (T2). Published-only — the FK alone can't keep a
+  // since-archived work out of the visitor-facing slot.
+  const featured = profile.featuredProductId
+    ? ((
+        await db
+          .select({
+            id: products.id,
+            slug: products.slug,
+            title: products.title,
+            description: products.description,
+            price: products.price,
+            currency: products.currency,
+          })
+          .from(products)
+          .where(and(eq(products.id, profile.featuredProductId), eq(products.status, 'published')))
+          .limit(1)
+      )[0] ?? null)
+    : null;
+  // Usually already in the catalog-grid image map; fetched directly when
+  // not (e.g. a published work whose catalog is still draft).
+  let featuredImage = featured ? (primaryByProductId.get(featured.id) ?? null) : null;
+  if (featured && !featuredImage) {
+    const [img] = await db
+      .select({ url: productImages.url, altText: productImages.altText })
+      .from(productImages)
+      .where(eq(productImages.productId, featured.id))
+      .orderBy(asc(productImages.position))
+      .limit(1);
+    featuredImage = img ?? null;
+  }
+
+  const externalLinks: Array<{ label: string; url: string }> = [
+    { label: 'Instagram', url: profile.externalLinks?.instagram },
+    { label: 'Facebook', url: profile.externalLinks?.facebook },
+    { label: 'TikTok', url: profile.externalLinks?.tiktok },
+    { label: 'Website', url: profile.externalLinks?.website },
+  ].filter((l): l is { label: string; url: string } => Boolean(l.url));
+
+  const joinedLabel = new Intl.DateTimeFormat('en-PH', {
+    month: 'long',
+    year: 'numeric',
+  }).format(profile.createdAt);
+
+  // Static map so Tailwind sees the literal class names.
+  const COVER_FOCUS_CLASS = {
+    top: 'object-top',
+    center: 'object-center',
+    bottom: 'object-bottom',
+  } as const;
 
   // Cheap PK lookup — only run for signed-in viewers.
   let initiallyFollowing = false;
@@ -152,22 +217,31 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
   return (
     <div>
       <JsonLd data={org} />
-      {/* Banner — gracefully degrades if no banner image */}
+      {/* Cover — gracefully degrades if no cover image. The owner's edit
+          control overlays the corner so editing happens where looking does. */}
       <section
-        aria-label="Studio banner"
+        aria-label="Studio cover"
         className="bg-secondary relative aspect-[16/6] w-full overflow-hidden md:aspect-[16/4]"
       >
         {profile.bannerImageUrl ? (
           <Image
             src={profile.bannerImageUrl}
-            alt={`${profile.shopName} banner`}
+            alt={`${profile.shopName} cover`}
             fill
             sizes="100vw"
-            className="object-cover"
+            className={`object-cover ${COVER_FOCUS_CLASS[profile.coverFocus]}`}
             priority
           />
         ) : (
           <div className="from-secondary to-muted absolute inset-0 bg-gradient-to-br" />
+        )}
+        {isOwner && (
+          <div className="absolute top-3 right-3">
+            <CoverEditDialog
+              hasCover={profile.bannerImageUrl !== null}
+              coverFocus={profile.coverFocus}
+            />
+          </div>
         )}
       </section>
 
@@ -177,34 +251,128 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
           banner image would be unreadable. */}
       <section className="mx-auto mt-6 max-w-5xl px-4 sm:px-6 md:mt-8">
         <div className="flex flex-col items-center gap-4 text-center md:flex-row md:items-end md:gap-6 md:text-left">
-          <Avatar className="border-background ring-border h-24 w-24 border-4 ring-1">
-            <AvatarImage src={profile.bannerImageUrl ?? undefined} alt={profile.shopName} />
-            <AvatarFallback className="font-serif text-2xl">
-              {initialsOf(profile.shopName)}
-            </AvatarFallback>
-          </Avatar>
+          <div className="flex flex-col items-center gap-2">
+            <Avatar className="border-background ring-border h-24 w-24 border-4 ring-1">
+              <AvatarImage src={profile.profilePhotoUrl ?? undefined} alt={profile.shopName} />
+              <AvatarFallback className="font-serif text-2xl">
+                {initialsOf(profile.shopName)}
+              </AvatarFallback>
+            </Avatar>
+            {isOwner && <PhotoEditDialog hasPhoto={profile.profilePhotoUrl !== null} />}
+          </div>
           <div className="space-y-1 md:flex-1">
             <h1 className="font-serif text-3xl tracking-tight md:text-4xl">{profile.shopName}</h1>
-            {profile.location && (
-              <p className="text-muted-foreground text-sm">{profile.location}</p>
+            <p className="text-muted-foreground text-sm">
+              {profile.location && <>{profile.location} · </>}Joined {joinedLabel}
+            </p>
+            {profile.craftTags && profile.craftTags.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-1.5 pt-1 md:justify-start">
+                {profile.craftTags.map((tag) => (
+                  <Badge key={tag} variant="secondary">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
             )}
             <SellerReputationSummary
               reputation={reputation}
               className="mt-1 justify-center md:justify-start"
             />
           </div>
-          <FollowToggle
-            artisanProfileId={profile.id}
-            initiallyFollowing={initiallyFollowing}
-            isSignedIn={viewer !== null}
-          />
+          <div className="flex items-center gap-2">
+            {isOwner ? (
+              <EditStudioDialog
+                defaults={{
+                  shopName: profile.shopName,
+                  location: profile.location,
+                  bio: profile.bio,
+                  craftTags: profile.craftTags,
+                  externalLinks: profile.externalLinks,
+                }}
+              />
+            ) : (
+              <FollowToggle
+                artisanProfileId={profile.id}
+                initiallyFollowing={initiallyFollowing}
+                isSignedIn={viewer !== null}
+              />
+            )}
+            <ShareButton
+              title={`${profile.shopName} on Balikha`}
+              text={profile.bio?.slice(0, 120)}
+              path={studioPath(profile.shopSlug)}
+            />
+          </div>
         </div>
+
+        {externalLinks.length > 0 && (
+          <p className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm md:justify-start">
+            {externalLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.url}
+                target="_blank"
+                rel="me noreferrer noopener"
+                className="text-accent underline-offset-4 hover:underline"
+              >
+                {link.label}
+              </a>
+            ))}
+          </p>
+        )}
+
+        {/* Story — multi-paragraph; whitespace-pre-line keeps the artist's
+            paragraph breaks without storing markup. */}
         {profile.bio && (
-          <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-center text-base leading-relaxed md:text-left">
+          <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-center text-base leading-relaxed whitespace-pre-line md:mx-0 md:text-left">
             {profile.bio}
           </p>
         )}
       </section>
+
+      {/* Featured work — owner-pinned, rendered larger than the grid. */}
+      {featured && (
+        <section aria-label="Featured work" className="mx-auto max-w-6xl px-4 pt-14 sm:px-6">
+          <div className="mb-6 flex items-baseline justify-between gap-3">
+            <h2 className="font-serif text-2xl tracking-tight">Featured</h2>
+            {isOwner && <FeatureWorkButton productId={featured.id} isFeatured />}
+          </div>
+          <Link
+            href={workPath(profile.shopSlug, featured.slug)}
+            className="group grid items-center gap-6 focus-visible:outline-none md:grid-cols-2 md:gap-10"
+          >
+            <div className="bg-secondary relative aspect-[4/3] overflow-hidden rounded-lg">
+              {featuredImage ? (
+                <Image
+                  src={featuredImage.url}
+                  alt={featuredImage.altText ?? featured.title}
+                  fill
+                  sizes="(min-width: 768px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+                  No image
+                </div>
+              )}
+            </div>
+            <div className="space-y-3">
+              <h3 className="group-hover:text-accent font-serif text-2xl leading-tight tracking-tight transition-colors md:text-3xl">
+                {featured.title}
+              </h3>
+              {featured.description && (
+                <p className="text-muted-foreground line-clamp-3 text-base leading-relaxed">
+                  {featured.description}
+                </p>
+              )}
+              {featured.price !== null && (
+                <PriceTag price={featured.price} currency={featured.currency} size="md" />
+              )}
+              <p className="text-muted-foreground text-sm">View work →</p>
+            </div>
+          </Link>
+        </section>
+      )}
 
       {/* Catalogs */}
       <div className="mx-auto max-w-6xl space-y-16 px-4 py-16 sm:px-6 md:py-20">
@@ -220,8 +388,25 @@ export default async function ArtisanStorefrontPage({ params }: { params: Params
               products={productsByCatalog.get(catalog.id) ?? []}
               wishlistedIds={wishlistedIds}
               isSignedIn={viewer !== null}
+              canFeature={isOwner}
+              featuredProductId={profile.featuredProductId}
             />
           ))
+        )}
+
+        {/* Updates section: owner-only teaser until T9 ships the real
+            thing — visitors never see an empty section advertising absence. */}
+        {isOwner && (
+          <section
+            aria-label="Updates (coming soon)"
+            className="rounded-lg border border-dashed p-6"
+          >
+            <h2 className="font-serif text-xl tracking-tight">Updates</h2>
+            <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
+              Coming soon — share kiln-openings, works in progress, and process shots from here.
+              Only you can see this section for now.
+            </p>
+          </section>
         )}
       </div>
     </div>
