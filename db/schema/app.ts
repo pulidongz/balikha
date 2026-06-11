@@ -444,6 +444,59 @@ export const artisanFollows = pgTable(
   ],
 );
 
+// Comments on works (T8): flat list, the artist↔buyer conversation
+// surface. Hard delete (author or work owner) — reports snapshot the
+// body below, so moderation evidence survives deletion.
+export const workComments = pgTable(
+  'work_comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Covers the page read (per work, chronological) in one index.
+    index('work_comments_product_created_idx').on(t.productId, t.createdAt),
+    // Rate-limit window counts per author.
+    index('work_comments_user_created_idx').on(t.userId, t.createdAt),
+  ],
+);
+
+// Comment reports (T8): a flag lands on the admin list; `commentBody` is
+// a snapshot so the report stays reviewable after the comment is deleted
+// (commentId goes NULL via ON DELETE SET NULL rather than vanishing).
+export const commentReports = pgTable(
+  'comment_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    commentId: uuid('comment_id').references(() => workComments.id, { onDelete: 'set null' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    reporterUserId: text('reporter_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reportedUserId: text('reported_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    commentBody: text('comment_body').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at'),
+  },
+  (t) => [
+    // One report per reporter per comment; NULLs (post-deletion) are
+    // distinct in PG, which is fine — no new reports happen then anyway.
+    uniqueIndex('comment_reports_once_per_reporter').on(t.commentId, t.reporterUserId),
+    index('comment_reports_created_idx').on(t.createdAt),
+  ],
+);
+
 // Appreciations (T7): the public, nearly-free response unit — one per
 // user per work. Same shape as artisan_follows: composite PK makes the
 // toggle structurally idempotent. Unlike the wishlist (private save),

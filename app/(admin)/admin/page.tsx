@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { count, eq, gte } from 'drizzle-orm';
 import { db } from '@/db';
-import { orders, searchEvents } from '@/db/schema';
+import { isNull } from 'drizzle-orm';
+import { commentReports, orders, searchEvents } from '@/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   countActiveSellers30d,
@@ -22,6 +23,7 @@ export default async function AdminOverview() {
   const [
     searchCount7d,
     disputedCountRow,
+    openReportsRow,
     totalUsers,
     totalProducts,
     activeSellers30d,
@@ -29,12 +31,14 @@ export default async function AdminOverview() {
   ] = await Promise.all([
     loadSearchCount7d(),
     db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
+    db.select({ value: count() }).from(commentReports).where(isNull(commentReports.resolvedAt)),
     countTotalUsers(),
     countTotalProducts(),
     countActiveSellers30d(),
     loadOrderMetrics(),
   ]);
   const disputedCount = disputedCountRow[0]?.value ?? 0;
+  const openReportsCount = openReportsRow[0]?.value ?? 0;
 
   return (
     <div className="space-y-8">
@@ -58,6 +62,7 @@ export default async function AdminOverview() {
           description="An audit log of meaningful marketplace events will appear here once event logging is wired in."
         />
         <DisputesNeedingAttention count={disputedCount} />
+        <CommentReportsCard count={openReportsCount} />
         <SalesOverviewCard metrics={orderMetrics} />
       </section>
     </div>
@@ -148,6 +153,35 @@ function DisputesNeedingAttention({ count }: { count: number }) {
         </p>
         <Link href="/admin/orders" className="text-foreground mt-3 inline-block text-sm underline">
           View queue →
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+// T8 moderation surface: flagged comments waiting for review.
+function CommentReportsCard({ count }: { count: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Comment reports</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className={count > 0 ? 'text-destructive text-3xl font-medium' : 'text-3xl font-medium'}>
+          {count}
+        </p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          {count === 0
+            ? 'No flagged comments.'
+            : count === 1
+              ? 'flagged comment awaiting review'
+              : 'flagged comments awaiting review'}
+        </p>
+        <Link
+          href="/admin/comment-reports"
+          className="text-foreground mt-3 inline-block text-sm underline"
+        >
+          Review →
         </Link>
       </CardContent>
     </Card>
