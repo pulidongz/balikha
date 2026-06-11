@@ -1,0 +1,11 @@
+[Unit]
+Description=Send the Balikha weekly artist digest (Mondays 08:00 PHT)
+
+[Timer]
+# Box runs UTC; Monday 00:00 UTC = Monday 08:00 PHT.
+OnCalendar=Mon *-*-* 00:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

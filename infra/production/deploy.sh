@@ -72,6 +72,7 @@ sudo ln -sfn "$RELEASE" "$APP_DIR/current"
 sudo systemctl start balikha-migrate.service
 sudo systemctl restart balikha.service
 sudo systemctl enable --now balikha-orders-tick.timer
+sudo systemctl enable --now balikha-weekly-digest.timer
 # HARD health gate on the app PROCESS over loopback (Issue 13) — independent
 # of DNS/TLS so a fresh-box ACME delay can't false-fail the deploy.
 # --retry-connrefused is REQUIRED: plain --retry does NOT retry connection-
