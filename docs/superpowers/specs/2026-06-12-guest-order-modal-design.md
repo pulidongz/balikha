@@ -100,8 +100,8 @@ card, cream panel, oat panel — plus one vermilion accent, with no new hues.
 - **`?order=1` while still signed out** (shared/bookmarked URL): dialog
   auto-opens in guest mode. Harmless.
 - **Fresh signup with zero addresses**: returns to the open dialog and hits
-  the existing "you need a shipping address… Add an address first" notice.
-  No new code.
+  the "you need a shipping address" notice. Per the addendum below, that
+  notice now round-trips through the add-address page and back.
 - **Open redirect**: no new risk; `safeNextOr` already validates `next`.
 
 ## Verification
@@ -117,7 +117,27 @@ logic), so verification is the standard gates plus manual passes:
 
 ## Out of scope
 
-- Any change to the sign-up/sign-in pages, `placeOrder`, or address
-  management.
+- Any change to the sign-up/sign-in pages or `placeOrder`.
 - Restyling other dialogs or the product page.
 - The `--gold` token and limited-drop styling.
+
+## Addendum (2026-06-12): address-add return path
+
+Manual testing found the new-buyer funnel dead-ended: from the reopened
+dialog, "Add an address" sent the user to account settings with no way back
+to the product. Address management was originally out of scope; this
+addendum brings the minimal return path in:
+
+- The dialog's no-addresses notice links to
+  `/account/addresses/new?next=<productPath>?order=1` (encoded once) and the
+  copy promises the round trip ("…you'll come right back to this order").
+- `app/(account)/account/addresses/new/page.tsx` validates `next` with
+  `safeNextOr` (fallback `/account/addresses`) and passes it to `AddressForm`
+  as `returnTo`.
+- `AddressForm` gains an optional `returnTo` prop (default
+  `/account/addresses`) used for the post-save redirect and Cancel. The edit
+  page passes nothing and behaves as before.
+- The signed-out redirect on the new-address page deliberately drops `next`:
+  `safeNextOr` rejects `%`, so a nested-encoded value would fail validation.
+  Unreachable from the dialog anyway (the notice renders only for signed-in
+  users).
