@@ -1,15 +1,17 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { after } from 'next/server';
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
+import { ChevronDownIcon } from 'lucide-react';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products, userAddresses } from '@/db/schema';
 import { env } from '@/env';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { AppreciateButton } from '@/components/marketplace/appreciate-button';
 import { CommentsSection } from '@/components/marketplace/comments-section';
+import { FollowToggle } from '@/components/marketplace/follow-toggle';
 import { OrderButton } from '@/components/marketplace/order-button';
 import { AskTheMakerButton } from '@/components/marketplace/ask-the-maker-button';
 import { PriceTag } from '@/components/marketplace/price-tag';
@@ -17,9 +19,12 @@ import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
 import { ShareButton } from '@/components/marketplace/share-button';
 import { WishlistToggle } from '@/components/marketplace/wishlist-toggle';
+import { WorkGallery } from '@/components/marketplace/work-gallery';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { formatPrice } from '@/lib/format';
+import { initialsOf } from '@/lib/initials';
 import { getAppreciationCounts, hasAppreciated } from '@/lib/queries/appreciations';
+import { isFollowingArtisan } from '@/lib/queries/follows';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
@@ -85,15 +90,18 @@ export default async function ProductPublicPage({
   if (!row) notFound();
   const { product, artisan } = row;
 
-  // One-shot param set by AppreciateButton's sign-in redirect; the button
-  // applies it client-side and strips it from the URL (T5 pattern).
-  const { appreciate } = await searchParams;
+  // One-shot params set by the sign-in redirects of AppreciateButton and
+  // FollowToggle; each button applies its own client-side and strips it
+  // from the URL (T5 pattern).
+  const { appreciate, follow } = await searchParams;
   const pendingAppreciateId = typeof appreciate === 'string' ? appreciate : null;
+  const pendingFollowId = typeof follow === 'string' ? follow : null;
 
   const viewer = await getCurrentUser();
   const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
   const appreciationCounts = await getAppreciationCounts([product.id]);
   const viewerAppreciated = await hasAppreciated(viewer?.id ?? null, product.id);
+  const viewerFollowsArtisan = await isFollowingArtisan(viewer?.id ?? null, artisan.id);
 
   // Track this view. Fire-and-forget — the helper swallows its own
   // errors so a tracking failure can't break the product page render.
@@ -264,47 +272,13 @@ export default async function ProductPublicPage({
       {/* 3:2 split at lg+, stacked below */}
       <div className="grid gap-10 lg:grid-cols-5">
         {/* Gallery — wider side (3 of 5) */}
-        <section className="space-y-3 lg:col-span-3">
-          {images.length === 0 ? (
-            <div className="bg-secondary text-muted-foreground flex aspect-square items-center justify-center rounded-lg text-sm">
-              No image
-            </div>
-          ) : (
-            <>
-              <div className="bg-secondary relative aspect-square overflow-hidden rounded-lg">
-                <Image
-                  src={images[0]!.url}
-                  alt={images[0]!.altText ?? product.title}
-                  fill
-                  sizes="(min-width: 1024px) 60vw, 100vw"
-                  className="object-cover"
-                  priority
-                />
-              </div>
-              {images.length > 1 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {images.slice(1, 5).map((img) => (
-                    <div
-                      key={img.id}
-                      className="bg-secondary relative aspect-square overflow-hidden rounded"
-                    >
-                      <Image
-                        src={img.url}
-                        alt={img.altText ?? product.title}
-                        fill
-                        sizes="120px"
-                        className="object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+        <section aria-label="Photos" className="lg:col-span-3">
+          <WorkGallery images={images} title={product.title} />
         </section>
 
-        {/* Info — narrower side (2 of 5) */}
-        <section className="space-y-6 lg:col-span-2">
+        {/* Identity + actions rail — narrower side (2 of 5). Sticky so the
+            actions stay reachable while a long gallery scrolls. */}
+        <section className="space-y-6 lg:sticky lg:top-20 lg:col-span-2 lg:self-start">
           <header className="space-y-2">
             <h1 className="font-serif text-3xl leading-tight tracking-tight md:text-4xl">
               {product.title}
@@ -379,6 +353,10 @@ export default async function ProductPublicPage({
                 )}
               </div>
 
+              {inStock && (
+                <p className="text-muted-foreground text-sm">{product.stockOnHand} available</p>
+              )}
+
               {!isOwnProduct && (
                 <div>
                   <AskTheMakerButton
@@ -433,64 +411,142 @@ export default async function ProductPublicPage({
               path={workPath(artisan.shopSlug, product.slug)}
             />
           </div>
+        </section>
+      </div>
 
-          {product.description && (
-            <p className="text-foreground text-base leading-relaxed whitespace-pre-line">
+      {/* Editorial sections, capped at a readable measure. Ticket order:
+          story → materials & technique → maker → quiet care/shipping.
+          On mobile these follow the rail directly, so the reading order
+          holds on every viewport. */}
+      <div className="mt-12 max-w-2xl space-y-10 md:mt-16">
+        {product.description && (
+          <section aria-label="About this piece">
+            <h2 className="font-serif text-2xl tracking-tight">About this piece</h2>
+            <p className="mt-4 text-base leading-relaxed whitespace-pre-line">
               {product.description}
             </p>
-          )}
+          </section>
+        )}
 
-          <dl className="space-y-3 border-t pt-6 text-sm">
-            {inStock && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Availability</dt>
-                <dd className="text-right">{product.stockOnHand} available</dd>
-              </div>
-            )}
-            {product.materials && product.materials.length > 0 && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Materials</dt>
-                <dd className="text-right">{product.materials.join(', ')}</dd>
-              </div>
-            )}
-            {product.technique && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Technique</dt>
-                <dd className="text-right">{product.technique}</dd>
-              </div>
-            )}
-            {product.careInstructions && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Care</dt>
-                <dd className="text-right whitespace-pre-line">{product.careInstructions}</dd>
-              </div>
-            )}
-            {product.dimensions && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Dimensions</dt>
-                <dd className="text-right">
-                  {[product.dimensions.width, product.dimensions.height, product.dimensions.depth]
-                    .filter((v): v is number => typeof v === 'number')
-                    .join(' × ')}{' '}
-                  {product.dimensions.unit ?? 'cm'}
-                </dd>
-              </div>
-            )}
-            {product.weightGrams !== null && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Weight</dt>
-                <dd className="text-right">{product.weightGrams} g</dd>
-              </div>
-            )}
-          </dl>
+        {((product.materials && product.materials.length > 0) || product.technique) && (
+          <section aria-label="Materials and technique" className="border-t pt-8">
+            <h2 className="font-serif text-2xl tracking-tight">Materials & technique</h2>
+            <dl className="mt-4 space-y-3">
+              {product.materials && product.materials.length > 0 && (
+                <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                  <dt className="text-muted-foreground text-sm sm:pt-1">Materials</dt>
+                  <dd className="text-base leading-relaxed">{product.materials.join(', ')}</dd>
+                </div>
+              )}
+              {product.technique && (
+                <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                  <dt className="text-muted-foreground text-sm sm:pt-1">Technique</dt>
+                  <dd className="text-base leading-relaxed whitespace-pre-line">
+                    {product.technique}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </section>
+        )}
 
-          <CommentsSection
-            productId={product.id}
-            workPathname={workPath(artisan.shopSlug, product.slug)}
-            viewerUserId={viewer?.id ?? null}
-            ownerUserId={artisan.userId}
-          />
+        {/* The maker block — the hands stay visible. Follower identities
+            are never shown here (T10) and no count renders (T12). */}
+        <section aria-label="The maker" className="border-t pt-8">
+          <div className="flex items-center gap-4">
+            <Avatar className="ring-border size-16 ring-1">
+              <AvatarImage src={artisan.profilePhotoUrl ?? undefined} alt={artisan.shopName} />
+              <AvatarFallback className="font-serif text-xl">
+                {initialsOf(artisan.shopName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <Link
+                href={studioPath(artisan.shopSlug)}
+                className="font-serif text-xl tracking-tight underline-offset-4 hover:underline"
+              >
+                {artisan.shopName}
+              </Link>
+              <p className="text-muted-foreground text-sm">
+                {artisan.location && <>{artisan.location} · </>}
+                <Link href={studioPath(artisan.shopSlug)} className="hover:text-foreground">
+                  Visit the studio →
+                </Link>
+              </p>
+            </div>
+            {!isOwnProduct && (
+              <FollowToggle
+                artisanProfileId={artisan.id}
+                initiallyFollowing={viewerFollowsArtisan}
+                isSignedIn={viewer !== null}
+                pendingFollowId={pendingFollowId}
+              />
+            )}
+          </div>
         </section>
+
+        {(product.careInstructions ||
+          product.dimensions ||
+          product.weightGrams !== null ||
+          artisan.policies) && (
+          <section aria-label="Care and details" className="border-t pt-8">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between font-serif text-xl tracking-tight [&::-webkit-details-marker]:hidden">
+                Care & details
+                <ChevronDownIcon
+                  aria-hidden
+                  className="text-muted-foreground size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                />
+              </summary>
+              <dl className="mt-4 space-y-3">
+                {product.careInstructions && (
+                  <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                    <dt className="text-muted-foreground text-sm">Care</dt>
+                    <dd className="text-sm leading-relaxed whitespace-pre-line">
+                      {product.careInstructions}
+                    </dd>
+                  </div>
+                )}
+                {product.dimensions && (
+                  <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                    <dt className="text-muted-foreground text-sm">Dimensions</dt>
+                    <dd className="text-sm leading-relaxed">
+                      {[
+                        product.dimensions.width,
+                        product.dimensions.height,
+                        product.dimensions.depth,
+                      ]
+                        .filter((v): v is number => typeof v === 'number')
+                        .join(' × ')}{' '}
+                      {product.dimensions.unit ?? 'cm'}
+                    </dd>
+                  </div>
+                )}
+                {product.weightGrams !== null && (
+                  <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                    <dt className="text-muted-foreground text-sm">Weight</dt>
+                    <dd className="text-sm leading-relaxed">{product.weightGrams} g</dd>
+                  </div>
+                )}
+                {artisan.policies && (
+                  <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                    <dt className="text-muted-foreground text-sm">Shipping & policies</dt>
+                    <dd className="text-sm leading-relaxed whitespace-pre-line">
+                      {artisan.policies}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </details>
+          </section>
+        )}
+
+        <CommentsSection
+          productId={product.id}
+          workPathname={workPath(artisan.shopSlug, product.slug)}
+          viewerUserId={viewer?.id ?? null}
+          ownerUserId={artisan.userId}
+        />
       </div>
 
       {/* More from this artisan */}

@@ -38,7 +38,7 @@ export async function CommentsSection({
 
       {comments.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          Nothing here yet — be the first to ask about the glaze, the weave, the process.
+          Nothing here yet. Be the first to ask about the glaze, the weave, the process.
         </p>
       ) : (
         <ul className="space-y-5">

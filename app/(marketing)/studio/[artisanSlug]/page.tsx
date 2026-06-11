@@ -24,6 +24,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { initialsOf } from '@/lib/initials';
 import { getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { getAppreciationCounts } from '@/lib/queries/appreciations';
+import { isFollowingArtisan } from '@/lib/queries/follows';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
 import { studioPath, workPath } from '@/lib/routes';
@@ -230,18 +231,7 @@ export default async function ArtisanStorefrontPage({
     bottom: 'object-bottom',
   } as const;
 
-  // Cheap PK lookup — only run for signed-in viewers.
-  let initiallyFollowing = false;
-  if (viewer) {
-    const [row] = await db
-      .select({ userId: artisanFollows.userId })
-      .from(artisanFollows)
-      .where(
-        and(eq(artisanFollows.userId, viewer.id), eq(artisanFollows.artisanProfileId, profile.id)),
-      )
-      .limit(1);
-    initiallyFollowing = Boolean(row);
-  }
+  const initiallyFollowing = await isFollowingArtisan(viewer?.id ?? null, profile.id);
 
   return (
     <div>
