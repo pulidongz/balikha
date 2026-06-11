@@ -37,13 +37,19 @@ const EMPTY_DEFAULTS: AddressDefaults = {
   isDefaultBilling: false,
 };
 
-type Props =
+type Props = (
   | { mode: 'create'; addressId?: never; defaults?: AddressDefaults }
-  | { mode: 'edit'; addressId: string; defaults: AddressDefaults };
+  | { mode: 'edit'; addressId: string; defaults: AddressDefaults }
+) & {
+  // Where to go after a successful save or Cancel. The new-address page
+  // passes a validated `next` so order-dialog users return to the product.
+  returnTo?: string;
+};
 
 export function AddressForm(props: Props) {
   const router = useRouter();
   const defaults = props.defaults ?? EMPTY_DEFAULTS;
+  const returnTo = props.returnTo ?? '/account/addresses';
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -69,7 +75,7 @@ export function AddressForm(props: Props) {
             setFieldErrors(result.fieldErrors ?? {});
             return;
           }
-          router.push('/account/addresses');
+          router.push(returnTo);
           router.refresh();
         });
       }}
@@ -234,7 +240,7 @@ export function AddressForm(props: Props) {
           type="button"
           variant="ghost"
           disabled={isPending}
-          onClick={() => router.push('/account/addresses')}
+          onClick={() => router.push(returnTo)}
         >
           Cancel
         </Button>

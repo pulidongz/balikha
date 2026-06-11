@@ -302,12 +302,12 @@ function OrderDialog(props: OrderButtonProps) {
                   <div className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
                     You need a shipping address before you can order.{' '}
                     <Link
-                      href="/account/addresses"
+                      href={`/account/addresses/new?next=${encodeURIComponent(`${props.productPath}?order=1`)}`}
                       className="text-foreground underline-offset-4 hover:underline"
                     >
                       Add an address
                     </Link>{' '}
-                    first, then come back.
+                    and you&rsquo;ll come right back to this order.
                   </div>
                 ) : (
                   <fieldset className="space-y-2">
