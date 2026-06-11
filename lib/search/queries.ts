@@ -368,3 +368,24 @@ async function searchProducts(
 
   return { items, nextCursor, totalCount };
 }
+
+/**
+ * Suggestion chips for the search entry/no-results states (T14). Sourced
+ * from materials actually on published works, most common first — the
+ * product search vector indexes materials at weight B, so every term
+ * here is guaranteed to return at least one result. No hardcoded "vase".
+ */
+export async function getSearchSuggestions(limit = 8): Promise<string[]> {
+  const rows = await db.execute<{ material: string }>(sql`
+    SELECT m AS material
+    FROM (
+      SELECT unnest(materials) AS m
+      FROM products
+      WHERE status = 'published' AND materials IS NOT NULL
+    ) t
+    GROUP BY m
+    ORDER BY count(*) DESC, m ASC
+    LIMIT ${limit}
+  `);
+  return rows.map((r) => r.material);
+}

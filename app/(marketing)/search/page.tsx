@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getAvailableMaterials } from '@/lib/search/facets';
 import { logSearchEvent } from '@/lib/search/log';
-import { searchAll } from '@/lib/search/queries';
+import Link from 'next/link';
+import { getSearchSuggestions, searchAll } from '@/lib/search/queries';
 import { parseSearchParams } from '@/lib/search/url';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { ActiveFilterChips } from '@/components/search/active-filter-chips';
@@ -128,23 +129,59 @@ export default async function SearchPage({
   );
 }
 
-function SearchEmptyState() {
+// Suggestion chips come from materials on PUBLISHED works (T14) — every
+// chip is guaranteed at least one result, unlike the old hardcoded
+// "vase"/"leather" copy that taught visitors the platform was empty.
+async function SuggestionChips() {
+  const suggestions = await getSearchSuggestions();
+  if (suggestions.length === 0) return null;
+  return (
+    <ul className="mt-6 flex flex-wrap justify-center gap-2">
+      {suggestions.map((s) => (
+        <li key={s}>
+          <Link
+            href={`/search?q=${encodeURIComponent(s)}`}
+            className="bg-secondary text-foreground hover:bg-secondary/70 inline-block rounded-full px-3 py-1.5 text-sm transition-colors"
+          >
+            {s}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+async function SearchEmptyState() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6 lg:py-24">
       <h1 className="font-serif text-3xl">Search the marketplace</h1>
       <p className="text-muted-foreground mx-auto mt-3 max-w-md text-sm">
-        Find handmade pieces by craft, material, or artisan. Try a word like &ldquo;vase&rdquo;,
-        &ldquo;leather&rdquo;, or a maker&rsquo;s name.
+        Find handmade pieces by craft, material, or a maker&rsquo;s name — or start from
+        what&rsquo;s actually on the shelves:
       </p>
+      <SuggestionChips />
     </div>
   );
 }
 
-function NoResults({ query }: { query: string }) {
+async function NoResults({ query }: { query: string }) {
   return (
     <div className="bg-card rounded-md border p-8 text-center">
       <h2 className="font-serif text-xl">No results for &ldquo;{query}&rdquo;</h2>
-      <p className="text-muted-foreground mt-2 text-sm">Try a different word, or check spelling.</p>
+      <p className="text-muted-foreground mt-2 text-sm">
+        Try one of these — each is on a real piece right now:
+      </p>
+      <SuggestionChips />
+      <p className="text-muted-foreground mt-6 text-sm">
+        Or browse instead:{' '}
+        <Link href="/#recent" className="text-foreground underline underline-offset-4">
+          recent works
+        </Link>{' '}
+        ·{' '}
+        <Link href="/#artisans" className="text-foreground underline underline-offset-4">
+          the studios
+        </Link>
+      </p>
     </div>
   );
 }
