@@ -55,6 +55,8 @@ export default async function SettingsPage() {
               bio: profile.bio,
               location: profile.location,
               policies: profile.policies,
+              craftTags: profile.craftTags,
+              externalLinks: profile.externalLinks,
             }}
           />
         </CardContent>

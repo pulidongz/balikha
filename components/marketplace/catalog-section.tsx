@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { FeatureWorkButton } from '@/components/studio/feature-work-button';
 import { ProductCard } from './product-card';
 import { ProductGrid } from './product-grid';
 
@@ -30,12 +31,17 @@ export function CatalogSection({
   products,
   wishlistedIds,
   isSignedIn,
+  canFeature = false,
+  featuredProductId = null,
 }: {
   catalog: CatalogLike;
   artisan: ArtisanLike;
   products: ProductLike[];
   wishlistedIds: Set<string>;
   isSignedIn: boolean;
+  // T2 owner view: shows a small Feature/Unpin control under each work.
+  canFeature?: boolean;
+  featuredProductId?: string | null;
 }) {
   if (products.length === 0) return null;
 
@@ -71,7 +77,13 @@ export function CatalogSection({
               showArtisan={false}
               inWishlist={wishlistedIds.has(p.id)}
               isSignedIn={isSignedIn}
+              // canFeature is true exactly when the viewer owns this studio —
+              // owners get the pin control instead of a pointless heart.
+              showWishlist={!canFeature}
             />
+            {canFeature && (
+              <FeatureWorkButton productId={p.id} isFeatured={featuredProductId === p.id} />
+            )}
           </li>
         ))}
       </ProductGrid>

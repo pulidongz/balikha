@@ -14,6 +14,7 @@ import {
   primaryKey,
   bigserial,
   check,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth';
@@ -66,6 +67,11 @@ export const artisanApprovalStatus = pgEnum('artisan_approval_status', [
   'rejected',
 ]);
 
+// Vertical focal point for the studio cover image (T2). Drives CSS
+// object-position only — the "cover crop" is a framing choice, not a
+// destructive crop.
+export const artisanCoverFocus = pgEnum('artisan_cover_focus', ['top', 'center', 'bottom']);
+
 export const artisanProfiles = pgTable(
   'artisan_profiles',
   {
@@ -78,6 +84,24 @@ export const artisanProfiles = pgTable(
     shopName: text('shop_name').notNull(),
     bio: text('bio'),
     bannerImageUrl: text('banner_image_url'),
+    // T2 studio page v2 — identity fields. All nullable; empty fields
+    // collapse on the public page rather than rendering placeholders.
+    profilePhotoUrl: text('profile_photo_url'),
+    craftTags: text('craft_tags').array(),
+    externalLinks: jsonb('external_links').$type<{
+      instagram?: string;
+      facebook?: string;
+      tiktok?: string;
+      website?: string;
+    }>(),
+    // Owner-pinned work, rendered above the catalogs. SET NULL so deleting
+    // the product silently unpins instead of blocking the delete. The
+    // explicit AnyPgColumn annotation breaks the artisanProfiles ↔ products
+    // circular type inference (products references artisanProfiles too).
+    featuredProductId: uuid('featured_product_id').references((): AnyPgColumn => products.id, {
+      onDelete: 'set null',
+    }),
+    coverFocus: artisanCoverFocus('cover_focus').notNull().default('center'),
     location: text('location'),
     policies: text('policies'),
     // Seller-approval lifecycle. Default is `pending`; the 0005 migration
