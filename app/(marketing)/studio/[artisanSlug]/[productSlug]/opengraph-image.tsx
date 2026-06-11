@@ -2,24 +2,11 @@ import { ImageResponse } from 'next/og';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products } from '@/db/schema';
-import { env } from '@/env';
+import { ogPhotoDataUri } from '@/lib/og/photo-data-uri';
 
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 export const alt = 'Handmade work on Balikha';
-
-async function toDataUri(url: string): Promise<string | null> {
-  try {
-    const absolute = url.startsWith('http') ? url : `${env.NEXT_PUBLIC_APP_URL}${url}`;
-    const res = await fetch(absolute);
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    const type = res.headers.get('content-type') ?? 'image/jpeg';
-    return `data:${type};base64,${buf.toString('base64')}`;
-  } catch {
-    return null;
-  }
-}
 
 // Work share card (T18): the photo carries it; title + studio ride a
 // navy band along the bottom.
@@ -48,7 +35,7 @@ export default async function WorkOgImage({
       .where(eq(productImages.productId, row.productId))
       .orderBy(asc(productImages.position))
       .limit(1);
-    if (img) photoData = await toDataUri(img.url);
+    if (img) photoData = await ogPhotoDataUri(img.url);
   }
 
   return new ImageResponse(
