@@ -47,7 +47,12 @@ export async function getCurrentUser() {
   return session?.user ?? null;
 }
 
-export async function getCurrentArtisanProfile() {
+// Memoized per request like getCurrentSession (E3): the dashboard layout
+// and every dashboard page both resolve the artisan profile — one render
+// previously meant duplicate identical queries. cache() shares the
+// promise within a single request; server actions get their own request
+// scope, so a mutation never reads its own stale snapshot.
+export const getCurrentArtisanProfile = cache(async () => {
   const user = await getCurrentUser();
   if (!user) return null;
   const [profile] = await db
@@ -76,7 +81,7 @@ export async function getCurrentArtisanProfile() {
     .where(eq(artisanProfiles.userId, user.id))
     .limit(1);
   return profile ?? null;
-}
+});
 
 // --- Throw-on-missing variants for server actions ---------------------------
 
