@@ -206,6 +206,10 @@ export const products = pgTable(
       unit?: 'cm' | 'in';
     }>(),
     materials: text('materials').array(),
+    // T13 craft fields — the story lives in `description`; these carry
+    // the structured "how it's made / how to keep it" details.
+    technique: text('technique'),
+    careInstructions: text('care_instructions'),
     weightGrams: integer('weight_grams'),
     // Weighted FTS document. A=title, B=materials (joined into a string),
     // C=description. Materials at B because a buyer searching "porcelain"

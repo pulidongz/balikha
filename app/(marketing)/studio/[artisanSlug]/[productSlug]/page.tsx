@@ -459,6 +459,18 @@ export default async function ProductPublicPage({
                 <dd className="text-right">{product.materials.join(', ')}</dd>
               </div>
             )}
+            {product.technique && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Technique</dt>
+                <dd className="text-right">{product.technique}</dd>
+              </div>
+            )}
+            {product.careInstructions && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Care</dt>
+                <dd className="text-right whitespace-pre-line">{product.careInstructions}</dd>
+              </div>
+            )}
             {product.dimensions && (
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Dimensions</dt>

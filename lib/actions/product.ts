@@ -68,6 +68,8 @@ function inputFromFormData(formData: FormData) {
     weightGrams: get('weightGrams'),
     materials,
     dimensions: dims,
+    technique: get('technique'),
+    careInstructions: get('careInstructions'),
   };
 }
 
@@ -110,8 +112,17 @@ export async function createProductAction(
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-  const { title, description, salesMode, currency, weightGrams, materials, dimensions } =
-    parsed.data;
+  const {
+    title,
+    description,
+    salesMode,
+    currency,
+    weightGrams,
+    materials,
+    dimensions,
+    technique,
+    careInstructions,
+  } = parsed.data;
   const commerce = resolveCommerceFields(parsed.data);
   if (!commerce) return err('Price is required for works that are for sale.');
 
@@ -142,6 +153,8 @@ export async function createProductAction(
       status: 'draft',
       dimensions: dimensions ?? null,
       materials: materials ?? null,
+      technique: technique ?? null,
+      careInstructions: careInstructions ?? null,
       weightGrams: weightGrams ?? null,
     })
     .returning({ id: products.id });
@@ -174,8 +187,17 @@ export async function updateProductAction(
   if (!parsed.success) {
     return err('Invalid input', parsed.error.flatten().fieldErrors);
   }
-  const { title, description, salesMode, currency, weightGrams, materials, dimensions } =
-    parsed.data;
+  const {
+    title,
+    description,
+    salesMode,
+    currency,
+    weightGrams,
+    materials,
+    dimensions,
+    technique,
+    careInstructions,
+  } = parsed.data;
   const commerce = resolveCommerceFields(parsed.data);
   if (!commerce) return err('Price is required for works that are for sale.');
 
@@ -204,6 +226,8 @@ export async function updateProductAction(
         stockOnHand: commerce.stockOnHand,
         dimensions: dimensions ?? null,
         materials: materials ?? null,
+        technique: technique ?? null,
+        careInstructions: careInstructions ?? null,
         weightGrams: weightGrams ?? null,
         updatedAt: new Date(),
       })
