@@ -545,6 +545,59 @@ pattern is copy-pasted per page and will drift.
 - [x] Admin pages call shared query helpers; no inline WHERE assembly remains.
 - [x] Behavior identical (same filters, same pagination).
 
+## E5 — Preserve threadId through the guest order round trip
+
+**Priority:** P2 · **Effort:** S · **Depends on:** —
+
+**Context.** From the PR #94 review (guest order modal, 2026-06-12). ThreadView's
+"Order this piece" CTA routes to the product page with `?threadId=<id>`, which
+`OrderDialog` captures at mount and passes to `placeOrder` so the order links to
+the conversation. If the viewer is signed out when they arrive (expired session,
+shared link), the dialog now opens in guest mode, the strip effect removes
+`threadId` from the URL, and `GuestAuthPanel` builds its auth links from bare
+`productPath?order=1` — so after sign-in the order places **without** the thread
+attachment, silently. (Not a regression: the old "Sign in to order" link dropped
+it too; the guest dialog just makes the path more reachable.)
+
+**Task.**
+
+- In guest mode, fold the captured `threadId` into `GuestAuthPanel`'s `next`
+  value: `${productPath}?order=1&threadId=${threadId}` when present.
+  `safeNextOr` already permits `&` and `=`, and the dialog's auto-open init
+  already reads both params.
+- Verify the round trip end-to-end: signed-out + `?threadId=` → sign in → dialog
+  reopens with the thread still attached → order links to the conversation.
+
+**Acceptance criteria.**
+
+- [ ] A signed-out user following a thread CTA and signing in places an order
+      that links back to the thread.
+- [ ] No change for signed-in thread→order flow or plain guest orders.
+
+## E6 — Replace deprecated React.FormEvent usage
+
+**Priority:** P3 · **Effort:** S · **Depends on:** —
+
+**Context.** From the PR #94 review (2026-06-12). The IDE flags
+`React.FormEvent` as deprecated in `components/marketplace/order-button.tsx`
+(`handleSubmit(e: React.FormEvent)`). It doesn't fail `tsc` today, but
+deprecated type aliases get removed in future `@types/react` majors and the
+warning is noise in every editing session.
+
+**Task.**
+
+- Check the deprecation notice in the installed `@types/react` for the
+  recommended replacement and apply it (likely the parameterized
+  `React.FormEvent<HTMLFormElement>` or the event type React 19 docs suggest).
+- Grep for other uses of the deprecated alias repo-wide and fix them in the
+  same pass.
+
+**Acceptance criteria.**
+
+- [ ] No deprecated React event-type aliases remain (grep + IDE diagnostics
+      clean on touched files).
+- [ ] `npm run check` green; no behavior change.
+
 ---
 
 # Backlog — explicitly NOT now (do not implement)
