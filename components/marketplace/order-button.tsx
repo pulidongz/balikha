@@ -151,12 +151,17 @@ function OrderDialog(props: OrderButtonProps) {
   const searchParams = useSearchParams();
   // Reorder flow: ReorderButton routes here with ?reorder=1.
   // Thread→order flow: ThreadView's "Order this piece" CTA routes here
-  // with ?threadId=<id> (§6.10a). Both auto-open the dialog by deriving
-  // the INITIAL state from the URL via lazy useState init (computed once
-  // at mount). The follow-up effect strips both params so a refresh
-  // doesn't reopen — no setState inside an effect.
+  // with ?threadId=<id> (§6.10a). Post-auth flow: GuestAuthPanel's
+  // sign-up/sign-in links round-trip back here with ?order=1. All three
+  // auto-open the dialog by deriving the INITIAL state from the URL via
+  // lazy useState init (computed once at mount). The follow-up effect
+  // strips the params so a refresh doesn't reopen — no setState inside
+  // an effect.
   const [open, setOpen] = useState<boolean>(
-    () => searchParams.get('reorder') === '1' || searchParams.get('threadId') !== null,
+    () =>
+      searchParams.get('reorder') === '1' ||
+      searchParams.get('order') === '1' ||
+      searchParams.get('threadId') !== null,
   );
   // threadId carried into placeOrder. Read once at mount — the strip
   // effect below removes it from the URL, so don't re-read it later.
@@ -164,9 +169,14 @@ function OrderDialog(props: OrderButtonProps) {
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (searchParams.get('reorder') === '1' || searchParams.get('threadId') !== null) {
+    if (
+      searchParams.get('reorder') === '1' ||
+      searchParams.get('order') === '1' ||
+      searchParams.get('threadId') !== null
+    ) {
       const next = new URLSearchParams(searchParams.toString());
       next.delete('reorder');
+      next.delete('order');
       next.delete('threadId');
       const query = next.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
