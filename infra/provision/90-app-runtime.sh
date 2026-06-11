@@ -151,7 +151,7 @@ if [ -n "$UNITS_SRC" ]; then
   log "Installing systemd units from ${UNITS_SRC}."
   cp "${UNITS_SRC}/"*.service "${UNITS_SRC}/"*.timer /etc/systemd/system/
   systemctl daemon-reload
-  systemctl enable balikha.service balikha-orders-tick.timer
+  systemctl enable balikha.service balikha-orders-tick.timer balikha-weekly-digest.timer
   # The backup timer is enable --now: nothing else starts it (deploy.sh starts
   # the app + orders-tick), and a timer only schedules — the backup service it
   # triggers runs at fire time, by when a release is on disk.
