@@ -39,7 +39,7 @@ message is about.
 - **White card** `#FFFFFF`, 1px `#E6DFD1` border, rounded bottom corners, no
   top border (band + card read as one unit). When `heroImageUrl` is set, the
   photo renders full-width at the top of the card with `width: 100%; height:
-  auto` — never cropped, because `object-fit` is unsupported in Outlook.
+auto` — never cropped, because `object-fit` is unsupported in Outlook.
   Card padding (~24px) holds the existing serif heading + vermilion tick,
   then the template's children.
 - **Footer outside the card**, driftwood `#52616F` small text:
