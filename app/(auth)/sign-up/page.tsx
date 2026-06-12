@@ -39,6 +39,7 @@ export default async function SignUpPage({
     <Card>
       <CardHeader>
         <CardTitle className="font-serif text-2xl">Create your account</CardTitle>
+        <div aria-hidden="true" className="bg-accent h-0.5 w-9 rounded-full" />
         <CardDescription>
           {artistIntent
             ? 'Open a studio, show your work the way a gallery would — and sell it if you want to.'
