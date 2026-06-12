@@ -115,7 +115,7 @@ finish, keeping its existing calm-not-alarming intent:
    submit. Sign-up equivalent.
 2. Eye toggle masks/unmasks on sign-in, sign-up, and reset-password.
 3. Split shows the editorial feature; with the feature unset, the
-   newest-work fallback; on an empty dev DB, the committed photo.
+   newest-work fallback; on an empty dev DB, the navy brand panel.
 4. `< lg` width: single-column form, no photo.
 5. Sign-in and sign-up round trips work end-to-end, including `?next=`
    redirects (regression surface from the guest-order flow).

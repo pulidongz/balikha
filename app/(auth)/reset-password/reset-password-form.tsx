@@ -26,7 +26,7 @@ function ResetLinkError({ title, body }: { title: string; body: string }) {
       <p className="text-muted-foreground text-sm">{body}</p>
       <Button
         size="lg"
-        className="w-full"
+        className="h-11 w-full"
         nativeButton={false}
         render={<Link href="/forgot-password" />}
       >
