@@ -1,5 +1,5 @@
 import { Link, Section, Text } from 'react-email';
-import { EmailLayout, EmailButton } from '@/lib/email/templates/_layout';
+import { EmailLayout, EmailButton, EmailStatRows } from '@/lib/email/templates/_layout';
 
 export interface WeeklyDigestCounts {
   newFollowers: number;
@@ -15,11 +15,6 @@ interface WeeklyDigestEmailProps {
   unsubscribeUrl: string;
 }
 
-function line(count: number, singular: string, plural: string): string | null {
-  if (count === 0) return null;
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
 // Weekly traction digest (T10). The sender guarantees at least one
 // non-zero count — a zero-activity week never sends ("you got nothing
 // this week" is not an email anyone wants).
@@ -29,12 +24,26 @@ export function WeeklyDigestEmail({
   studioUrl,
   unsubscribeUrl,
 }: WeeklyDigestEmailProps) {
-  const lines = [
-    line(counts.newFollowers, 'new follower', 'new followers'),
-    line(counts.appreciations, 'appreciation on your work', 'appreciations on your work'),
-    line(counts.comments, 'comment on your work', 'comments on your work'),
-    line(counts.newMessageThreads, 'new conversation started', 'new conversations started'),
-  ].filter((l): l is string => l !== null);
+  const rows = [
+    {
+      value: counts.newFollowers,
+      label: counts.newFollowers === 1 ? 'new follower' : 'new followers',
+    },
+    {
+      value: counts.appreciations,
+      label:
+        counts.appreciations === 1 ? 'appreciation on your work' : 'appreciations on your work',
+    },
+    {
+      value: counts.comments,
+      label: counts.comments === 1 ? 'comment on your work' : 'comments on your work',
+    },
+    {
+      value: counts.newMessageThreads,
+      label:
+        counts.newMessageThreads === 1 ? 'new conversation started' : 'new conversations started',
+    },
+  ].filter((r) => r.value > 0);
 
   return (
     <EmailLayout preview={`Your week at ${shopName}`} heading={`Your week at ${shopName}`}>
@@ -44,16 +53,7 @@ export function WeeklyDigestEmail({
         </Text>
       </Section>
       <Section style={{ margin: '0 0 28px' }}>
-        <div style={{ backgroundColor: '#EEE9DD', borderRadius: '8px', padding: '16px 18px' }}>
-          {lines.map((l) => (
-            <Text
-              key={l}
-              style={{ fontSize: '15px', lineHeight: 1.8, margin: 0, color: '#1A2B3A' }}
-            >
-              · {l}
-            </Text>
-          ))}
-        </div>
+        <EmailStatRows rows={rows} />
       </Section>
       <Section style={{ margin: '0 0 8px' }}>
         <EmailButton href={studioUrl}>Visit your studio</EmailButton>

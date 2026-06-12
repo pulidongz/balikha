@@ -97,5 +97,6 @@ export async function fanOutMessageNotification(
     heading: title,
     preview,
     url: recipientUrl,
+    imagePath: thread.productImageUrlSnapshot,
   };
 }

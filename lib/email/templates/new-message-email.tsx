@@ -11,11 +11,19 @@ interface NewMessageEmailProps {
   preview: string;
   // ABSOLUTE url to the thread (dashboard or account side).
   conversationUrl: string;
+  // Absolute URL of the piece's photo, when the conversation has product
+  // context. Omitted → imageless card.
+  heroImageUrl?: string;
 }
 
-export function NewMessageEmail({ heading, preview, conversationUrl }: NewMessageEmailProps) {
+export function NewMessageEmail({
+  heading,
+  preview,
+  conversationUrl,
+  heroImageUrl,
+}: NewMessageEmailProps) {
   return (
-    <EmailLayout preview={heading} heading={heading}>
+    <EmailLayout preview={heading} heading={heading} heroImageUrl={heroImageUrl} heroImageAlt="">
       <Section style={{ margin: '0 0 24px' }}>
         <Text style={{ fontSize: '16px', lineHeight: 1.65, margin: 0 }}>
           You have a new message waiting in your Balikha inbox.

@@ -200,6 +200,7 @@ export async function placeOrder(
               artisanProfileId: string;
               sellerUserId: string;
               productTitle: string;
+              productImageUrl: string | null;
               threadLinkSkipped: boolean;
             };
 
@@ -469,6 +470,7 @@ export async function placeOrder(
             artisanProfileId: artisan.id,
             sellerUserId: artisan.userId,
             productTitle: order.productTitleSnapshot,
+            productImageUrl: order.productImageUrlSnapshot,
             threadLinkSkipped,
           };
         });
@@ -516,6 +518,7 @@ export async function placeOrder(
           orderReference: result.reference,
           productTitle: result.productTitle,
           url: `/dashboard/orders/${result.orderId}`,
+          imagePath: result.productImageUrl,
         };
         after(() => dispatchOrderEmail(sellerEmail));
 
@@ -801,6 +804,7 @@ async function fanOutTransitionNotification(
       orderReference: order.reference,
       productTitle: order.productTitleSnapshot,
       url: r.url,
+      imagePath: order.productImageUrlSnapshot,
     });
   }
 
