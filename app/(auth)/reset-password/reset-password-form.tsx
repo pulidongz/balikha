@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/auth/password-input';
 import { AuthStatus } from '@/components/auth/auth-status';
 import { resetPassword } from '@/lib/auth-client';
 
@@ -111,10 +111,9 @@ export function ResetPasswordForm() {
       >
         <div className="space-y-2">
           <Label htmlFor="reset-password">New password</Label>
-          <Input
+          <PasswordInput
             id="reset-password"
             name="password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -125,10 +124,9 @@ export function ResetPasswordForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="reset-confirm">Confirm new password</Label>
-          <Input
+          <PasswordInput
             id="reset-confirm"
             name="confirm"
-            type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/auth/password-input';
 import { signIn } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
 import { TurnstileWidget } from '@/components/auth/turnstile-widget';
@@ -32,7 +33,6 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
     oauthErrored ? 'Could not complete Google sign-in. Please try again.' : null,
   );
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   // Turnstile tokens are single-use. The widget ref lets us call reset()
   // after any failed submit so a fresh challenge is issued before the next
   // attempt — without this, a typo'd-password retry would fail the captcha
@@ -124,34 +124,24 @@ export function SignInForm({ googleEnabled }: SignInFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="signin-password">Password</Label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground text-xs"
-                onClick={() => setShowPassword((s) => !s)}
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
-              <Link
-                href="/forgot-password"
-                className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-          </div>
-          <Input
+          <Label htmlFor="signin-password">Password</Label>
+          <PasswordInput
             id="signin-password"
             name="password"
-            type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
             className="h-11"
           />
+          <p className="text-right">
+            <Link
+              href="/forgot-password"
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </p>
         </div>
         {(error || captchaError) && (
           <p role="alert" className="text-destructive text-sm">

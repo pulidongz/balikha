@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/auth/password-input';
 import { signUp } from '@/lib/auth-client';
 import { ContinueWithGoogleButton } from '@/components/auth/continue-with-google-button';
 import { TurnstileWidget } from '@/components/auth/turnstile-widget';
@@ -36,7 +37,6 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -201,20 +201,10 @@ export function SignUpForm({ googleEnabled }: SignUpFormProps) {
           </button>
         )}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="signup-password">Password</Label>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground text-xs"
-              onClick={() => setShowPassword((s) => !s)}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          <Input
+          <Label htmlFor="signup-password">Password</Label>
+          <PasswordInput
             id="signup-password"
             name="password"
-            type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
