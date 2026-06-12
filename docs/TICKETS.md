@@ -452,6 +452,100 @@ Facebook/TikTok bios. The page must index well and unfurl beautifully.
 
 ---
 
+# Phase 4 — Buyer experience
+
+## T19 — @pulidongz/psgc-data: self-updating PSGC package (separate repo)
+
+**Priority:** P2 · **Effort:** M · **Depends on:** — (lives outside this repo)
+
+**Context.** From the address-autocomplete brainstorm (2026-06-12). Balikha
+needs normalized province/city/barangay data (PSGC — the PSA's official
+geographic registry, published quarterly). Decision: own it as a public,
+reusable npm package in its own repo rather than vendoring sync logic into
+Balikha. Existing community packages are static snapshots dependent on
+volunteer maintainers; the official PSA Classifications API requires a
+token and is unfit as a runtime dependency. **Data-only by decision** — no
+bundled React/UI component (couples a data package to React versions,
+styling systems, and Google SDK churn; the reusable UI logic is a thin
+combobox every app already has).
+
+**Task.**
+
+- New public repo `pulidongz/psgc-data`, npm package `@pulidongz/psgc-data`.
+- Generated JSON per level (regions, provinces, cities+municipalities,
+  barangays), flat records `{ code, name, level, parentCode }` (PSGC
+  10-digit codes), exported `PSGC_VERSION` constant (e.g. 'Q3_2025').
+- Typed helpers: hierarchy getters (`getProvinces(regionCode?)`,
+  `getBarangays(cityCode)`, …) and normalized prefix/substring search
+  (`searchCitiesMunicipalities(q, provinceCode?)`, …). Subpath exports per
+  level so consumers don't bundle the ~4MB barangay file unintentionally.
+- GitHub Actions monthly cron: query the PSA Classifications API
+  (`classification.psa.gov.ph`, token as repo secret) for the latest
+  quarterly version; on change, regenerate data, run integrity tests
+  (hierarchy closure, minimum counts, code format), bump minor, publish to
+  npm with provenance, cut a GitHub release with a data changelog. No
+  change → green no-op. Failures notify via GitHub and retry next month.
+- Versioning: minor = new PSGC quarter, patch = code fixes.
+
+**Prerequisites (founder).** npm account + `NPM_TOKEN` repo secret; PSA API
+token (requested via their Google Form); new GitHub repo.
+
+**Acceptance criteria.**
+
+- [ ] `npm install @pulidongz/psgc-data` ships typed data + helpers usable
+      server-side in Balikha.
+- [ ] A simulated new-quarter run publishes a new minor version without
+      human input; a no-change run publishes nothing.
+- [ ] Integrity tests gate publishing.
+
+## T20 — Address autocomplete: Google street-first + PSGC fallback
+
+**Priority:** P2 · **Effort:** M–L · **Depends on:** T19
+
+**Context.** From the same brainstorm. The address form
+(`components/account/address-form.tsx`) is all free text — inconsistent
+city/province spellings will haunt shipping later, and multi-field entry
+is tedious. Decision: hybrid. Google Places gives the lazy-friendly
+street-first single field; the PSGC package is the barangay resolver and
+the always-available fallback. Cost reality (2026 pricing): with session
+tokens + debounce, ~8 autocomplete requests ($2.83/1k) + 1 Place Details
+Essentials ($5/1k) ≈ 3¢ per completed address; free tier (10k requests +
+10k details/month) covers ~1,200 address entries/month — effectively $0 at
+current scale. Google's PH data is weak on barangay, hence the PSGC
+resolution step.
+
+**Task.**
+
+- Smart street field via Google Places Autocomplete (New): session tokens
+  (mandatory — abandoned sessions bill per-request), 300ms debounce,
+  3-char minimum, `country:PH` restriction. Selection fills line1, city,
+  province, postal code.
+- Barangay: combobox fed by `@pulidongz/psgc-data`, scoped to the PSGC
+  city matched (fuzzy) from Google's city/province strings; unmatched city
+  → barangay stays free text.
+- Degradation path: missing `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, script-load
+  failure, or quota exhaustion → form renders PSGC cascading autocomplete
+  (province → city → barangay) with free-text street. Address entry must
+  never hard-fail on Google availability.
+- `user_addresses` schema unchanged — autocomplete is input assistance;
+  rows keep storing plain text (PSGC renames never corrupt history).
+- `.env.example` gains `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` only. The PSA
+  token belongs to the package repo, never Balikha.
+
+**Prerequisites (founder).** Google Maps Platform key with billing enabled,
+referrer-restricted to balikha.art + dev hosts.
+
+**Acceptance criteria.**
+
+- [ ] Typing a street address autocompletes and fills the form; barangay
+      list reflects the matched city.
+- [ ] With the key removed, the PSGC cascading fallback renders and works
+      end-to-end.
+- [ ] Reused on both new-address and edit-address pages; existing
+      addresses load/edit unchanged.
+
+---
+
 # Engineering health — follow-ups from the T1 code review (2026-06-10)
 
 These are code-health tickets, not product tickets. They came out of the review
