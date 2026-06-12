@@ -12,6 +12,7 @@ jobs:
   build:
     name: Production build + package
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -87,6 +88,7 @@ jobs:
     name: Deploy to production
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Only deploy from main — NEVER from a workflow_dispatch on a feature branch
     # (review HIGH). Without this, any write-access user could dispatch the
     # workflow on their own branch and run that branch's deploy.sh as root on
