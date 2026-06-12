@@ -12,3 +12,33 @@ export function buildProductImageKey(productId: string, ext: string): string {
 export function publicUrlForKey(key: string): string {
   return `${PUBLIC_URL_BASE}/${key}`;
 }
+
+// Artisan profile assets: artisans/<profileId>/<kind>-<uuid>.<ext>.
+// kind is a fixed literal (never user input) so keys stay enumerable.
+export function buildArtisanAssetKey(
+  profileId: string,
+  kind: 'banner' | 'profile-photo',
+  ext: string,
+): string {
+  return `artisans/${profileId}/${kind}-${randomUUID()}.${ext}`;
+}
+
+// Buyer avatars: users/<userId>/avatar-<uuid>.<ext>.
+export function buildUserAvatarKey(userId: string, ext: string): string {
+  return `users/${userId}/avatar-${randomUUID()}.${ext}`;
+}
+
+// Studio update photos: updates/<profileId>/<uuid>.<ext>.
+export function buildUpdatePhotoKey(profileId: string, ext: string): string {
+  return `updates/${profileId}/${randomUUID()}.${ext}`;
+}
+
+// Inverse of publicUrlForKey: the storage key for a URL we own, or null
+// for anything else (seeded external URLs, legacy local /uploads/ paths
+// from the pre-S3 era in dev databases). null means "not ours to delete"
+// — callers skip deletion explicitly rather than guessing.
+export function keyForPublicUrl(url: string): string | null {
+  const prefix = `${PUBLIC_URL_BASE}/`;
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(prefix.length);
+}
