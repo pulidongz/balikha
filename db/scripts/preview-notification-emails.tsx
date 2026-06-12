@@ -103,7 +103,7 @@ async function main() {
     subject: 'Weekly digest preview — Balikha',
     react: (
       <WeeklyDigestEmail
-        shopName="Habian Heritage"
+        shopName="Hablon Heritage"
         counts={{ newFollowers: 3, appreciations: 12, comments: 2, newMessageThreads: 1 }}
         studioUrl={`${env.NEXT_PUBLIC_APP_URL}/studio/hablon-heritage`}
         unsubscribeUrl={`${env.NEXT_PUBLIC_APP_URL}/unsubscribe?token=preview`}
