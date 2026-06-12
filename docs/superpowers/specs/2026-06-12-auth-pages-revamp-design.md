@@ -65,6 +65,23 @@ Becomes an async server component rendering a two-pane split at `lg:`+:
 The panel can never render empty; in steady state it is founder-curated
 and doubles as artist promotion (extends the T15 mechanism's reach).
 
+## Addendum (2026-06-12): side alternation + entry motion
+
+Added on user request after the initial implementation:
+
+- The photo panel alternates sides per route: sign-in / forgot-password /
+  verify-email → right; sign-up / reset-password → left. A client
+  `AuthShell` (`components/auth/auth-shell.tsx`) reads `usePathname()`
+  and flips the flex order; the server layout still owns the media fetch.
+  Unknown/future auth routes compose panel-right by default.
+- Calm entry motion, CSS only, reusing the existing `auth-rise` +
+  inline-delay stagger system: the form pane rises on load, the brand
+  line and credit stagger in, and the photo gets a new `auth-panel-drift`
+  Ken Burns (scale to 1.07 over 28s). The global
+  `prefers-reduced-motion` rule neutralizes all of it. Side-swap
+  view-transition animation was considered and rejected (experimental
+  flag; conflicts with the calm brand register).
+
 ## `PasswordInput` (`components/auth/password-input.tsx`, new)
 
 Wrapper around the existing `Input`:
