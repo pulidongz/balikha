@@ -69,11 +69,15 @@ and doubles as artist promotion (extends the T15 mechanism's reach).
 
 Added on user request after the initial implementation:
 
-- The photo panel alternates sides per route: sign-in / forgot-password /
-  verify-email → right; sign-up / reset-password → left. A client
+- The photo panel is an entry-page treatment: sign-in / verify-email →
+  panel right; sign-up → panel left; forgot-password / reset-password →
+  **no panel** (recovery flows are task-critical — the component is the
+  focus, not the gallery; they render centered-minimal). A client
   `AuthShell` (`components/auth/auth-shell.tsx`) reads `usePathname()`
-  and flips the flex order; the server layout still owns the media fetch.
-  Unknown/future auth routes compose panel-right by default.
+  and decides placement; the server layout still owns the media fetch
+  (the query runs even on panel-less routes — accepted, it keeps the
+  layout route-agnostic). Unknown/future auth routes compose panel-right
+  by default.
 - Calm entry motion, CSS only, reusing the existing `auth-rise` +
   inline-delay stagger system: the form pane rises on load, the brand
   line and credit stagger in, and the photo gets a new `auth-panel-drift`
