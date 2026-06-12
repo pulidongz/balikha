@@ -16,12 +16,15 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   return (
     <div className="relative">
       <Input type={visible ? 'text' : 'password'} className={cn('pr-10', className)} {...props} />
+      {/* Fixed label + aria-pressed (not a swapping label) so screen
+          readers announce one state, not two. p-2 grows the hit target
+          past the bare 16px icon. */}
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-label="Show password"
         aria-pressed={visible}
-        className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
+        className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 -translate-y-1/2 p-2"
       >
         {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>
