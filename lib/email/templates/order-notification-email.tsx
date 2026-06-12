@@ -8,6 +8,8 @@ interface OrderNotificationEmailProps {
   productTitle: string;
   ctaLabel: string; // e.g. "Review the order"
   orderUrl: string; // ABSOLUTE
+  // Absolute URL of the piece's photo. Omitted → imageless card.
+  heroImageUrl?: string;
 }
 
 export function OrderNotificationEmail({
@@ -17,9 +19,15 @@ export function OrderNotificationEmail({
   productTitle,
   ctaLabel,
   orderUrl,
+  heroImageUrl,
 }: OrderNotificationEmailProps) {
   return (
-    <EmailLayout preview={`${heading} — ${productTitle}`} heading={heading}>
+    <EmailLayout
+      preview={`${heading} — ${productTitle}`}
+      heading={heading}
+      heroImageUrl={heroImageUrl}
+      heroImageAlt={productTitle}
+    >
       <Section style={{ margin: '0 0 24px' }}>
         <Text style={{ fontSize: '16px', lineHeight: 1.65, margin: 0 }}>{intro}</Text>
       </Section>

@@ -23,6 +23,10 @@ export interface MessageEmailDispatch {
   // RELATIVE in-app path; the absolute URL is built here from
   // NEXT_PUBLIC_APP_URL (emails cannot use relative links).
   url: string;
+  // Product photo for the hero block. RELATIVE app path or absolute URL
+  // (image snapshots store either); null/undefined renders the imageless
+  // card. Absolutized here like `url` — templates never see relative paths.
+  imagePath?: string | null;
 }
 
 // ---- Order channel --------------------------------------------------------
@@ -42,6 +46,10 @@ export interface OrderEmailDispatch {
   orderReference: string;
   productTitle: string;
   url: string; // RELATIVE
+  // Product photo for the hero block. RELATIVE app path or absolute URL
+  // (image snapshots store either); null/undefined renders the imageless
+  // card. Absolutized here like `url` — templates never see relative paths.
+  imagePath?: string | null;
 }
 
 interface OrderEmailCopy {
@@ -96,6 +104,12 @@ function absoluteUrl(relativeUrl: string): string {
   return `${env.NEXT_PUBLIC_APP_URL}${relativeUrl}`;
 }
 
+// Image snapshots store either an app-relative path (/uploads/…) or an
+// already-absolute external URL (seeded data). Normalize to absolute.
+function absoluteImageUrl(path: string): string {
+  return path.startsWith('http') ? path : absoluteUrl(path);
+}
+
 export async function dispatchMessageEmail(d: MessageEmailDispatch): Promise<void> {
   try {
     const recipient = await getEmailRecipient(d.recipientUserId);
@@ -113,6 +127,7 @@ export async function dispatchMessageEmail(d: MessageEmailDispatch): Promise<voi
         heading: d.heading,
         preview: d.preview,
         conversationUrl: absoluteUrl(d.url),
+        heroImageUrl: d.imagePath ? absoluteImageUrl(d.imagePath) : undefined,
       }),
     });
     if (!result.ok) {
@@ -233,6 +248,7 @@ export async function dispatchOrderEmail(d: OrderEmailDispatch): Promise<void> {
         productTitle: d.productTitle,
         ctaLabel: copy.ctaLabel,
         orderUrl: absoluteUrl(d.url),
+        heroImageUrl: d.imagePath ? absoluteImageUrl(d.imagePath) : undefined,
       }),
     });
     if (!result.ok) {
