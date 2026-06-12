@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
   //
   // localhost:3000 is implicitly allowed (the dev server's own host).
   allowedDevOrigins: ['dev.balikha.art', 'balikha.localhost'],
+  // Server-action uploads (banner/avatar/work photos/updates) go through
+  // FormData, and Next's default body cap is 1 MB — which silently
+  // overruled every app-level limit (banner promises 8 MB; a studio
+  // update allows 4 photos × 8 MB). 36mb = the largest legitimate body
+  // (32 MB) + multipart overhead. App-level per-file validation in
+  // lib/actions/* remains the real gate. Still `experimental.` in this
+  // Next version per node_modules/next/dist/docs (.../serverActions.md).
+  experimental: { serverActions: { bodySizeLimit: '36mb' } },
   // T1 community pivot: artisan pages moved from /shop/* to /studio/*.
   // permanent:true emits a 308 (Next's method-preserving equivalent of a
   // 301 — search engines treat both as permanent). :path* covers both the
