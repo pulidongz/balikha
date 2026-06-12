@@ -3,6 +3,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getAuthPanelMedia } from '@/lib/queries/auth-panel';
 
+// This layout queries the DB (getAuthPanelMedia) for the photo panel.
+// forgot-password and reset-password would otherwise be statically
+// prerendered, executing that query at build time — and the CI/release
+// build jobs run with a deliberately unreachable DATABASE_URL ("never
+// connected to at build"). force-dynamic here covers all (auth) child
+// routes and keeps the panel's media request-time fresh, same rationale
+// as the sign-in page's own force-dynamic for the Google flag (PR #64).
+export const dynamic = 'force-dynamic';
+
 // Two-pane editorial shell for every (auth) page: form on cream at left,
 // featured-work photo at right (lg+ only). Media comes from the founder-
 // curated feature with fallbacks (see getAuthPanelMedia); when there is
