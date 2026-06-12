@@ -65,6 +65,7 @@ export function EmailLayout({
               padding: '16px 24px',
             }}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element -- email HTML cannot use next/image */}
             <img
               src={wordmarkUrl}
               alt="Balikha"
@@ -83,6 +84,7 @@ export function EmailLayout({
             }}
           >
             {heroImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- email HTML cannot use next/image
               <img
                 src={heroImageUrl}
                 alt={heroImageAlt ?? ''}
