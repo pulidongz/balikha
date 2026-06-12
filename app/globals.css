@@ -211,3 +211,16 @@
   transform-origin: center;
   animation: auth-tick-grow 440ms cubic-bezier(0.23, 1, 0.32, 1) 360ms both;
 }
+
+/* Auth split panel: the featured-work photo drifts almost imperceptibly
+   (Ken Burns) — gallery calm, not urgency. The container clips the
+   overscan; the global reduced-motion rule above neutralizes it. */
+@keyframes auth-panel-drift {
+  to {
+    transform: scale(1.07);
+  }
+}
+
+.auth-panel-drift {
+  animation: auth-panel-drift 28s ease-out both;
+}

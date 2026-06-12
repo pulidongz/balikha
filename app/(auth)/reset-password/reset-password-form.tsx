@@ -3,39 +3,41 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { CircleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AuthStatus } from '@/components/auth/auth-status';
+import { PasswordInput } from '@/components/auth/password-input';
 import { resetPassword } from '@/lib/auth-client';
 
 // Shared dead-end view for an expired / incomplete reset link: a calm mark
-// (driftwood, not alarm-red — an expired link isn't a destructive event) plus
-// a real way forward.
+// (oat disc + driftwood lucide icon, not alarm-red — an expired link isn't a
+// destructive event), the brand serif + tick, and the primary action
+// styled as primary.
 function ResetLinkError({ title, body }: { title: string; body: string }) {
   return (
-    <div role="alert">
-      <AuthStatus
-        mark="alert"
-        title={title}
-        description={body}
-        action={
-          <Button
-            variant="outline"
-            size="lg"
-            className="h-11 w-full"
-            nativeButton={false}
-            render={<Link href="/forgot-password" />}
-          >
-            Request a new link
-          </Button>
-        }
-        footer={
-          <Link href="/sign-in" className="text-foreground underline-offset-4 hover:underline">
-            Back to sign in
-          </Link>
-        }
-      />
+    <div className="space-y-4 py-2 text-center">
+      <div className="bg-secondary mx-auto flex size-12 items-center justify-center rounded-full">
+        <CircleAlert className="text-muted-foreground size-6" aria-hidden="true" />
+      </div>
+      <div>
+        <h1 className="font-serif text-2xl tracking-tight">{title}</h1>
+        <div aria-hidden="true" className="bg-accent mx-auto mt-3 h-0.5 w-9 rounded-full" />
+      </div>
+      <p className="text-muted-foreground text-sm">{body}</p>
+      <Button
+        size="lg"
+        className="h-11 w-full"
+        nativeButton={false}
+        render={<Link href="/forgot-password" />}
+      >
+        Request a new link
+      </Button>
+      <Link
+        href="/sign-in"
+        className="text-muted-foreground hover:text-foreground block text-sm underline-offset-4 hover:underline"
+      >
+        Back to sign in
+      </Link>
     </div>
   );
 }
@@ -97,6 +99,7 @@ export function ResetPasswordForm() {
     <div className="space-y-6">
       <div className="space-y-1.5">
         <h1 className="font-serif text-2xl tracking-tight">Choose a new password</h1>
+        <div aria-hidden="true" className="bg-accent mt-2 h-0.5 w-9 rounded-full" />
         <p className="text-muted-foreground text-sm leading-relaxed">
           Enter a new password for your account. The link you clicked is single-use.
         </p>
@@ -111,10 +114,9 @@ export function ResetPasswordForm() {
       >
         <div className="space-y-2">
           <Label htmlFor="reset-password">New password</Label>
-          <Input
+          <PasswordInput
             id="reset-password"
             name="password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -125,10 +127,9 @@ export function ResetPasswordForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="reset-confirm">Confirm new password</Label>
-          <Input
+          <PasswordInput
             id="reset-confirm"
             name="confirm"
-            type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
