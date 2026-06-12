@@ -598,6 +598,46 @@ warning is noise in every editing session.
       clean on touched files).
 - [ ] `npm run check` green; no behavior change.
 
+## E7 — Search hardening: rate limit, pool config, suggestion caching
+
+**Priority:** P2 · **Effort:** S–M · **Depends on:** —
+
+**Context.** From the search scaling review (2026-06-12). Search itself is
+well-built — Postgres FTS with GIN indexes, trigram fallback, keyset
+pagination — and comfortably handles hundreds of concurrent users. The gaps
+are operational, and none are search-design problems:
+
+1. **No rate limiting** on `/search` (or any public read endpoint). Legit
+   users are fine; a script hammering uncached search queries hits the DB
+   unthrottled on a 1GB box.
+2. **DB pool is unconfigured** — `postgres(env.DATABASE_URL)` uses
+   postgres-js defaults (`db/index.ts`). Local dev already saturates
+   `max_connections` when multiple dev servers run; prod should pin an
+   explicit, deliberate pool size.
+3. **`getSearchSuggestions()` is uncached** — the empty-state chips run a
+   `unnest(materials)` aggregation on every render; facets already use
+   `unstable_cache` with a 5-min TTL + tag, suggestions should match.
+4. (Observation only) every search writes a `search_events` analytics row;
+   fine now, revisit if search volume ever matters.
+
+**Task.**
+
+- Add a lightweight per-IP rate limit for search requests (in-memory or
+  Postgres-backed; no new infra — single-instance deployment makes
+  in-memory acceptable; document the limitation).
+- Configure the postgres-js pool explicitly (`max`, `idle_timeout`,
+  `connect_timeout`) sized for the 1GB Linode; document the numbers.
+- Wrap `getSearchSuggestions()` in `unstable_cache` with the same
+  `search-facets` tag + TTL pattern used by `getAvailableMaterials()`.
+
+**Acceptance criteria.**
+
+- [ ] Burst-requesting `/search` gets throttled responses; normal use is
+      unaffected.
+- [ ] Pool settings are explicit in `db/index.ts` with a sizing comment.
+- [ ] Suggestion chips no longer query on every empty-state render
+      (verified via query logging in dev).
+
 ---
 
 # Backlog — explicitly NOT now (do not implement)
