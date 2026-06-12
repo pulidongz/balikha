@@ -15,9 +15,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # timeout-minutes on every job: the slowest legitimate run is ~2 minutes,
+  # so 10 is generous headroom. Without it, a wedged runner holds the job
+  # for GitHub's 360-minute default (observed 2026-06-12: image-sanitize
+  # hung ~30 minutes on a bad runner before manual cancellation).
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -36,6 +41,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -54,6 +60,7 @@ jobs:
   format:
     name: Format check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -72,6 +79,7 @@ jobs:
   image-checks:
     name: Image sanitize checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -94,6 +102,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
