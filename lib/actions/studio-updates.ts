@@ -1,7 +1,5 @@
 'use server';
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
@@ -16,22 +14,15 @@ import {
   IMAGE_FORMAT_META,
   MAX_IMAGE_DIMENSION,
 } from '@/lib/storage/sanitize-image';
+import { putObject } from '@/lib/storage/put-object';
+import { buildUpdatePhotoKey, publicUrlForKey } from '@/lib/storage/keys';
+import { bestEffortDeleteStoredUpload } from '@/lib/storage/delete';
 
 const MAX_UPDATE_PHOTOS = 4;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // matches the banner ceiling
 const MAX_BODY_LENGTH = 1000;
 
 const bodySchema = z.string().trim().max(MAX_BODY_LENGTH);
-
-async function bestEffortUnlinkUpdateImage(url: string) {
-  if (!url.startsWith('/uploads/updates/')) return;
-  const filePath = path.join(process.cwd(), 'public', url.replace(/^\//, ''));
-  try {
-    await fs.unlink(filePath);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-  }
-}
 
 // FormData (not JSON) because photos ride along — the whole post is one
 // submit so an artist can publish from a phone in under a minute (T9 AC).
@@ -67,14 +58,12 @@ export async function createStudioUpdateAction(
     sanitizedAll.push(sanitized.data);
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'updates', profile.id);
-  await fs.mkdir(uploadDir, { recursive: true });
-
   const urls: string[] = [];
-  for (const [i, img] of sanitizedAll.entries()) {
-    const filename = `update-${Date.now()}-${i}.${IMAGE_FORMAT_META[img.format].ext}`;
-    await fs.writeFile(path.join(uploadDir, filename), img.data);
-    urls.push(`/uploads/updates/${profile.id}/${filename}`);
+  for (const img of sanitizedAll) {
+    const meta = IMAGE_FORMAT_META[img.format];
+    const key = buildUpdatePhotoKey(profile.id, meta.ext);
+    await putObject({ key, body: img.data, contentType: meta.contentType });
+    urls.push(publicUrlForKey(key));
   }
 
   const updateId = await db.transaction(async (tx) => {
@@ -148,7 +137,7 @@ export async function deleteStudioUpdateAction(input: unknown): Promise<Result<n
     .returning({ id: studioUpdates.id });
   if (!deleted) return err('Update not found.');
 
-  for (const img of images) await bestEffortUnlinkUpdateImage(img.url);
+  for (const img of images) await bestEffortDeleteStoredUpload(img.url);
 
   log.info({ artisanProfileId: profile.id, updateId: deleted.id }, 'Studio update deleted');
   revalidatePath(studioPath(profile.shopSlug));

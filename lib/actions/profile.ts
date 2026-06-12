@@ -1,7 +1,5 @@
 'use server';
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
@@ -16,18 +14,11 @@ import {
   IMAGE_FORMAT_META,
   MAX_IMAGE_DIMENSION,
 } from '@/lib/storage/sanitize-image';
+import { putObject } from '@/lib/storage/put-object';
+import { buildUserAvatarKey, publicUrlForKey } from '@/lib/storage/keys';
+import { bestEffortDeleteStoredUpload } from '@/lib/storage/delete';
 
 const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4 MB — avatars don't need banner-size budget
-
-async function bestEffortUnlinkLocalUpload(url: string | null) {
-  if (!url || !url.startsWith('/uploads/users/')) return;
-  const filePath = path.join(process.cwd(), 'public', url.replace(/^\//, ''));
-  try {
-    await fs.unlink(filePath);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-  }
-}
 
 export async function updateProfileAction(formData: FormData): Promise<Result<null>> {
   const log = await getRequestLogger();
@@ -66,9 +57,6 @@ export async function uploadAvatarAction(formData: FormData): Promise<Result<nul
     return err('Avatar must be 4 MB or smaller.');
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'users', current.id);
-  await fs.mkdir(uploadDir, { recursive: true });
-
   const buffer = Buffer.from(await file.arrayBuffer());
   const sanitized = await sanitizeImage(buffer, {
     maxBytes: MAX_AVATAR_BYTES,
@@ -77,11 +65,11 @@ export async function uploadAvatarAction(formData: FormData): Promise<Result<nul
   });
   if (!sanitized.ok) return err(sanitized.error);
 
-  const ext = IMAGE_FORMAT_META[sanitized.data.format].ext;
-  const filename = `avatar-${Date.now()}.${ext}`;
-  await fs.writeFile(path.join(uploadDir, filename), sanitized.data.data);
+  const meta = IMAGE_FORMAT_META[sanitized.data.format];
+  const key = buildUserAvatarKey(current.id, meta.ext);
+  await putObject({ key, body: sanitized.data.data, contentType: meta.contentType });
 
-  const newUrl = `/uploads/users/${current.id}/${filename}`;
+  const newUrl = publicUrlForKey(key);
   // Read the previous URL straight from the row — the in-memory user from
   // the session has whatever Better Auth cached, which can lag a write.
   const [row] = await db
@@ -89,7 +77,7 @@ export async function uploadAvatarAction(formData: FormData): Promise<Result<nul
     .from(user)
     .where(eq(user.id, current.id))
     .limit(1);
-  await bestEffortUnlinkLocalUpload(row?.image ?? null);
+  await bestEffortDeleteStoredUpload(row?.image ?? null);
 
   await db
     .update(user)
@@ -111,7 +99,7 @@ export async function deleteAvatarAction(): Promise<Result<null>> {
     .limit(1);
   if (!row?.image) return ok(null);
 
-  await bestEffortUnlinkLocalUpload(row.image);
+  await bestEffortDeleteStoredUpload(row.image);
 
   await db.update(user).set({ image: null, updatedAt: new Date() }).where(eq(user.id, current.id));
 

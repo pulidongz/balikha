@@ -1,7 +1,5 @@
 'use server';
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
@@ -23,18 +21,11 @@ import {
   IMAGE_FORMAT_META,
   MAX_IMAGE_DIMENSION,
 } from '@/lib/storage/sanitize-image';
+import { putObject } from '@/lib/storage/put-object';
+import { buildArtisanAssetKey, publicUrlForKey } from '@/lib/storage/keys';
+import { bestEffortDeleteStoredUpload } from '@/lib/storage/delete';
 
 const MAX_BANNER_BYTES = 8 * 1024 * 1024; // 8 MB — banners are larger than product images
-
-async function bestEffortUnlinkLocalUpload(url: string | null) {
-  if (!url || !url.startsWith('/uploads/artisans/')) return;
-  const filePath = path.join(process.cwd(), 'public', url.replace(/^\//, ''));
-  try {
-    await fs.unlink(filePath);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-  }
-}
 
 export async function becomeArtisanAction(
   formData: FormData,
@@ -272,9 +263,6 @@ export async function uploadArtisanProfilePhotoAction(formData: FormData): Promi
     return err('Photo must be 4 MB or smaller.');
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'artisans', profile.id);
-  await fs.mkdir(uploadDir, { recursive: true });
-
   const buffer = Buffer.from(await file.arrayBuffer());
   const sanitized = await sanitizeImage(buffer, {
     maxBytes: MAX_PROFILE_PHOTO_BYTES,
@@ -283,12 +271,12 @@ export async function uploadArtisanProfilePhotoAction(formData: FormData): Promi
   });
   if (!sanitized.ok) return err(sanitized.error);
 
-  const ext = IMAGE_FORMAT_META[sanitized.data.format].ext;
-  const filename = `photo-${Date.now()}.${ext}`;
-  await fs.writeFile(path.join(uploadDir, filename), sanitized.data.data);
+  const meta = IMAGE_FORMAT_META[sanitized.data.format];
+  const key = buildArtisanAssetKey(profile.id, 'profile-photo', meta.ext);
+  await putObject({ key, body: sanitized.data.data, contentType: meta.contentType });
 
-  const newUrl = `/uploads/artisans/${profile.id}/${filename}`;
-  await bestEffortUnlinkLocalUpload(profile.profilePhotoUrl);
+  const newUrl = publicUrlForKey(key);
+  await bestEffortDeleteStoredUpload(profile.profilePhotoUrl);
 
   await db
     .update(artisanProfiles)
@@ -306,7 +294,7 @@ export async function deleteArtisanProfilePhotoAction(): Promise<Result<null>> {
 
   if (!profile.profilePhotoUrl) return ok(null);
 
-  await bestEffortUnlinkLocalUpload(profile.profilePhotoUrl);
+  await bestEffortDeleteStoredUpload(profile.profilePhotoUrl);
 
   await db
     .update(artisanProfiles)
@@ -330,9 +318,6 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Res
     return err('Banner must be 8 MB or smaller.');
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'artisans', profile.id);
-  await fs.mkdir(uploadDir, { recursive: true });
-
   const buffer = Buffer.from(await file.arrayBuffer());
   const sanitized = await sanitizeImage(buffer, {
     maxBytes: MAX_BANNER_BYTES,
@@ -341,12 +326,12 @@ export async function uploadArtisanBannerAction(formData: FormData): Promise<Res
   });
   if (!sanitized.ok) return err(sanitized.error);
 
-  const ext = IMAGE_FORMAT_META[sanitized.data.format].ext;
-  const filename = `banner-${Date.now()}.${ext}`;
-  await fs.writeFile(path.join(uploadDir, filename), sanitized.data.data);
+  const meta = IMAGE_FORMAT_META[sanitized.data.format];
+  const key = buildArtisanAssetKey(profile.id, 'banner', meta.ext);
+  await putObject({ key, body: sanitized.data.data, contentType: meta.contentType });
 
-  const newUrl = `/uploads/artisans/${profile.id}/${filename}`;
-  await bestEffortUnlinkLocalUpload(profile.bannerImageUrl);
+  const newUrl = publicUrlForKey(key);
+  await bestEffortDeleteStoredUpload(profile.bannerImageUrl);
 
   await db
     .update(artisanProfiles)
@@ -364,7 +349,7 @@ export async function deleteArtisanBannerAction(): Promise<Result<null>> {
 
   if (!profile.bannerImageUrl) return ok(null);
 
-  await bestEffortUnlinkLocalUpload(profile.bannerImageUrl);
+  await bestEffortDeleteStoredUpload(profile.bannerImageUrl);
 
   await db
     .update(artisanProfiles)

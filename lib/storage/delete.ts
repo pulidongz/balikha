@@ -1,5 +1,6 @@
 import { DeleteObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { BUCKET, s3 } from './client';
+import { keyForPublicUrl } from './keys';
 import { logger } from '@/lib/logger';
 
 // Storage deletes are best-effort. By the time these run, the DB row that
@@ -14,6 +15,16 @@ export async function deleteObject(key: string): Promise<void> {
   } catch (e) {
     logger.error({ err: e, key }, 'Failed to delete storage object');
   }
+}
+
+// Best-effort delete of a stored upload by its public URL. URLs we don't
+// own (seeded external images, legacy local /uploads/ paths in old dev
+// rows) resolve to a null key and are deliberately left alone.
+export async function bestEffortDeleteStoredUpload(url: string | null): Promise<void> {
+  if (!url) return;
+  const key = keyForPublicUrl(url);
+  if (!key) return;
+  await deleteObject(key);
 }
 
 export async function deleteObjects(keys: string[]): Promise<void> {
