@@ -56,9 +56,11 @@ Becomes an async server component rendering a two-pane split at `lg:`+:
 1. Editorial feature image + its credit.
 2. No feature → newest published work's primary image + that credit
    (one small query).
-3. Empty platform → committed brand photo in `public/` (founder's own
-   photography; file chosen at implementation) with the brand line, no
-   credit.
+3. Empty platform → navy brand panel (`bg-primary`) with the serif brand
+   line and no photo. (Amended from "committed brand photo" during
+   implementation: no rights-cleared asset exists to commit, the case is
+   reachable only on an empty database, and a navy panel can never render
+   as a broken image.)
 
 The panel can never render empty; in steady state it is founder-curated
 and doubles as artist promotion (extends the T15 mechanism's reach).
