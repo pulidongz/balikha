@@ -1,6 +1,8 @@
+import { unstable_cache } from 'next/cache';
 import { sql, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import { clampLimit } from '@/lib/queries/paginate';
+import { FACET_TAG } from '@/lib/search/facets';
 import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
 import type {
   ArtisanHit,
@@ -374,18 +376,28 @@ async function searchProducts(
  * from materials actually on published works, most common first — the
  * product search vector indexes materials at weight B, so every term
  * here is guaranteed to return at least one result. No hardcoded "vase".
+ *
+ * Cached (E7) with the same `search-facets` tag + 5-min TTL as
+ * getAvailableMaterials: this runs an `unnest(materials)` aggregation, and
+ * the empty/no-results states rendered it on every request. Product
+ * mutations already `revalidateTag(FACET_TAG)`, so new materials surface
+ * promptly; the TTL bounds staleness if a write bypasses our actions.
  */
-export async function getSearchSuggestions(limit = 8): Promise<string[]> {
-  const rows = await db.execute<{ material: string }>(sql`
-    SELECT m AS material
-    FROM (
-      SELECT unnest(materials) AS m
-      FROM products
-      WHERE status = 'published' AND materials IS NOT NULL
-    ) t
-    GROUP BY m
-    ORDER BY count(*) DESC, m ASC
-    LIMIT ${limit}
-  `);
-  return rows.map((r) => r.material);
-}
+export const getSearchSuggestions = unstable_cache(
+  async (limit = 8): Promise<string[]> => {
+    const rows = await db.execute<{ material: string }>(sql`
+      SELECT m AS material
+      FROM (
+        SELECT unnest(materials) AS m
+        FROM products
+        WHERE status = 'published' AND materials IS NOT NULL
+      ) t
+      GROUP BY m
+      ORDER BY count(*) DESC, m ASC
+      LIMIT ${limit}
+    `);
+    return rows.map((r) => r.material);
+  },
+  ['search-suggestions'],
+  { revalidate: 300, tags: [FACET_TAG] },
+);

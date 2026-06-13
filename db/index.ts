@@ -3,7 +3,20 @@ import postgres from 'postgres';
 import * as schema from './schema';
 import { env } from '@/env';
 
-const client = postgres(env.DATABASE_URL);
+// Explicit pool sizing (E7). postgres-js defaults to max:10 with no
+// connect timeout; we pin all three deliberately for the single 1GB Linode
+// (prod) and to stay friendly to local dev, where several dev servers each
+// open a pool against the same Postgres (max_connections=100) and saturate
+// it. max:10 caps each instance's footprint (10 app conns leaves ample
+// headroom for migrations, psql, and the seed on the 100-conn server);
+// idle_timeout returns idle conns quickly so concurrent dev servers don't
+// pile up; connect_timeout fails fast instead of hanging on a saturated or
+// unreachable DB. All three are in SECONDS.
+const client = postgres(env.DATABASE_URL, {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 /**
  * Drizzle database client.

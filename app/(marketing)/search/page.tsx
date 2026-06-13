@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getAvailableMaterials } from '@/lib/search/facets';
 import { logSearchEvent } from '@/lib/search/log';
 import Link from 'next/link';
 import { getSearchSuggestions, searchAll } from '@/lib/search/queries';
+import { checkSearchRateLimit } from '@/lib/search/rate-limit';
 import { parseSearchParams } from '@/lib/search/url';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { ActiveFilterChips } from '@/components/search/active-filter-chips';
@@ -31,6 +33,17 @@ export default async function SearchPage({
 
   if (!parsed?.q) {
     return <SearchEmptyState />;
+  }
+
+  // Per-IP rate limit (E7): protect the DB from a script looping uncached
+  // queries on the 1GB box. Only actual searches are limited (not the
+  // empty/suggestion state above, which is cached). `x-real-ip` is the
+  // proxy-set client IP the app already trusts (auth.ts, logger-context).
+  // Absent (no proxy, e.g. local dev) → we can't attribute the request, so
+  // we don't throttle; in prod Caddy always sets it.
+  const clientIp = (await headers()).get('x-real-ip');
+  if (clientIp && !checkSearchRateLimit(clientIp).allowed) {
+    return <SearchThrottled query={parsed.q} />;
   }
 
   const filters = {
@@ -148,6 +161,21 @@ async function SuggestionChips() {
         </li>
       ))}
     </ul>
+  );
+}
+
+// Shown when an IP exceeds the search rate limit (E7). Calm, on-brand, and
+// crucially renders WITHOUT touching the DB — the whole point is to shed
+// load. No auto-retry; the visitor re-submits when ready.
+async function SearchThrottled({ query }: { query: string }) {
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6 lg:py-24">
+      <h1 className="font-serif text-3xl">One moment</h1>
+      <p className="text-muted-foreground mx-auto mt-3 max-w-md text-sm">
+        That&rsquo;s a lot of searching in a short time. Give it a few seconds, then look for{' '}
+        <em className="not-italic">&ldquo;{query}&rdquo;</em> again.
+      </p>
+    </div>
   );
 }
 
