@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, homepageFeature, products } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
@@ -8,37 +8,59 @@ export const metadata = {
   title: 'Editorial Featuring — Admin',
 };
 
-// Founder-curated homepage feature (T15). Changing it is a form submit —
-// no deploy. Paid placement is out of scope, indefinitely.
+// Founder-curated homepage feature (T15). Changing it is a form submit — no
+// deploy. The picker preloads every approved studio and its publicly-visible
+// works (published/sold_out) so the founder selects from real names instead of
+// typing slugs. This is fine at the current scale (tens of studios, hundreds of
+// works); if the catalogue grows into the thousands, switch to a search query.
 export default async function AdminFeaturingPage() {
   await requireAdmin();
 
-  const [row] = await db.select().from(homepageFeature).limit(1);
-
-  let artisanSlug = '';
-  if (row?.artisanProfileId) {
-    const [a] = await db
-      .select({ shopSlug: artisanProfiles.shopSlug })
+  const [row, studioRows, workRows] = await Promise.all([
+    db
+      .select()
+      .from(homepageFeature)
+      .limit(1)
+      .then((rows) => rows[0]),
+    db
+      .select({
+        id: artisanProfiles.id,
+        name: artisanProfiles.shopName,
+        slug: artisanProfiles.shopSlug,
+      })
       .from(artisanProfiles)
-      .where(eq(artisanProfiles.id, row.artisanProfileId))
-      .limit(1);
-    artisanSlug = a?.shopSlug ?? '';
-  }
-
-  let workSlugs = '';
-  if (row && row.featuredProductIds.length > 0) {
-    const rows = await db
-      .select({ id: products.id, slug: products.slug, shopSlug: artisanProfiles.shopSlug })
+      .where(eq(artisanProfiles.approvalStatus, 'approved'))
+      .orderBy(asc(artisanProfiles.shopName)),
+    db
+      .select({
+        id: products.id,
+        title: products.title,
+        slug: products.slug,
+        studioSlug: artisanProfiles.shopSlug,
+      })
       .from(products)
       .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
-      .where(inArray(products.id, row.featuredProductIds));
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    workSlugs = row.featuredProductIds
-      .map((id) => byId.get(id))
-      .filter((r): r is NonNullable<typeof r> => r !== undefined)
-      .map((r) => `${r.shopSlug}/${r.slug}`)
-      .join('\n');
-  }
+      .where(
+        and(
+          eq(artisanProfiles.approvalStatus, 'approved'),
+          inArray(products.status, ['published', 'sold_out']),
+        ),
+      )
+      .orderBy(asc(artisanProfiles.shopName), asc(products.title)),
+  ]);
+
+  // Default selected studio slug (the studio currently featured, if any).
+  const defaultStudioSlug = row?.artisanProfileId
+    ? (studioRows.find((s) => s.id === row.artisanProfileId)?.slug ?? '')
+    : '';
+
+  // Default selected works — only those that still exist, are featurable, and
+  // belong to the default studio, preserving the saved order. (The feature is
+  // "one studio, a row of their works", so works are scoped to that studio.)
+  const workIdsInStudio = new Set(
+    workRows.filter((w) => w.studioSlug === defaultStudioSlug).map((w) => w.id),
+  );
+  const defaultWorkIds = (row?.featuredProductIds ?? []).filter((id) => workIdsInStudio.has(id));
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -50,10 +72,12 @@ export default async function AdminFeaturingPage() {
         </p>
       </header>
       <EditorialFeatureForm
+        studios={studioRows}
+        works={workRows}
         defaults={{
-          artisanSlug,
+          studioSlug: defaultStudioSlug,
           editorialText: row?.editorialText ?? '',
-          workSlugs,
+          workIds: defaultWorkIds,
         }}
       />
     </div>
