@@ -6,6 +6,7 @@ import {
   getAdminOrders,
   parseOrderFilter,
 } from '@/lib/queries/admin-orders';
+import { parseSearchParam } from '@/lib/queries/admin-params';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
 import { cn } from '@/lib/utils';
 
@@ -24,13 +25,14 @@ const TABS: readonly { value: AdminOrderFilter; label: string }[] = [
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string | string[] }>;
+  searchParams: Promise<{ status?: string | string[]; q?: string | string[] }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
   const filter = parseOrderFilter(params.status);
+  const search = parseSearchParam(params.q);
 
-  const { list, disputedCount } = await getAdminOrders(filter);
+  const { list, disputedCount } = await getAdminOrders({ filter, search });
 
   return (
     <div className="space-y-6">
@@ -46,8 +48,11 @@ export default async function AdminOrdersPage({
           {TABS.map((tab) => {
             const active = filter === tab.value;
             const showBadge = tab.value === 'disputed' && disputedCount > 0;
-            const href =
-              tab.value === 'disputed' ? '/admin/orders' : `/admin/orders?status=${tab.value}`;
+            const sp = new URLSearchParams();
+            // 'disputed' is the default filter, so it carries no status param.
+            if (tab.value !== 'disputed') sp.set('status', tab.value);
+            if (search) sp.set('q', search);
+            const href = `/admin/orders${sp.toString() ? `?${sp}` : ''}`;
             return (
               <li key={tab.value}>
                 <Link
@@ -79,9 +84,27 @@ export default async function AdminOrdersPage({
         </ul>
       </nav>
 
+      {/* Search — carries the active status tab through as a hidden field. */}
+      <form method="get" action="/admin/orders" className="flex gap-2">
+        {filter !== 'disputed' && <input type="hidden" name="status" value={filter} />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={search}
+          placeholder="Search by reference, buyer email, or studio…"
+          className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
+        />
+        <button
+          type="submit"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium"
+        >
+          Search
+        </button>
+      </form>
+
       {list.length === 0 ? (
         <p className="text-muted-foreground py-12 text-center text-sm">
-          No orders match this filter.
+          {search ? `No orders match “${search}”.` : 'No orders match this filter.'}
         </p>
       ) : (
         <ul className="space-y-2">
