@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, orders, user } from '@/db/schema';
 import { firstParam } from './admin-params';
@@ -42,15 +42,16 @@ function statusesForFilter(filter: AdminOrderFilter): readonly string[] | null {
   }
 }
 
-export async function getAdminOrders({
-  filter,
-  search,
-}: {
+interface OrderFilter {
   filter: AdminOrderFilter;
   search: string;
-}) {
-  const statuses = statusesForFilter(filter);
+}
 
+// Shared by the list and the CSV export so both honour identical status/search
+// semantics. Callers must include the user + artisanProfiles joins because the
+// search term reaches buyer email and studio name.
+function buildOrderConditions({ filter, search }: OrderFilter): SQL[] {
+  const statuses = statusesForFilter(filter);
   const whereClauses: SQL[] = [];
   if (statuses) {
     whereClauses.push(inArray(orders.status, statuses as readonly (typeof orders.status._.data)[]));
@@ -67,6 +68,11 @@ export async function getAdminOrders({
     );
     if (term) whereClauses.push(term);
   }
+  return whereClauses;
+}
+
+export async function getAdminOrders({ filter, search }: OrderFilter) {
+  const whereClauses = buildOrderConditions({ filter, search });
 
   const [list, disputedCountRow] = await Promise.all([
     db
@@ -91,4 +97,34 @@ export async function getAdminOrders({
   ]);
 
   return { list, disputedCount: disputedCountRow[0]?.value ?? 0 };
+}
+
+// Cap so a runaway export can't pull every order into memory. The route logs
+// when it's hit so a truncated export is never silent.
+export const ADMIN_ORDERS_EXPORT_MAX = 10000;
+
+export async function getAdminOrdersForExport({ filter, search }: OrderFilter) {
+  const whereClauses = buildOrderConditions({ filter, search });
+
+  return (
+    db
+      .select({
+        reference: orders.reference,
+        status: orders.status,
+        productTitleSnapshot: orders.productTitleSnapshot,
+        priceSnapshot: orders.priceSnapshot,
+        currency: orders.currency,
+        placedAt: orders.placedAt,
+        buyerEmail: user.email,
+        studioName: artisanProfiles.shopName,
+      })
+      .from(orders)
+      .leftJoin(user, eq(user.id, orders.buyerUserId))
+      .leftJoin(artisanProfiles, eq(artisanProfiles.id, orders.artisanProfileId))
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+      // id tiebreaker so identical-timestamp rows export in a stable order
+      // (placedAt is not unique) — successive exports diff cleanly.
+      .orderBy(desc(orders.placedAt), asc(orders.id))
+      .limit(ADMIN_ORDERS_EXPORT_MAX)
+  );
 }

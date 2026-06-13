@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth-helpers';
-import { formatRelativeTime } from '@/lib/format';
 import {
   type ApprovalFilter,
   getAdminSellerApplications,
   parseApprovalFilter,
 } from '@/lib/queries/admin-sellers';
+import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
@@ -96,7 +96,7 @@ export default async function AdminSellersPage({
                     {a.applicantName} &middot; {a.applicantEmail}
                   </p>
                   <p className="text-muted-foreground text-xs">
-                    Applied {formatRelativeTime(a.createdAt)}
+                    Applied <RelativeTime date={a.createdAt} />
                   </p>
                 </div>
                 <span

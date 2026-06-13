@@ -1,26 +1,18 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { deriveStatus, STATUS_PILL, ROLE_PILL } from '@/lib/admin/user-status';
-import { formatRelativeTime } from '@/lib/format';
 import { parsePageParam, parseSearchParam } from '@/lib/queries/admin-params';
 import {
   getAdminUsers,
   parseUserRoleFilter,
   parseUserStatusFilter,
 } from '@/lib/queries/admin-users';
+import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Users — Admin',
 };
-
-const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 const FILTER_SELECT_CLASS =
   'border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none';
@@ -54,6 +46,12 @@ export default async function AdminUsersPage({
     const qs = sp.toString();
     return `/admin/users${qs ? `?${qs}` : ''}`;
   }
+
+  const exportParams = new URLSearchParams();
+  if (search) exportParams.set('q', search);
+  if (role !== 'all') exportParams.set('role', role);
+  if (status !== 'all') exportParams.set('status', status);
+  const exportHref = `/admin/users/export${exportParams.toString() ? `?${exportParams}` : ''}`;
 
   return (
     <div className="space-y-6">
@@ -102,14 +100,21 @@ export default async function AdminUsersPage({
         </button>
       </form>
 
-      {/* Summary */}
-      <p className="text-muted-foreground text-xs">
-        {total} {total === 1 ? 'user' : 'users'}
-        {search ? ` matching "${search}"` : ''}
-        {role !== 'all' ? ` · ${role}` : ''}
-        {status !== 'all' ? ` · ${status}` : ''}
-        {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}
-      </p>
+      {/* Summary + export */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-muted-foreground text-xs">
+          {total} {total === 1 ? 'user' : 'users'}
+          {search ? ` matching "${search}"` : ''}
+          {role !== 'all' ? ` · ${role}` : ''}
+          {status !== 'all' ? ` · ${status}` : ''}
+          {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}
+        </p>
+        {/* Plain anchor (not Link) so the browser performs a full GET and
+            handles the file download. */}
+        <a href={exportHref} className="text-foreground shrink-0 text-xs underline">
+          Export CSV
+        </a>
+      </div>
 
       {list.length === 0 ? (
         <p className="text-muted-foreground py-12 text-center text-sm">
@@ -129,13 +134,7 @@ export default async function AdminUsersPage({
                     <p className="text-foreground font-medium">{u.name}</p>
                     <p className="text-muted-foreground text-xs">{u.email}</p>
                     <p className="text-muted-foreground text-xs">
-                      Joined{' '}
-                      <time
-                        dateTime={u.createdAt.toISOString()}
-                        title={DATE_FMT.format(u.createdAt)}
-                      >
-                        {formatRelativeTime(u.createdAt)}
-                      </time>
+                      Joined <RelativeTime date={u.createdAt} />
                       {u.isArtisan ? ' · artist' : ''}
                     </p>
                   </div>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth-helpers';
-import { formatPrice, formatRelativeTime } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
 import {
   type AdminOrderFilter,
   getAdminOrders,
@@ -8,6 +8,7 @@ import {
 } from '@/lib/queries/admin-orders';
 import { parseSearchParam } from '@/lib/queries/admin-params';
 import { OrderStatusBadge } from '@/components/account/order-status-badge';
+import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
@@ -33,6 +34,11 @@ export default async function AdminOrdersPage({
   const search = parseSearchParam(params.q);
 
   const { list, disputedCount } = await getAdminOrders({ filter, search });
+
+  const exportParams = new URLSearchParams();
+  if (filter !== 'disputed') exportParams.set('status', filter);
+  if (search) exportParams.set('q', search);
+  const exportHref = `/admin/orders/export${exportParams.toString() ? `?${exportParams}` : ''}`;
 
   return (
     <div className="space-y-6">
@@ -102,6 +108,14 @@ export default async function AdminOrdersPage({
         </button>
       </form>
 
+      <div className="flex justify-end">
+        {/* Plain anchor (not Link) so the browser performs a full GET and
+            handles the file download. */}
+        <a href={exportHref} className="text-foreground text-xs underline">
+          Export CSV
+        </a>
+      </div>
+
       {list.length === 0 ? (
         <p className="text-muted-foreground py-12 text-center text-sm">
           {search ? `No orders match “${search}”.` : 'No orders match this filter.'}
@@ -121,7 +135,7 @@ export default async function AdminOrdersPage({
                   <p className="font-mono text-sm">{o.reference}</p>
                   <p className="text-foreground truncate text-sm">{o.productTitleSnapshot}</p>
                   <p className="text-muted-foreground text-xs">
-                    Placed {formatRelativeTime(o.placedAt)}
+                    Placed <RelativeTime date={o.placedAt} />
                   </p>
                 </div>
                 <OrderStatusBadge status={o.status} />

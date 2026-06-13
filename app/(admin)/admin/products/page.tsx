@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth-helpers';
-import { formatRelativeTime } from '@/lib/format';
 import { parsePageParam, parseSearchParam } from '@/lib/queries/admin-params';
 import {
   type AdminProductFilter,
@@ -10,6 +9,7 @@ import {
 import { workPath } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 import { AdminProductActions } from '@/components/admin/admin-product-actions';
+import { RelativeTime } from '@/components/admin/relative-time';
 
 export const metadata = {
   title: 'Products — Admin',
@@ -132,7 +132,7 @@ export default async function AdminProductsPage({
                   <p className="text-foreground font-medium">{product.title}</p>
                   <p className="text-muted-foreground text-xs">{product.shopName ?? '—'}</p>
                   <p className="text-muted-foreground text-xs">
-                    Added {formatRelativeTime(product.createdAt)}
+                    Added <RelativeTime date={product.createdAt} />
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">

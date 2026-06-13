@@ -14,7 +14,7 @@ import {
 } from '@/lib/queries/admin-metrics';
 import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
 import { ADMIN_ACTION_PILL, adminActionLabel } from '@/lib/admin/audit-display';
-import { formatRelativeTime } from '@/lib/format';
+import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -52,9 +52,13 @@ export default async function AdminOverview() {
       </header>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Users" value={totalUsers} />
-        <StatCard label="Products" value={totalProducts} />
-        <StatCard label="Active artists (30d)" value={activeSellers30d} />
+        <StatCard label="Users" value={totalUsers} href="/admin/users" />
+        <StatCard label="Products" value={totalProducts} href="/admin/products" />
+        <StatCard
+          label="Active artists (30d)"
+          value={activeSellers30d}
+          href="/admin/sellers?status=approved"
+        />
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -72,9 +76,9 @@ export default async function AdminOverview() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <Card>
+function StatCard({ label, value, href }: { label: string; value: number; href?: string }) {
+  const card = (
+    <Card className={href ? 'hover:bg-secondary/40 h-full transition-colors' : undefined}>
       <CardHeader className="pb-2">
         <CardTitle className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
           {label}
@@ -84,6 +88,13 @@ function StatCard({ label, value }: { label: string; value: number }) {
         <p className="text-3xl font-medium">{value.toLocaleString()}</p>
       </CardContent>
     </Card>
+  );
+  return href ? (
+    <Link href={href} className="block">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }
 
@@ -141,9 +152,10 @@ function RecentActivityCard({
                     {adminActionLabel(entry.action)}
                   </span>
                   <span className="text-foreground truncate">{actor}</span>
-                  <span className="text-muted-foreground ml-auto shrink-0 text-xs">
-                    {formatRelativeTime(entry.createdAt)}
-                  </span>
+                  <RelativeTime
+                    date={entry.createdAt}
+                    className="text-muted-foreground ml-auto shrink-0 text-xs"
+                  />
                 </li>
               );
             })}
