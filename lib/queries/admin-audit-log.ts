@@ -16,6 +16,7 @@ export async function getAdminAuditLog(page: number) {
         createdAt: adminActions.createdAt,
         actorId: adminActions.actorUserId,
         targetId: adminActions.targetUserId,
+        metadata: adminActions.metadataJson,
       })
       .from(adminActions)
       .orderBy(desc(adminActions.createdAt))

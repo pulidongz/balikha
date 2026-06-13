@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { db } from '@/db';
 import { artisanProfiles, notifications } from '@/db/schema';
 import { tryRequireAdmin } from '@/lib/auth-helpers';
+import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { dispatchSellerApplicationEmail } from '@/lib/email/notifications';
@@ -83,6 +84,16 @@ export async function approveSellerApplication(
         url: '/dashboard',
       },
     });
+
+    await recordAdminAction(
+      {
+        actorUserId: admin.id,
+        action: 'approve_seller',
+        targetUserId: profile.userId,
+        metadata: { artisanProfileId: profile.id, shopName: profile.shopName },
+      },
+      tx,
+    );
   });
 
   log.info(
@@ -160,6 +171,17 @@ export async function rejectSellerApplication(
         url: '/dashboard',
       },
     });
+
+    await recordAdminAction(
+      {
+        actorUserId: admin.id,
+        action: 'reject_seller',
+        targetUserId: profile.userId,
+        reason: note ?? undefined,
+        metadata: { artisanProfileId: profile.id, shopName: profile.shopName },
+      },
+      tx,
+    );
   });
 
   log.info(

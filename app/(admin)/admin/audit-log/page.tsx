@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
 import { parsePageParam } from '@/lib/queries/admin-params';
+import {
+  ADMIN_ACTION_PILL,
+  adminActionLabel,
+  metadataOrderId,
+  metadataReference,
+} from '@/lib/admin/audit-display';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
@@ -15,15 +21,6 @@ const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-const ACTION_PILL: Record<string, string> = {
-  suspend: 'bg-amber-100 text-amber-800',
-  unsuspend: 'bg-green-100 text-green-800',
-  ban: 'bg-red-100 text-red-800',
-  unban: 'bg-green-100 text-green-800',
-  promote_admin: 'bg-purple-100 text-purple-800',
-  demote_admin: 'bg-gray-100 text-gray-700',
-};
 
 export default async function AdminAuditLogPage({
   searchParams,
@@ -46,7 +43,8 @@ export default async function AdminAuditLogPage({
       <header className="space-y-1">
         <h1 className="font-serif text-2xl tracking-tight">Audit Log</h1>
         <p className="text-muted-foreground text-sm">
-          Read-only record of every admin action. Reverse-chronological.
+          Read-only record of every admin action — moderation, disputes, seller decisions, and
+          curation. Reverse-chronological.
         </p>
       </header>
 
@@ -77,10 +75,10 @@ export default async function AdminAuditLogPage({
                   <span
                     className={cn(
                       'rounded-full px-2.5 py-0.5 text-xs font-medium',
-                      ACTION_PILL[entry.action] ?? 'bg-gray-100 text-gray-700',
+                      ADMIN_ACTION_PILL[entry.action] ?? 'bg-gray-100 text-gray-700',
                     )}
                   >
-                    {entry.action.replace('_', ' ')}
+                    {adminActionLabel(entry.action)}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -96,6 +94,13 @@ export default async function AdminAuditLogPage({
                       <Link href={`/admin/users/${entry.targetId}`} className="hover:underline">
                         {targetName}
                         {targetEmail && ` (${targetEmail})`}
+                      </Link>
+                    ) : metadataOrderId(entry.metadata) ? (
+                      <Link
+                        href={`/admin/orders/${metadataOrderId(entry.metadata)}`}
+                        className="hover:underline"
+                      >
+                        {metadataReference(entry.metadata) ?? 'Order'}
                       </Link>
                     ) : (
                       '—'

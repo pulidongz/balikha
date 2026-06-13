@@ -141,6 +141,13 @@
       "when": 1781177274437,
       "tag": "0019_overrated_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781370941325,
+      "tag": "0020_typical_goliath",
+      "breakpoints": true
     }
   ]
 }
