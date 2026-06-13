@@ -41,7 +41,7 @@ export function AskTheMakerButton({
     setOpen(true);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (pending || body.trim().length === 0) return;
     setError(null);

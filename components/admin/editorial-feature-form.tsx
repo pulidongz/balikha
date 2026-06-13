@@ -25,7 +25,7 @@ export function EditorialFeatureForm({ defaults }: Props) {
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setSaved(false);

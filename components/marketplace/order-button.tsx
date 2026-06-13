@@ -232,7 +232,7 @@ function OrderDialog(props: OrderButtonProps) {
   const noAddresses = props.addresses.length === 0;
   const canSubmit = !pending && understood && addressId !== '' && !noAddresses;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);

@@ -68,7 +68,7 @@ function SuspendButton({ userId }: { userId: string }) {
   const [durationDays, setDurationDays] = useState('7');
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const days = Number.parseInt(durationDays, 10);
@@ -204,7 +204,7 @@ function BanButton({ userId }: { userId: string }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     if (!reason.trim()) {

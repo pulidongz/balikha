@@ -75,7 +75,7 @@ function ResolveDisputeForm({ orderId }: { orderId: string }) {
   const remaining = 20 - text.trim().length;
   const canSubmit = !pending && remaining <= 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
@@ -210,7 +210,7 @@ function ForceActionButton({
   const remaining = 20 - reason.trim().length;
   const canSubmit = !pending && remaining <= 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);

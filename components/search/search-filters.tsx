@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import type { FormEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ProductFilters } from '@/lib/search/types';
@@ -30,7 +30,7 @@ export function SearchFilters({ query, availableMaterials, currentFilters, onApp
     onApply?.();
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const params = new URLSearchParams();
