@@ -42,7 +42,7 @@ function FileDisputeInner({ orderId }: { orderId: string }) {
   const remaining = 30 - reason.trim().length;
   const canSubmit = !pending && remaining <= 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
@@ -142,7 +142,7 @@ export function RespondToDisputeButton({
   const remaining = 30 - statement.trim().length;
   const canSubmit = !pending && remaining <= 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);

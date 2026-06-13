@@ -14,7 +14,7 @@ export function MessageComposer({ threadId }: { threadId: string }) {
 
   const canSubmit = !pending && body.trim().length > 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);

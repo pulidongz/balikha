@@ -688,9 +688,9 @@ warning is noise in every editing session.
 
 **Acceptance criteria.**
 
-- [ ] No deprecated React event-type aliases remain (grep + IDE diagnostics
+- [x] No deprecated React event-type aliases remain (grep + IDE diagnostics
       clean on touched files).
-- [ ] `npm run check` green; no behavior change.
+- [x] `npm run check` green; no behavior change.
 
 ## E7 — Search hardening: rate limit, pool config, suggestion caching
 

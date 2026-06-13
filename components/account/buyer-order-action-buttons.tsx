@@ -84,7 +84,7 @@ function CancelButton({ orderId }: { orderId: string }) {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {

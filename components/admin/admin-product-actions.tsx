@@ -65,7 +65,7 @@ function FlagButton({ productId }: { productId: string }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     if (!reason.trim()) {
@@ -154,7 +154,7 @@ function RemoveButton({ productId }: { productId: string }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     if (!reason.trim()) {
