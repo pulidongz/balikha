@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
 import { buttonVariants } from '@/components/ui/button';
@@ -8,20 +8,19 @@ import { ArtisanCard } from '@/components/marketplace/artisan-card';
 import { EmptyState } from '@/components/marketplace/empty-state';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductGrid } from '@/components/marketplace/product-grid';
+import { RecentListingsSection } from '@/components/marketplace/recent-listings-section';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 import { UpdateCard } from '@/components/marketplace/update-card';
 import { getAppreciationCounts } from '@/lib/queries/appreciations';
 import { getEditorialFeature } from '@/lib/queries/editorial-feature';
-import { getRecentProducts, type RecentProductRow } from '@/lib/queries/products';
+import { getRecentProducts } from '@/lib/queries/products';
 import { getFollowedFeed, getStudiosToFollow, followsAnyStudio } from '@/lib/queries/feed';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
-import { bucketLabel, getSellerReputationsForArtisans } from '@/lib/queries/seller-reputation';
 import { formatRelativeTime } from '@/lib/format';
 import { studioPath } from '@/lib/routes';
 import { isThinCount } from '@/lib/thin-count';
-import type { Page } from '@/lib/queries/paginate';
 
 // Previously cached for 5 min, but personalized wishlist hearts make this
 // per-user. Calling getCurrentUser() opts the page into dynamic rendering
@@ -29,6 +28,9 @@ import type { Page } from '@/lib/queries/paginate';
 
 const FEATURED_ARTISANS = 4;
 const STUDIOS_TO_FOLLOW = 4;
+// Bounded discovery strip on the signed-in home — a teaser, not a catalog.
+// Deep browsing lives on /browse (linked from the strip header).
+const DISCOVER_LIMIT = 8;
 
 interface HomePageProps {
   searchParams: Promise<{ cursor?: string }>;
@@ -44,100 +46,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   return <EditorialLanding cursor={cursor} />;
 }
 
-/**
- * Recent-listings grid with seller response-time labels and the
- * cursor-paginated "Next →" link. Shared by the signed-out landing and the
- * signed-in fallback (following nothing / nothing new) so the reputation
- * lookup logic lives once.
- */
-async function RecentListingsSection({
-  recent,
-  isSignedIn,
-  wishlistedIds,
-}: {
-  recent: Page<RecentProductRow>;
-  isSignedIn: boolean;
-  wishlistedIds: Set<string>;
-}) {
-  // Seller reputation for the grid. getRecentProducts carries shop slug,
-  // not profile id, so resolve slugs → ids in one query, then batch-fetch
-  // reputations in one more — no N+1 per card.
-  const recentShopSlugs = Array.from(new Set(recent.items.map((p) => p.artisanShopSlug)));
-  const profileIdBySlug = new Map<string, string>();
-  if (recentShopSlugs.length > 0) {
-    const profileRows = await db
-      .select({ id: artisanProfiles.id, shopSlug: artisanProfiles.shopSlug })
-      .from(artisanProfiles)
-      .where(inArray(artisanProfiles.shopSlug, recentShopSlugs));
-    for (const r of profileRows) profileIdBySlug.set(r.shopSlug, r.id);
-  }
-  const reputationByProfileId = await getSellerReputationsForArtisans(
-    Array.from(profileIdBySlug.values()),
-  );
-  const appreciationCounts = await getAppreciationCounts(recent.items.map((p) => p.id));
-
-  if (recent.items.length === 0) {
-    return (
-      <p className="text-muted-foreground">
-        The first pieces are still on the wheel.{' '}
-        <Link
-          href="/sign-up?intent=seller"
-          className="text-foreground underline underline-offset-4"
-        >
-          Share your work on Balikha
-        </Link>{' '}
-        and open the catalog.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <ProductGrid cols={4}>
-        {recent.items.map((p) => {
-          const profileId = profileIdBySlug.get(p.artisanShopSlug);
-          const bucket = profileId
-            ? reputationByProfileId.get(profileId)?.responseTimeBucket
-            : null;
-          return (
-            <li key={p.id}>
-              <ProductCard
-                product={{
-                  id: p.id,
-                  slug: p.slug,
-                  title: p.title,
-                  price: p.price,
-                  currency: p.currency,
-                }}
-                artisan={{
-                  shopSlug: p.artisanShopSlug,
-                  shopName: p.artisanShopName,
-                }}
-                primaryImage={p.primaryImage ?? undefined}
-                inWishlist={wishlistedIds.has(p.id)}
-                isSignedIn={isSignedIn}
-                responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
-                appreciationCount={appreciationCounts.get(p.id)}
-              />
-            </li>
-          );
-        })}
-      </ProductGrid>
-
-      {recent.nextCursor && (
-        <div className="mt-12 flex justify-center">
-          <Link
-            href={`/?cursor=${recent.nextCursor}#recent`}
-            className={buttonVariants({ variant: 'outline' })}
-          >
-            Next →
-          </Link>
-        </div>
-      )}
-    </>
-  );
-}
-
 /** Signed-in homepage: reverse-chronological work from followed studios. */
 async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string | undefined }) {
   const hasFollows = await followsAnyStudio(viewerId);
@@ -149,9 +57,12 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
   const feedAppreciationCounts = showFeed
     ? await getAppreciationCounts(feed.items.filter((i) => i.kind === 'work').map((p) => p.id))
     : new Map<string, number>();
-  // The platform-wide fallback renders whenever the personal feed has
-  // nothing to show: no follows yet, or followed studios are quiet.
-  const fallbackRecent = showFeed ? null : await getRecentProducts({ cursor });
+  // Discovery is ALWAYS available from home — a bounded strip of recent work
+  // across Balikha, shown beneath the feed regardless of who you follow, so
+  // following a studio never costs you access to the wider catalog. Bounded
+  // (no cursor): it's a teaser; /browse carries full pagination. Its own
+  // page-1 query means it never collides with the feed's ?cursor=.
+  const discover = await getRecentProducts({ limit: DISCOVER_LIMIT });
   const studiosToFollow = hasFollows ? [] : await getStudiosToFollow(viewerId, STUDIOS_TO_FOLLOW);
 
   return (
@@ -239,12 +150,17 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
         </section>
       )}
 
-      {fallbackRecent && (
-        <section id="recent" aria-label="Recent works" className="mt-12">
-          <h2 className="mb-6 font-serif text-2xl tracking-tight">Recent works across Balikha</h2>
-          <RecentListingsSection recent={fallbackRecent} isSignedIn wishlistedIds={wishlistedIds} />
-        </section>
-      )}
+      <section id="recent" aria-label="Recent works across Balikha" className="mt-16">
+        <div className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-serif text-2xl tracking-tight">Recent works across Balikha</h2>
+          <Link href="/browse" className="text-muted-foreground hover:text-foreground text-sm">
+            Browse all →
+          </Link>
+        </div>
+        {/* Bounded teaser: no nextHref, so no inline "Next →" — "Browse all"
+            above carries through to the fully paginated /browse page. */}
+        <RecentListingsSection recent={discover} isSignedIn wishlistedIds={wishlistedIds} />
+      </section>
 
       {/* Only renders with 4+ tracked views; returns null below the threshold. */}
       <section className="mt-16">
@@ -478,7 +394,12 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
               </Link>
             )}
           </div>
-          <RecentListingsSection recent={recent} isSignedIn={false} wishlistedIds={new Set()} />
+          <RecentListingsSection
+            recent={recent}
+            isSignedIn={false}
+            wishlistedIds={new Set()}
+            nextHref={recent.nextCursor ? `/?cursor=${recent.nextCursor}#recent` : null}
+          />
         </div>
       </section>
     </div>
