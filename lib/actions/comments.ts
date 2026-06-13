@@ -223,6 +223,9 @@ export async function removeReportedCommentAction(
       .where(and(eq(commentReports.id, parsed.data.reportId), isNull(commentReports.resolvedAt)))
       .for('update')
       .limit(1);
+    // This err() return commits an empty transaction (Drizzle only rolls back
+    // on throw) — safe ONLY because it runs before any write below. Keep this
+    // guard first if you add writes.
     if (!report) return err('Report not found or already resolved.');
 
     let removed = false;

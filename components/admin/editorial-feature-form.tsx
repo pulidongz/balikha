@@ -27,6 +27,9 @@ interface WorkOption {
 interface Props {
   studios: StudioOption[];
   works: WorkOption[];
+  // Currently-featured works from other studios that this single-studio picker
+  // can't show — saving will drop them. Surfaced as a warning, never silent.
+  droppedWorks: { id: string; title: string; studioSlug: string }[];
   defaults: {
     studioSlug: string;
     editorialText: string;
@@ -34,7 +37,7 @@ interface Props {
   };
 }
 
-export function EditorialFeatureForm({ studios, works, defaults }: Props) {
+export function EditorialFeatureForm({ studios, works, droppedWorks, defaults }: Props) {
   const router = useRouter();
   const [studioSlug, setStudioSlug] = useState(defaults.studioSlug);
   const [editorialText, setEditorialText] = useState(defaults.editorialText);
@@ -91,6 +94,23 @@ export function EditorialFeatureForm({ studios, works, defaults }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {droppedWorks.length > 0 && (
+        <div
+          role="alert"
+          className="border-destructive/40 bg-destructive/5 text-foreground space-y-1 rounded-md border p-3 text-sm"
+        >
+          <p className="font-medium">
+            {droppedWorks.length} featured {droppedWorks.length === 1 ? 'work is' : 'works are'}{' '}
+            from other studios.
+          </p>
+          <p className="text-muted-foreground text-xs">
+            This picker features one studio at a time, so saving will remove{' '}
+            {droppedWorks.length === 1 ? 'it' : 'them'}:{' '}
+            {droppedWorks.map((w) => `${w.title} (${w.studioSlug})`).join(', ')}.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="feature-studio">Featured studio</Label>
         <select
