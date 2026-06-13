@@ -55,6 +55,12 @@ export default async function AdminUsersPage({
     return `/admin/users${qs ? `?${qs}` : ''}`;
   }
 
+  const exportParams = new URLSearchParams();
+  if (search) exportParams.set('q', search);
+  if (role !== 'all') exportParams.set('role', role);
+  if (status !== 'all') exportParams.set('status', status);
+  const exportHref = `/admin/users/export${exportParams.toString() ? `?${exportParams}` : ''}`;
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -102,14 +108,21 @@ export default async function AdminUsersPage({
         </button>
       </form>
 
-      {/* Summary */}
-      <p className="text-muted-foreground text-xs">
-        {total} {total === 1 ? 'user' : 'users'}
-        {search ? ` matching "${search}"` : ''}
-        {role !== 'all' ? ` · ${role}` : ''}
-        {status !== 'all' ? ` · ${status}` : ''}
-        {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}
-      </p>
+      {/* Summary + export */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-muted-foreground text-xs">
+          {total} {total === 1 ? 'user' : 'users'}
+          {search ? ` matching "${search}"` : ''}
+          {role !== 'all' ? ` · ${role}` : ''}
+          {status !== 'all' ? ` · ${status}` : ''}
+          {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}
+        </p>
+        {/* Plain anchor (not Link) so the browser performs a full GET and
+            handles the file download. */}
+        <a href={exportHref} className="text-foreground shrink-0 text-xs underline">
+          Export CSV
+        </a>
+      </div>
 
       {list.length === 0 ? (
         <p className="text-muted-foreground py-12 text-center text-sm">

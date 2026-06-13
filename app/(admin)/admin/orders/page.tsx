@@ -35,6 +35,11 @@ export default async function AdminOrdersPage({
 
   const { list, disputedCount } = await getAdminOrders({ filter, search });
 
+  const exportParams = new URLSearchParams();
+  if (filter !== 'disputed') exportParams.set('status', filter);
+  if (search) exportParams.set('q', search);
+  const exportHref = `/admin/orders/export${exportParams.toString() ? `?${exportParams}` : ''}`;
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -102,6 +107,14 @@ export default async function AdminOrdersPage({
           Search
         </button>
       </form>
+
+      <div className="flex justify-end">
+        {/* Plain anchor (not Link) so the browser performs a full GET and
+            handles the file download. */}
+        <a href={exportHref} className="text-foreground text-xs underline">
+          Export CSV
+        </a>
+      </div>
 
       {list.length === 0 ? (
         <p className="text-muted-foreground py-12 text-center text-sm">

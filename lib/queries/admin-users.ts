@@ -49,21 +49,16 @@ function statusCondition(
   }
 }
 
-export async function getAdminUsers({
-  search,
-  page,
-  role,
-  status,
-  now,
-}: {
+interface UserFilter {
   search: string;
-  page: number;
   role: AdminUserRoleFilter;
   status: AdminUserStatusFilter;
   now: Date;
-}) {
-  const offset = (page - 1) * ADMIN_USERS_PAGE_SIZE;
+}
 
+// Shared by the paginated list and the CSV export so both honour identical
+// search/role/status semantics.
+function buildUserConditions({ search, role, status, now }: UserFilter): SQL[] {
   const conditions: SQL[] = [];
   if (search.length > 0) {
     const searchCondition = or(
@@ -79,6 +74,19 @@ export async function getAdminUsers({
     const sc = statusCondition(status, now);
     if (sc) conditions.push(sc);
   }
+  return conditions;
+}
+
+export async function getAdminUsers({
+  search,
+  page,
+  role,
+  status,
+  now,
+}: UserFilter & { page: number }) {
+  const offset = (page - 1) * ADMIN_USERS_PAGE_SIZE;
+
+  const conditions = buildUserConditions({ search, role, status, now });
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [list, totalRow] = await Promise.all([
@@ -106,4 +114,29 @@ export async function getAdminUsers({
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_USERS_PAGE_SIZE));
 
   return { list, total, totalPages };
+}
+
+// Cap so a runaway export can't pull the whole table into memory. Comfortably
+// above the pre-launch user count; the route logs when it's hit so a truncated
+// export is never silent.
+export const ADMIN_USERS_EXPORT_MAX = 10000;
+
+export async function getAdminUsersForExport({ search, role, status, now }: UserFilter) {
+  const conditions = buildUserConditions({ search, role, status, now });
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  return db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      banned: user.banned,
+      banExpires: user.banExpires,
+      createdAt: user.createdAt,
+    })
+    .from(user)
+    .where(where)
+    .orderBy(desc(user.createdAt), asc(user.id))
+    .limit(ADMIN_USERS_EXPORT_MAX);
 }
