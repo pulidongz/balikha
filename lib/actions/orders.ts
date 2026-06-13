@@ -1424,6 +1424,14 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
   const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
+  // Read the reference up front so the audit row carries a human-readable
+  // label, matching resolveDispute. transitionOrder re-validates existence.
+  const [orderRow] = await db
+    .select({ reference: orders.reference })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
+
   const result = await transitionOrder({
     orderId: parsed.data.orderId,
     // Any non-terminal state. Disputed has its own path (resolveDispute).
@@ -1453,7 +1461,7 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
       action: 'force_cancel_order',
       orderId: parsed.data.orderId,
       reason: parsed.data.reason,
-      metadata: { orderId: parsed.data.orderId },
+      metadata: { orderId: parsed.data.orderId, reference: orderRow?.reference },
     });
   }
 
@@ -1472,6 +1480,14 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
 
   const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
+
+  // Read the reference up front so the audit row carries a human-readable
+  // label, matching resolveDispute. transitionOrder re-validates existence.
+  const [orderRow] = await db
+    .select({ reference: orders.reference })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
 
   const result = await transitionOrder({
     orderId: parsed.data.orderId,
@@ -1493,7 +1509,7 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
       action: 'force_complete_order',
       orderId: parsed.data.orderId,
       reason: parsed.data.reason,
-      metadata: { orderId: parsed.data.orderId },
+      metadata: { orderId: parsed.data.orderId, reference: orderRow?.reference },
     });
   }
 
