@@ -142,8 +142,23 @@ function SellerTrustBlock({ trust, shopName }: { trust: SellerTrust; shopName: s
 // Both links carry ?next= back to this product with ?order=1 appended so
 // the dialog reopens after auth — the same rail ?reorder=1 rides. `next`
 // survives email verification and Google OAuth (see sign-up-form.tsx).
-function GuestAuthPanel({ productPath }: { productPath: string }) {
-  const next = encodeURIComponent(`${productPath}?order=1`);
+//
+// When the guest arrived from a thread's "Order this piece" CTA, threadId
+// is folded into `next` (?order=1&threadId=…) so the order still links back
+// to the conversation after sign-in. Without this, the strip effect removes
+// threadId from the URL and the post-auth round trip places the order
+// unlinked (§E5). safeNextOr permits the encoded `&`/`=`.
+function GuestAuthPanel({
+  productPath,
+  threadId,
+}: {
+  productPath: string;
+  threadId: string | null;
+}) {
+  const target = threadId
+    ? `${productPath}?order=1&threadId=${threadId}`
+    : `${productPath}?order=1`;
+  const next = encodeURIComponent(target);
   return (
     <section className="bg-secondary space-y-1 rounded-md p-4">
       <h3 className="text-sm font-medium">Sign up to send this request</h3>
@@ -295,7 +310,7 @@ function OrderDialog(props: OrderButtonProps) {
             </div>
 
             {guest ? (
-              <GuestAuthPanel productPath={props.productPath} />
+              <GuestAuthPanel productPath={props.productPath} threadId={threadId} />
             ) : (
               <>
                 {noAddresses ? (
