@@ -49,8 +49,12 @@ next-env.d.ts
 # user-uploaded product images (local prototype storage)
 /public/uploads/
 
-# planning docs — kept locally, not source-controlled
+# Claude Code process artifacts — kept locally, not source-controlled.
+# Committed docs/ holds app/feature/ops docs only (see docs/runbooks/).
+# Plans, handoffs, specs, and the ticket backlog stay local.
 /docs/plans/
+/docs/superpowers/
+/docs/TICKETS.md
 
 # dev-mode rendered emails (captured by sendEmail's no-send path)
 /.dev-mail/
