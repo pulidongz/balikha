@@ -1075,6 +1075,15 @@ export const adminActionType = pgEnum('admin_action_type', [
   'remove_product',
   'flag_product',
   'reinstate_product',
+  // Full audit coverage: order, seller, comment, and editorial admin actions
+  // that previously only wrote order_events / row updates with no audit row.
+  'resolve_dispute',
+  'force_cancel_order',
+  'force_complete_order',
+  'approve_seller',
+  'reject_seller',
+  'resolve_comment_report',
+  'update_editorial_feature',
 ]);
 
 // Append-only audit log for admin user-management actions. Modeled on

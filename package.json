@@ -34,6 +34,7 @@
     "test:suggest-domain": "tsx scripts/check-suggest-domain.ts",
     "test:google-mapping": "tsx scripts/check-google-mapping.ts",
     "test:auth-validators": "tsx scripts/check-auth-validators.ts",
+    "test:admin-audit-coverage": "tsx scripts/check-admin-audit-coverage.ts",
     "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts",
     "test:admin-product-moderation": "tsx --env-file=.env.development scripts/check-admin-product-moderation.ts"
   },

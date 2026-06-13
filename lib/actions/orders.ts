@@ -22,6 +22,7 @@ import {
   tryRequireArtisan,
   tryRequireUser,
 } from '@/lib/auth-helpers';
+import { recordAdminAction } from '@/lib/admin/audit';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import {
   logAnalyticsEvent,
@@ -1255,6 +1256,36 @@ export async function respondToDispute(input: unknown): Promise<Result<{ dispute
 // Admin actions — Phase 9
 // -----------------------------------------------------------------------------
 
+// Audit an admin order action AFTER its transition has committed. The
+// transition owns its own db.transaction and is already irreversible by the
+// time we get here, so a failed audit insert is LOGGED (never silently
+// swallowed) but must not flip a succeeded action into a failure — the order
+// really did change. This is the sanctioned exception to the re-raise rule:
+// the failure reaches monitoring while the truthful success Result stands.
+async function auditOrderAdminAction(input: {
+  actorUserId: string;
+  action: 'resolve_dispute' | 'force_cancel_order' | 'force_complete_order';
+  orderId: string;
+  reason: string;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await recordAdminAction({
+      actorUserId: input.actorUserId,
+      action: input.action,
+      targetUserId: null,
+      reason: input.reason,
+      metadata: input.metadata,
+    });
+  } catch (e) {
+    const log = await getRequestLogger();
+    log.error(
+      { err: e, orderId: input.orderId, action: input.action },
+      'audit write failed after admin order action',
+    );
+  }
+}
+
 // Stock-handling per Issue 10 (Phase 8 matrix): the question is always
 // "did the item physically leave the seller's possession." If shippedAt
 // is set, the item is gone — returning stock creates a phantom inventory.
@@ -1288,6 +1319,7 @@ export async function resolveDispute(input: unknown): Promise<Result<{ orderId: 
   const [order] = await db
     .select({
       id: orders.id,
+      reference: orders.reference,
       status: orders.status,
       shippedAt: orders.shippedAt,
     })
@@ -1363,6 +1395,20 @@ export async function resolveDispute(input: unknown): Promise<Result<{ orderId: 
     },
   });
 
+  if (result.ok) {
+    await auditOrderAdminAction({
+      actorUserId: admin.id,
+      action: 'resolve_dispute',
+      orderId: order.id,
+      reason: parsed.data.adminResolution,
+      metadata: {
+        orderId: order.id,
+        reference: order.reference,
+        resolution: parsed.data.resolution,
+      },
+    });
+  }
+
   return result;
 }
 
@@ -1378,7 +1424,15 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
   const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
-  return transitionOrder({
+  // Read the reference up front so the audit row carries a human-readable
+  // label, matching resolveDispute. transitionOrder re-validates existence.
+  const [orderRow] = await db
+    .select({ reference: orders.reference })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
+
+  const result = await transitionOrder({
     orderId: parsed.data.orderId,
     // Any non-terminal state. Disputed has its own path (resolveDispute).
     expectedFrom: [
@@ -1400,6 +1454,18 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
     },
     onTransition: returnStockIfPreShipment,
   });
+
+  if (result.ok) {
+    await auditOrderAdminAction({
+      actorUserId: admin.id,
+      action: 'force_cancel_order',
+      orderId: parsed.data.orderId,
+      reason: parsed.data.reason,
+      metadata: { orderId: parsed.data.orderId, reference: orderRow?.reference },
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -1415,7 +1481,15 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
   const admin = await tryRequireAdmin();
   if (!admin) return err('Admin required');
 
-  return transitionOrder({
+  // Read the reference up front so the audit row carries a human-readable
+  // label, matching resolveDispute. transitionOrder re-validates existence.
+  const [orderRow] = await db
+    .select({ reference: orders.reference })
+    .from(orders)
+    .where(eq(orders.id, parsed.data.orderId))
+    .limit(1);
+
+  const result = await transitionOrder({
     orderId: parsed.data.orderId,
     // Only meaningful from shipped; admin shouldn't bypass earlier
     // states by force-completing prematurely.
@@ -1428,4 +1502,16 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
     metadataJson: { action: 'force_complete', reason: parsed.data.reason },
     fieldUpdates: { completedAt: new Date() },
   });
+
+  if (result.ok) {
+    await auditOrderAdminAction({
+      actorUserId: admin.id,
+      action: 'force_complete_order',
+      orderId: parsed.data.orderId,
+      reason: parsed.data.reason,
+      metadata: { orderId: parsed.data.orderId, reference: orderRow?.reference },
+    });
+  }
+
+  return result;
 }

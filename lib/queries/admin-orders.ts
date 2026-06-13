@@ -1,6 +1,6 @@
-import { and, count, desc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
-import { orders } from '@/db/schema';
+import { artisanProfiles, orders, user } from '@/db/schema';
 import { firstParam } from './admin-params';
 
 export const ADMIN_ORDERS_PAGE_SIZE = 100;
@@ -42,12 +42,30 @@ function statusesForFilter(filter: AdminOrderFilter): readonly string[] | null {
   }
 }
 
-export async function getAdminOrders(filter: AdminOrderFilter) {
+export async function getAdminOrders({
+  filter,
+  search,
+}: {
+  filter: AdminOrderFilter;
+  search: string;
+}) {
   const statuses = statusesForFilter(filter);
 
   const whereClauses: SQL[] = [];
   if (statuses) {
     whereClauses.push(inArray(orders.status, statuses as readonly (typeof orders.status._.data)[]));
+  }
+  if (search) {
+    const like = `%${search}%`;
+    // Reference, product title, buyer email, or studio name — the four ways an
+    // admin looks an order up (support email, "where's my X", seller report).
+    const term = or(
+      ilike(orders.reference, like),
+      ilike(orders.productTitleSnapshot, like),
+      ilike(user.email, like),
+      ilike(artisanProfiles.shopName, like),
+    );
+    if (term) whereClauses.push(term);
   }
 
   const [list, disputedCountRow] = await Promise.all([
@@ -62,6 +80,10 @@ export async function getAdminOrders(filter: AdminOrderFilter) {
         placedAt: orders.placedAt,
       })
       .from(orders)
+      // leftJoin so an order whose buyer or artisan row was deleted still
+      // appears; the joins only widen the searchable columns.
+      .leftJoin(user, eq(user.id, orders.buyerUserId))
+      .leftJoin(artisanProfiles, eq(artisanProfiles.id, orders.artisanProfileId))
       .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
       .orderBy(desc(orders.placedAt))
       .limit(ADMIN_ORDERS_PAGE_SIZE),

@@ -6,6 +6,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, homepageFeature, products } from '@/db/schema';
 import { tryRequireAdmin } from '@/lib/auth-helpers';
+import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 
@@ -102,6 +103,13 @@ export async function updateEditorialFeatureAction(
         updatedById: admin.id,
       },
     });
+
+  await recordAdminAction({
+    actorUserId: admin.id,
+    action: 'update_editorial_feature',
+    targetUserId: null,
+    metadata: { artisanProfileId, works: featuredProductIds.length },
+  });
 
   log.info(
     { adminUserId: admin.id, artisanProfileId, works: featuredProductIds.length },

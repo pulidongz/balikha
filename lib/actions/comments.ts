@@ -5,6 +5,7 @@ import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, commentReports, products, workComments } from '@/db/schema';
 import { getCurrentUser, tryRequireAdmin } from '@/lib/auth-helpers';
+import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { COMMENT_MAX_LENGTH } from '@/lib/comments/constants';
@@ -179,8 +180,15 @@ export async function resolveCommentReportAction(
     .update(commentReports)
     .set({ resolvedAt: new Date() })
     .where(and(eq(commentReports.id, parsed.data.reportId), isNull(commentReports.resolvedAt)))
-    .returning({ id: commentReports.id });
+    .returning({ id: commentReports.id, reportedUserId: commentReports.reportedUserId });
   if (!updated) return err('Report not found or already resolved.');
+
+  await recordAdminAction({
+    actorUserId: admin.id,
+    action: 'resolve_comment_report',
+    targetUserId: updated.reportedUserId,
+    metadata: { reportId: updated.id },
+  });
 
   log.info({ adminUserId: admin.id, reportId: updated.id }, 'Comment report resolved');
   return ok({ resolved: true });
