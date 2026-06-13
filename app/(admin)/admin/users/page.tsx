@@ -3,29 +3,53 @@ import { requireAdmin } from '@/lib/auth-helpers';
 import { deriveStatus, STATUS_PILL, ROLE_PILL } from '@/lib/admin/user-status';
 import { formatRelativeTime } from '@/lib/format';
 import { parsePageParam, parseSearchParam } from '@/lib/queries/admin-params';
-import { getAdminUsers } from '@/lib/queries/admin-users';
+import {
+  getAdminUsers,
+  parseUserRoleFilter,
+  parseUserStatusFilter,
+} from '@/lib/queries/admin-users';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Users — Admin',
 };
 
+const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const FILTER_SELECT_CLASS =
+  'border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none';
+
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string | string[]; page?: string | string[] }>;
+  searchParams: Promise<{
+    q?: string | string[];
+    page?: string | string[];
+    role?: string | string[];
+    status?: string | string[];
+  }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
   const search = parseSearchParam(params.q);
   const page = parsePageParam(params.page);
+  const role = parseUserRoleFilter(params.role);
+  const status = parseUserStatusFilter(params.status);
   const now = new Date();
 
-  const { list, total, totalPages } = await getAdminUsers({ search, page });
+  const { list, total, totalPages } = await getAdminUsers({ search, page, role, status, now });
 
   function pageHref(p: number) {
     const sp = new URLSearchParams();
     if (search) sp.set('q', search);
+    if (role !== 'all') sp.set('role', role);
+    if (status !== 'all') sp.set('status', status);
     if (p > 1) sp.set('page', String(p));
     const qs = sp.toString();
     return `/admin/users${qs ? `?${qs}` : ''}`;
@@ -40,15 +64,36 @@ export default async function AdminUsersPage({
         </p>
       </header>
 
-      {/* Search */}
-      <form method="get" action="/admin/users" className="flex gap-2">
+      {/* Search + filters — one GET form, the Search button applies all three. */}
+      <form method="get" action="/admin/users" className="flex flex-wrap gap-2">
         <input
           type="search"
           name="q"
           defaultValue={search}
           placeholder="Search by name or email…"
-          className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
+          className="border-input bg-background focus-visible:ring-ring min-w-[12rem] flex-1 rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
+        <select
+          name="role"
+          defaultValue={role}
+          aria-label="Filter by role"
+          className={FILTER_SELECT_CLASS}
+        >
+          <option value="all">All roles</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+        <select
+          name="status"
+          defaultValue={status}
+          aria-label="Filter by status"
+          className={FILTER_SELECT_CLASS}
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+          <option value="banned">Banned</option>
+        </select>
         <button
           type="submit"
           className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium"
@@ -61,6 +106,8 @@ export default async function AdminUsersPage({
       <p className="text-muted-foreground text-xs">
         {total} {total === 1 ? 'user' : 'users'}
         {search ? ` matching "${search}"` : ''}
+        {role !== 'all' ? ` · ${role}` : ''}
+        {status !== 'all' ? ` · ${status}` : ''}
         {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}
       </p>
 
@@ -82,7 +129,13 @@ export default async function AdminUsersPage({
                     <p className="text-foreground font-medium">{u.name}</p>
                     <p className="text-muted-foreground text-xs">{u.email}</p>
                     <p className="text-muted-foreground text-xs">
-                      Joined {formatRelativeTime(u.createdAt)}
+                      Joined{' '}
+                      <time
+                        dateTime={u.createdAt.toISOString()}
+                        title={DATE_FMT.format(u.createdAt)}
+                      >
+                        {formatRelativeTime(u.createdAt)}
+                      </time>
                       {u.isArtisan ? ' · artist' : ''}
                     </p>
                   </div>
