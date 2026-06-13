@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { aliasedTable } from 'drizzle-orm/alias';
-import { desc, eq, isNull } from 'drizzle-orm';
+import { count, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, commentReports, products, user } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth-helpers';
-import { ResolveReportButton } from '@/components/admin/resolve-report-button';
+import { CommentReportActions } from '@/components/admin/comment-report-actions';
+import { parsePageParam } from '@/lib/queries/admin-params';
 import { workPath } from '@/lib/routes';
 
 export const metadata = {
@@ -19,44 +20,67 @@ const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
   minute: '2-digit',
 });
 
+const PAGE_SIZE = 50;
+
 // Unresolved comment reports (T8). The body shown is the report-time
 // snapshot, so it stays reviewable even after the comment was deleted.
-export default async function AdminCommentReportsPage() {
+export default async function AdminCommentReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string | string[] }>;
+}) {
   await requireAdmin();
+  const params = await searchParams;
+  const page = parsePageParam(params.page);
+  const offset = (page - 1) * PAGE_SIZE;
 
   const reporter = aliasedTable(user, 'reporter');
   const reported = aliasedTable(user, 'reported');
 
-  const reports = await db
-    .select({
-      id: commentReports.id,
-      commentId: commentReports.commentId,
-      commentBody: commentReports.commentBody,
-      createdAt: commentReports.createdAt,
-      reporterName: reporter.name,
-      reporterEmail: reporter.email,
-      reportedName: reported.name,
-      reportedEmail: reported.email,
-      productTitle: products.title,
-      productSlug: products.slug,
-      shopSlug: artisanProfiles.shopSlug,
-    })
-    .from(commentReports)
-    .innerJoin(reporter, eq(reporter.id, commentReports.reporterUserId))
-    .innerJoin(reported, eq(reported.id, commentReports.reportedUserId))
-    .innerJoin(products, eq(products.id, commentReports.productId))
-    .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
-    .where(isNull(commentReports.resolvedAt))
-    .orderBy(desc(commentReports.createdAt));
+  const [reports, totalRow] = await Promise.all([
+    db
+      .select({
+        id: commentReports.id,
+        commentId: commentReports.commentId,
+        commentBody: commentReports.commentBody,
+        createdAt: commentReports.createdAt,
+        reporterName: reporter.name,
+        reporterEmail: reporter.email,
+        reportedName: reported.name,
+        reportedEmail: reported.email,
+        productTitle: products.title,
+        productSlug: products.slug,
+        shopSlug: artisanProfiles.shopSlug,
+      })
+      .from(commentReports)
+      .innerJoin(reporter, eq(reporter.id, commentReports.reporterUserId))
+      .innerJoin(reported, eq(reported.id, commentReports.reportedUserId))
+      .innerJoin(products, eq(products.id, commentReports.productId))
+      .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
+      .where(isNull(commentReports.resolvedAt))
+      .orderBy(desc(commentReports.createdAt))
+      .limit(PAGE_SIZE)
+      .offset(offset),
+    db.select({ value: count() }).from(commentReports).where(isNull(commentReports.resolvedAt)),
+  ]);
+
+  const total = totalRow[0]?.value ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  function pageHref(p: number) {
+    return p <= 1 ? '/admin/comment-reports' : `/admin/comment-reports?page=${p}`;
+  }
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="font-serif text-3xl">Comment reports</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          {reports.length === 0
+          {total === 0
             ? 'No open reports.'
-            : `${reports.length} open ${reports.length === 1 ? 'report' : 'reports'}.`}
+            : `${total} open ${total === 1 ? 'report' : 'reports'}${
+                totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''
+              }.`}
         </p>
       </header>
 
@@ -82,7 +106,7 @@ export default async function AdminCommentReportsPage() {
                     {r.commentId === null && ' · comment since deleted'}
                   </p>
                 </div>
-                <ResolveReportButton reportId={r.id} />
+                <CommentReportActions reportId={r.id} />
               </div>
               <blockquote className="bg-secondary/50 rounded-md p-3 text-sm whitespace-pre-line">
                 {r.commentBody}
@@ -90,6 +114,34 @@ export default async function AdminCommentReportsPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {totalPages > 1 && (
+        <nav className="flex items-center justify-between gap-2 pt-2">
+          {page > 1 ? (
+            <Link
+              href={pageHref(page - 1)}
+              className="text-muted-foreground hover:text-foreground text-sm"
+            >
+              ← Previous
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-muted-foreground text-xs">
+            {page} / {totalPages}
+          </span>
+          {page < totalPages ? (
+            <Link
+              href={pageHref(page + 1)}
+              className="text-muted-foreground hover:text-foreground text-sm"
+            >
+              Next →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
       )}
     </div>
   );
