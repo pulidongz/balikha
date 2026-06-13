@@ -12,11 +12,11 @@ import {
   loadOrderMetrics,
   type OrderMetrics,
 } from '@/lib/queries/admin-metrics';
+import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
+import { ADMIN_ACTION_PILL, adminActionLabel } from '@/lib/admin/audit-display';
+import { formatRelativeTime } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
-// The remaining placeholder panel intentionally names the most-likely upcoming
-// admin feature. It doubles as a roadmap and as a slot marker — when audit
-// logging lands, that plan replaces the activity panel. Search analytics and
-// disputes shipped already; sales overview now shows live order data.
 export const dynamic = 'force-dynamic';
 
 export default async function AdminOverview() {
@@ -28,6 +28,7 @@ export default async function AdminOverview() {
     totalProducts,
     activeSellers30d,
     orderMetrics,
+    activityLog,
   ] = await Promise.all([
     loadSearchCount7d(),
     db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
@@ -36,6 +37,7 @@ export default async function AdminOverview() {
     countTotalProducts(),
     countActiveSellers30d(),
     loadOrderMetrics(),
+    getAdminAuditLog(1),
   ]);
   const disputedCount = disputedCountRow[0]?.value ?? 0;
   const openReportsCount = openReportsRow[0]?.value ?? 0;
@@ -57,9 +59,9 @@ export default async function AdminOverview() {
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <SearchAnalyticsCard searchCount7d={searchCount7d} />
-        <PlaceholderPanel
-          title="Recent activity"
-          description="An audit log of meaningful marketplace events will appear here once event logging is wired in."
+        <RecentActivityCard
+          entries={activityLog.list.slice(0, 6)}
+          usersById={activityLog.usersById}
         />
         <DisputesNeedingAttention count={disputedCount} />
         <CommentReportsCard count={openReportsCount} />
@@ -102,14 +104,57 @@ function SearchAnalyticsCard({ searchCount7d }: { searchCount7d: number }) {
   );
 }
 
-function PlaceholderPanel({ title, description }: { title: string; description: string }) {
+// Live feed of the most recent admin actions, sourced from the same audit log
+// as /admin/audit-log. Replaces the old roadmap placeholder now that disputes,
+// seller, comment and editorial actions are all recorded.
+function RecentActivityCard({
+  entries,
+  usersById,
+}: {
+  entries: { id: string; action: string; actorId: string | null; createdAt: Date }[];
+  usersById: Map<string, { name: string; email: string }>;
+}) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        <CardTitle className="text-base">Recent activity</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
+        {entries.length === 0 ? (
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            No admin actions recorded yet.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {entries.map((entry) => {
+              const actor = entry.actorId
+                ? (usersById.get(entry.actorId)?.name ?? 'deleted user')
+                : 'system';
+              return (
+                <li key={entry.id} className="flex items-center gap-2 text-sm">
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                      ADMIN_ACTION_PILL[entry.action] ?? 'bg-gray-100 text-gray-700',
+                    )}
+                  >
+                    {adminActionLabel(entry.action)}
+                  </span>
+                  <span className="text-foreground truncate">{actor}</span>
+                  <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+                    {formatRelativeTime(entry.createdAt)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <Link
+          href="/admin/audit-log"
+          className="text-foreground mt-3 inline-block text-sm underline"
+        >
+          View audit log →
+        </Link>
       </CardContent>
     </Card>
   );
