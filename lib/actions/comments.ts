@@ -193,3 +193,73 @@ export async function resolveCommentReportAction(
   log.info({ adminUserId: admin.id, reportId: updated.id }, 'Comment report resolved');
   return ok({ resolved: true });
 }
+
+// Admin remedy that actually removes the offending comment (T8). "Mark
+// resolved" only dismisses the report — this deletes the comment, resolves
+// the report, and audits it, all in one transaction. If the comment was
+// already deleted (commentId went NULL via ON DELETE SET NULL), it still
+// resolves the report and records removed:false.
+export async function removeReportedCommentAction(
+  input: unknown,
+): Promise<Result<{ removed: boolean }>> {
+  const log = await getRequestLogger();
+
+  const parsed = z.object({ reportId: z.string().uuid() }).safeParse(input);
+  if (!parsed.success) return err('Invalid input');
+
+  const admin = await tryRequireAdmin();
+  if (!admin) return err('Admin required.');
+
+  const result = await db.transaction(async (tx) => {
+    // Lock the report; only act while it is still unresolved so two admins
+    // can't both remove/resolve it.
+    const [report] = await tx
+      .select({
+        id: commentReports.id,
+        commentId: commentReports.commentId,
+        reportedUserId: commentReports.reportedUserId,
+      })
+      .from(commentReports)
+      .where(and(eq(commentReports.id, parsed.data.reportId), isNull(commentReports.resolvedAt)))
+      .for('update')
+      .limit(1);
+    // This err() return commits an empty transaction (Drizzle only rolls back
+    // on throw) — safe ONLY because it runs before any write below. Keep this
+    // guard first if you add writes.
+    if (!report) return err('Report not found or already resolved.');
+
+    let removed = false;
+    if (report.commentId) {
+      const deleted = await tx
+        .delete(workComments)
+        .where(eq(workComments.id, report.commentId))
+        .returning({ id: workComments.id });
+      removed = deleted.length > 0;
+    }
+
+    await tx
+      .update(commentReports)
+      .set({ resolvedAt: new Date() })
+      .where(eq(commentReports.id, report.id));
+
+    await recordAdminAction(
+      {
+        actorUserId: admin.id,
+        action: 'resolve_comment_report',
+        targetUserId: report.reportedUserId,
+        metadata: { reportId: report.id, removed },
+      },
+      tx,
+    );
+
+    return ok({ removed });
+  });
+
+  if (result.ok) {
+    log.info(
+      { adminUserId: admin.id, reportId: parsed.data.reportId, removed: result.data.removed },
+      'Reported comment removed',
+    );
+  }
+  return result;
+}

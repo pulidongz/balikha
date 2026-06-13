@@ -3,34 +3,86 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { updateEditorialFeatureAction } from '@/lib/actions/editorial-feature';
 
+// Mirror of MAX_FEATURED_WORKS in lib/actions/editorial-feature.ts. The server
+// action is the source of truth and re-validates; this just gates the UI.
+const MAX_FEATURED_WORKS = 8;
+
+interface StudioOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface WorkOption {
+  id: string;
+  title: string;
+  slug: string;
+  studioSlug: string;
+}
+
 interface Props {
+  studios: StudioOption[];
+  works: WorkOption[];
+  // Currently-featured works from other studios that this single-studio picker
+  // can't show — saving will drop them. Surfaced as a warning, never silent.
+  droppedWorks: { id: string; title: string; studioSlug: string }[];
   defaults: {
-    artisanSlug: string;
+    studioSlug: string;
     editorialText: string;
-    workSlugs: string;
+    workIds: string[];
   };
 }
 
-export function EditorialFeatureForm({ defaults }: Props) {
+export function EditorialFeatureForm({ studios, works, droppedWorks, defaults }: Props) {
   const router = useRouter();
-  const [artisanSlug, setArtisanSlug] = useState(defaults.artisanSlug);
+  const [studioSlug, setStudioSlug] = useState(defaults.studioSlug);
   const [editorialText, setEditorialText] = useState(defaults.editorialText);
-  const [workSlugs, setWorkSlugs] = useState(defaults.workSlugs);
+  // Ordered list of selected work ids — the order IS the homepage order.
+  const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>(defaults.workIds);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const studioWorks = works.filter((w) => w.studioSlug === studioSlug);
+  const worksById = new Map(works.map((w) => [w.id, w]));
+
+  function changeStudio(slug: string) {
+    setStudioSlug(slug);
+    // Works are scoped to the studio — switching studios clears the selection.
+    setSelectedWorkIds([]);
+    setSaved(false);
+  }
+
+  function toggleWork(id: string) {
+    setSaved(false);
+    setSelectedWorkIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_FEATURED_WORKS) return prev; // cap reached — no-op
+      return [...prev, id];
+    });
+  }
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setSaved(false);
+    // Assemble the slug payload the server action still expects ("studio/work"
+    // per line, in selection order). The action re-validates every slug.
+    const workSlugs = selectedWorkIds
+      .map((id) => worksById.get(id))
+      .filter((w): w is WorkOption => w !== undefined)
+      .map((w) => `${w.studioSlug}/${w.slug}`)
+      .join('\n');
     startTransition(async () => {
-      const result = await updateEditorialFeatureAction({ artisanSlug, editorialText, workSlugs });
+      const result = await updateEditorialFeatureAction({
+        artisanSlug: studioSlug,
+        editorialText,
+        workSlugs,
+      });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -42,16 +94,40 @@ export function EditorialFeatureForm({ defaults }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {droppedWorks.length > 0 && (
+        <div
+          role="alert"
+          className="border-destructive/40 bg-destructive/5 text-foreground space-y-1 rounded-md border p-3 text-sm"
+        >
+          <p className="font-medium">
+            {droppedWorks.length} featured {droppedWorks.length === 1 ? 'work is' : 'works are'}{' '}
+            from other studios.
+          </p>
+          <p className="text-muted-foreground text-xs">
+            This picker features one studio at a time, so saving will remove{' '}
+            {droppedWorks.length === 1 ? 'it' : 'them'}:{' '}
+            {droppedWorks.map((w) => `${w.title} (${w.studioSlug})`).join(', ')}.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
-        <Label htmlFor="feature-artisan">Featured studio (slug)</Label>
-        <Input
-          id="feature-artisan"
-          value={artisanSlug}
-          onChange={(e) => setArtisanSlug(e.target.value)}
-          placeholder="maria-ceramics"
-        />
+        <Label htmlFor="feature-studio">Featured studio</Label>
+        <select
+          id="feature-studio"
+          value={studioSlug}
+          onChange={(e) => changeStudio(e.target.value)}
+          className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
+        >
+          <option value="">— None (clear the feature) —</option>
+          {studios.map((s) => (
+            <option key={s.id} value={s.slug}>
+              {s.name}
+            </option>
+          ))}
+        </select>
         <p className="text-muted-foreground text-xs">
-          The part after /studio/ in the studio URL. Leave empty to clear the artist feature.
+          One studio leads the homepage. Choose “None” to clear the feature.
         </p>
       </div>
 
@@ -60,7 +136,10 @@ export function EditorialFeatureForm({ defaults }: Props) {
         <Textarea
           id="feature-text"
           value={editorialText}
-          onChange={(e) => setEditorialText(e.target.value)}
+          onChange={(e) => {
+            setEditorialText(e.target.value);
+            setSaved(false);
+          }}
           rows={4}
           maxLength={1000}
           placeholder="Why this studio, in your own words — it reads like a magazine deck, not ad copy."
@@ -68,16 +147,53 @@ export function EditorialFeatureForm({ defaults }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="feature-works">Featured works (one per line)</Label>
-        <Textarea
-          id="feature-works"
-          value={workSlugs}
-          onChange={(e) => setWorkSlugs(e.target.value)}
-          rows={5}
-          placeholder={'maria-ceramics/slab-built-stoneware-vase-1\nanother-studio/another-work'}
-        />
+        <Label>
+          Featured works{' '}
+          <span className="text-muted-foreground font-normal">
+            ({selectedWorkIds.length}/{MAX_FEATURED_WORKS})
+          </span>
+        </Label>
+        {studioSlug === '' ? (
+          <p className="text-muted-foreground text-sm">Select a studio to choose works.</p>
+        ) : studioWorks.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            This studio has no published works to feature yet.
+          </p>
+        ) : (
+          <ul className="divide-border divide-y rounded-md border">
+            {studioWorks.map((w) => {
+              const order = selectedWorkIds.indexOf(w.id);
+              const checked = order !== -1;
+              const atCap = !checked && selectedWorkIds.length >= MAX_FEATURED_WORKS;
+              return (
+                <li key={w.id}>
+                  <label
+                    className={
+                      'flex cursor-pointer items-center gap-3 px-3 py-2 text-sm ' +
+                      (atCap ? 'opacity-50' : 'hover:bg-secondary/40')
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={atCap}
+                      onChange={() => toggleWork(w.id)}
+                      className="size-4"
+                    />
+                    <span className="flex-1 truncate">{w.title}</span>
+                    {checked && (
+                      <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                        #{order + 1}
+                      </span>
+                    )}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <p className="text-muted-foreground text-xs">
-          artisan-slug/work-slug, up to 8 — the order here is the order on the homepage.
+          Up to {MAX_FEATURED_WORKS}. The number shows the order on the homepage (selection order).
         </p>
       </div>
 
