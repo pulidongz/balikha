@@ -664,9 +664,9 @@ it too; the guest dialog just makes the path more reachable.)
 
 **Acceptance criteria.**
 
-- [ ] A signed-out user following a thread CTA and signing in places an order
+- [x] A signed-out user following a thread CTA and signing in places an order
       that links back to the thread.
-- [ ] No change for signed-in thread→order flow or plain guest orders.
+- [x] No change for signed-in thread→order flow or plain guest orders.
 
 ## E6 — Replace deprecated React.FormEvent usage
 
