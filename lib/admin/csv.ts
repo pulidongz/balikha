@@ -4,7 +4,13 @@
 
 export function csvField(value: string | number | null | undefined): string {
   const s = value === null || value === undefined ? '' : String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  // Neutralise spreadsheet formula injection: a field starting with =,+,-,@
+  // (or a leading tab/CR) is treated as a formula by Excel/Sheets. The export
+  // is admin-only but its CONTENT is user-controlled (names, emails, titles),
+  // and the victim is the admin opening the file — prefix a single quote so the
+  // value renders literally.
+  const guarded = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return /[",\n\r]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 }
 
 export function toCsv(

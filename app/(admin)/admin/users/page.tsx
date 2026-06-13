@@ -1,26 +1,18 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { deriveStatus, STATUS_PILL, ROLE_PILL } from '@/lib/admin/user-status';
-import { formatRelativeTime } from '@/lib/format';
 import { parsePageParam, parseSearchParam } from '@/lib/queries/admin-params';
 import {
   getAdminUsers,
   parseUserRoleFilter,
   parseUserStatusFilter,
 } from '@/lib/queries/admin-users';
+import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Users — Admin',
 };
-
-const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 const FILTER_SELECT_CLASS =
   'border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none';
@@ -142,13 +134,7 @@ export default async function AdminUsersPage({
                     <p className="text-foreground font-medium">{u.name}</p>
                     <p className="text-muted-foreground text-xs">{u.email}</p>
                     <p className="text-muted-foreground text-xs">
-                      Joined{' '}
-                      <time
-                        dateTime={u.createdAt.toISOString()}
-                        title={DATE_FMT.format(u.createdAt)}
-                      >
-                        {formatRelativeTime(u.createdAt)}
-                      </time>
+                      Joined <RelativeTime date={u.createdAt} />
                       {u.isArtisan ? ' · artist' : ''}
                     </p>
                   </div>

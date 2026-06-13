@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, orders, user } from '@/db/schema';
 import { firstParam } from './admin-params';
@@ -106,21 +106,25 @@ export const ADMIN_ORDERS_EXPORT_MAX = 10000;
 export async function getAdminOrdersForExport({ filter, search }: OrderFilter) {
   const whereClauses = buildOrderConditions({ filter, search });
 
-  return db
-    .select({
-      reference: orders.reference,
-      status: orders.status,
-      productTitleSnapshot: orders.productTitleSnapshot,
-      priceSnapshot: orders.priceSnapshot,
-      currency: orders.currency,
-      placedAt: orders.placedAt,
-      buyerEmail: user.email,
-      studioName: artisanProfiles.shopName,
-    })
-    .from(orders)
-    .leftJoin(user, eq(user.id, orders.buyerUserId))
-    .leftJoin(artisanProfiles, eq(artisanProfiles.id, orders.artisanProfileId))
-    .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
-    .orderBy(desc(orders.placedAt))
-    .limit(ADMIN_ORDERS_EXPORT_MAX);
+  return (
+    db
+      .select({
+        reference: orders.reference,
+        status: orders.status,
+        productTitleSnapshot: orders.productTitleSnapshot,
+        priceSnapshot: orders.priceSnapshot,
+        currency: orders.currency,
+        placedAt: orders.placedAt,
+        buyerEmail: user.email,
+        studioName: artisanProfiles.shopName,
+      })
+      .from(orders)
+      .leftJoin(user, eq(user.id, orders.buyerUserId))
+      .leftJoin(artisanProfiles, eq(artisanProfiles.id, orders.artisanProfileId))
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+      // id tiebreaker so identical-timestamp rows export in a stable order
+      // (placedAt is not unique) — successive exports diff cleanly.
+      .orderBy(desc(orders.placedAt), asc(orders.id))
+      .limit(ADMIN_ORDERS_EXPORT_MAX)
+  );
 }

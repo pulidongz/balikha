@@ -14,7 +14,7 @@ import {
 } from '@/lib/queries/admin-metrics';
 import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
 import { ADMIN_ACTION_PILL, adminActionLabel } from '@/lib/admin/audit-display';
-import { formatRelativeTime } from '@/lib/format';
+import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -152,9 +152,10 @@ function RecentActivityCard({
                     {adminActionLabel(entry.action)}
                   </span>
                   <span className="text-foreground truncate">{actor}</span>
-                  <span className="text-muted-foreground ml-auto shrink-0 text-xs">
-                    {formatRelativeTime(entry.createdAt)}
-                  </span>
+                  <RelativeTime
+                    date={entry.createdAt}
+                    className="text-muted-foreground ml-auto shrink-0 text-xs"
+                  />
                 </li>
               );
             })}

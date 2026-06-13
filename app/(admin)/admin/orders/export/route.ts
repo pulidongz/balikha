@@ -22,7 +22,8 @@ export async function GET(request: Request) {
 
   const rows = await getAdminOrdersForExport({ filter, search });
 
-  if (rows.length >= ADMIN_ORDERS_EXPORT_MAX) {
+  const truncated = rows.length >= ADMIN_ORDERS_EXPORT_MAX;
+  if (truncated) {
     const log = await getRequestLogger();
     log.warn(
       { adminId: admin.id, cap: ADMIN_ORDERS_EXPORT_MAX },
@@ -48,6 +49,9 @@ export async function GET(request: Request) {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="orders-${today}.csv"`,
+      // Honest signal that the file was capped — invisible truncation would
+      // read as "complete dataset".
+      ...(truncated ? { 'X-Export-Truncated': 'true' } : {}),
     },
   });
 }
