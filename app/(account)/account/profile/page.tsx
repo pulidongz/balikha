@@ -3,8 +3,11 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { user } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { userHasPassword } from '@/lib/account/credentials';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProfileForm } from '@/components/account/profile-form';
 import { AvatarUploader } from '@/components/account/avatar-uploader';
+import { SecuritySection } from '@/components/account/security-section';
 
 export const metadata = {
   title: 'Profile',
@@ -22,6 +25,7 @@ export default async function AccountProfilePage() {
       lastName: user.lastName,
       name: user.name,
       email: user.email,
+      emailVerified: user.emailVerified,
       image: user.image,
     })
     .from(user)
@@ -32,31 +36,57 @@ export default async function AccountProfilePage() {
     lastName: current.lastName ?? null,
     name: current.name,
     email: current.email,
+    emailVerified: current.emailVerified,
     image: null,
   };
 
+  const hasPassword = await userHasPassword(current.id);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <header>
         <h1 className="font-serif text-3xl">Profile</h1>
         <p className="text-muted-foreground mt-1 text-sm">Your account details.</p>
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Photo</h2>
-        <AvatarUploader currentUrl={profile.image} userName={profile.name} />
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-xl">Photo</CardTitle>
+          <CardDescription>A picture helps makers and buyers recognize you.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AvatarUploader currentUrl={profile.image} userName={profile.name} />
+        </CardContent>
+      </Card>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide uppercase">Details</h2>
-        <ProfileForm
-          defaults={{
-            firstName: profile.firstName,
-            lastName: profile.lastName ?? '',
-            email: profile.email,
-          }}
-        />
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-xl">Details</CardTitle>
+          <CardDescription>Your name as it appears across Balikha.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfileForm
+            defaults={{
+              firstName: profile.firstName,
+              lastName: profile.lastName ?? '',
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-xl">Sign-in &amp; security</CardTitle>
+          <CardDescription>Update the email and password you use to sign in.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SecuritySection
+            email={profile.email}
+            emailVerified={profile.emailVerified}
+            hasPassword={hasPassword}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

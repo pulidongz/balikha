@@ -4,6 +4,11 @@
  */
 import { signUpSchema } from '../lib/validators/auth';
 import { profileUpdateSchema } from '../lib/validators/buyer';
+import {
+  changeEmailSchema,
+  changePasswordSchema,
+  setPasswordSchema,
+} from '../lib/validators/profile-security';
 
 let failures = 0;
 function assert(cond: boolean, msg: string) {
@@ -66,6 +71,62 @@ process.stdout.write('profileUpdateSchema\n');
 assert(
   !profileUpdateSchema.safeParse({ firstName: '', lastName: 'X' }).success,
   'empty firstName fails',
+);
+
+process.stdout.write('changeEmailSchema\n');
+assert(changeEmailSchema.safeParse({ email: 'new@balikha.art' }).success, 'valid email passes');
+assert(!changeEmailSchema.safeParse({ email: 'bad-email' }).success, 'invalid email fails');
+assert(
+  !changeEmailSchema.safeParse({ email: 'someone@mailinator.com' }).success,
+  'disposable email fails',
+);
+
+process.stdout.write('changePasswordSchema\n');
+assert(
+  changePasswordSchema.safeParse({
+    currentPassword: 'oldpassword',
+    newPassword: 'newpassword1',
+    confirm: 'newpassword1',
+  }).success,
+  'valid change passes',
+);
+assert(
+  !changePasswordSchema.safeParse({
+    currentPassword: 'oldpassword',
+    newPassword: 'newpassword1',
+    confirm: 'different',
+  }).success,
+  'mismatched confirm fails',
+);
+assert(
+  !changePasswordSchema.safeParse({
+    currentPassword: 'oldpassword',
+    newPassword: 'short',
+    confirm: 'short',
+  }).success,
+  'too-short new password fails',
+);
+assert(
+  !changePasswordSchema.safeParse({
+    currentPassword: '',
+    newPassword: 'newpassword1',
+    confirm: 'newpassword1',
+  }).success,
+  'empty current password fails',
+);
+
+process.stdout.write('setPasswordSchema\n');
+assert(
+  setPasswordSchema.safeParse({ newPassword: 'newpassword1', confirm: 'newpassword1' }).success,
+  'valid set passes',
+);
+assert(
+  !setPasswordSchema.safeParse({ newPassword: 'newpassword1', confirm: 'nope' }).success,
+  'mismatched confirm fails',
+);
+assert(
+  !setPasswordSchema.safeParse({ newPassword: 'x'.repeat(129), confirm: 'x'.repeat(129) }).success,
+  'over-128 password fails',
 );
 
 if (failures > 0) {

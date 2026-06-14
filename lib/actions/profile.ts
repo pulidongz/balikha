@@ -1,13 +1,17 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { user } from '@/db/schema';
+import { auth } from '@/lib/auth';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { userHasPassword } from '@/lib/account/credentials';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { profileUpdateSchema } from '@/lib/validators/buyer';
+import { setPasswordSchema } from '@/lib/validators/profile-security';
 import { composeName } from '@/lib/name';
 import {
   sanitizeImage,
@@ -103,6 +107,42 @@ export async function deleteAvatarAction(): Promise<Result<null>> {
 
   await db.update(user).set({ image: null, updatedAt: new Date() }).where(eq(user.id, current.id));
 
+  revalidatePath('/account');
+  return ok(null);
+}
+
+// Sets a FIRST password for a user who has none (Google-only accounts). Email/
+// password users change their password via authClient.changePassword on the
+// client — setPassword is server-only and exists specifically for the
+// no-password case. We check userHasPassword ourselves and return a precise
+// error rather than letting Better Auth's PASSWORD_ALREADY_SET surface as an
+// opaque message.
+export async function setPasswordAction(formData: FormData): Promise<Result<null>> {
+  const log = await getRequestLogger();
+  const current = await getCurrentUser();
+  if (!current) return err('You must be signed in.');
+
+  const parsed = setPasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
+  }
+
+  if (await userHasPassword(current.id)) {
+    return err('You already have a password. Use “Change password” instead.');
+  }
+
+  try {
+    await auth.api.setPassword({
+      body: { newPassword: parsed.data.newPassword },
+      headers: await headers(),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error({ userId: current.id, error: message }, 'setPassword failed');
+    return err(`Could not set password: ${message}`);
+  }
+
+  log.info({ userId: current.id }, 'Password set for previously password-less account');
   revalidatePath('/account');
   return ok(null);
 }
