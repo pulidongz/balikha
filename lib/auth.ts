@@ -247,6 +247,21 @@ export const auth = betterAuth({
           return { data: { ...user, acceptedTermsAt: new Date() } };
         },
       },
+      update: {
+        before: async (data) => {
+          // Server-side floor for the email-change path. changeEmail applies the
+          // new address through updateUserByEmail, which runs this hook, so a
+          // disposable address is blocked even for a scripted POST straight to
+          // /change-email that skips changeEmailAction. `email` is only present
+          // when the email is actually changing; other updates pass through.
+          if (typeof data.email === 'string' && isDisposableEmail(data.email)) {
+            throw new APIError('BAD_REQUEST', {
+              message: DISPOSABLE_EMAIL_MESSAGE,
+              code: 'DISPOSABLE_EMAIL',
+            });
+          }
+        },
+      },
     },
   },
   // In production only the canonical origin passes Better Auth's CSRF

@@ -11,7 +11,9 @@ import { userHasPassword } from '@/lib/account/credentials';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { profileUpdateSchema } from '@/lib/validators/buyer';
-import { setPasswordSchema } from '@/lib/validators/profile-security';
+import { changeEmailSchema, setPasswordSchema } from '@/lib/validators/profile-security';
+import { isDisposableEmail } from '@/lib/email/disposable';
+import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
 import { composeName } from '@/lib/name';
 import {
   sanitizeImage,
@@ -108,6 +110,45 @@ export async function deleteAvatarAction(): Promise<Result<null>> {
   await db.update(user).set({ image: null, updatedAt: new Date() }).where(eq(user.id, current.id));
 
   revalidatePath('/account');
+  return ok(null);
+}
+
+// Starts an account-email change. Wraps Better Auth's changeEmail so the
+// disposable-domain check runs server-side (keeping the domain JSON out of the
+// client bundle) and gives immediate feedback; databaseHooks.user.update.before
+// is the hard floor for any path that skips this action. On success Better Auth
+// has only SENT a confirmation/verification link — the address is not changed
+// until the user clicks it — so there's nothing to revalidate here.
+export async function changeEmailAction(formData: FormData): Promise<Result<null>> {
+  const log = await getRequestLogger();
+  const current = await getCurrentUser();
+  if (!current) return err('You must be signed in.');
+
+  const parsed = changeEmailSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return err('Invalid input', parsed.error.flatten().fieldErrors);
+  }
+
+  const newEmail = parsed.data.email;
+  if (newEmail.toLowerCase() === current.email.toLowerCase()) {
+    return err('That is already your email address.');
+  }
+  if (isDisposableEmail(newEmail)) {
+    return err(DISPOSABLE_EMAIL_MESSAGE);
+  }
+
+  try {
+    await auth.api.changeEmail({
+      body: { newEmail, callbackURL: '/account/profile' },
+      headers: await headers(),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.error({ userId: current.id, error: message }, 'changeEmail failed');
+    return err(`Could not start the email change: ${message}`);
+  }
+
+  log.info({ userId: current.id }, 'Email change requested');
   return ok(null);
 }
 

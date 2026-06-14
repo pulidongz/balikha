@@ -28,6 +28,5 @@ export const {
   requestPasswordReset,
   resetPassword,
   sendVerificationEmail,
-  changeEmail,
   changePassword,
 } = authClient;

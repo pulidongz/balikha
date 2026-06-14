@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { changeEmail } from '@/lib/auth-client';
+import { changeEmailAction } from '@/lib/actions/profile';
 import { changeEmailSchema } from '@/lib/validators/profile-security';
 
 interface Props {
@@ -35,13 +35,12 @@ export function EmailChangeForm({ currentEmail, emailVerified }: Props) {
       return;
     }
     setLoading(true);
-    const result = await changeEmail({
-      newEmail: parsed.data.email,
-      callbackURL: '/account/profile',
-    });
+    const formData = new FormData();
+    formData.set('email', parsed.data.email);
+    const result = await changeEmailAction(formData);
     setLoading(false);
-    if (result.error) {
-      setError(result.error.message ?? 'Could not start the email change. Please try again.');
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
     // A verified current email gets a confirmation link at the CURRENT address
@@ -69,7 +68,8 @@ export function EmailChangeForm({ currentEmail, emailVerified }: Props) {
 
       {sentTo && (
         <p role="status" className="text-success text-sm">
-          Check {sentTo} for a link to confirm the change.
+          We&rsquo;ve sent a confirmation link to {sentTo}. If nothing arrives, the new address may
+          already be in use.
         </p>
       )}
 

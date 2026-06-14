@@ -76,9 +76,12 @@ assert(
 process.stdout.write('changeEmailSchema\n');
 assert(changeEmailSchema.safeParse({ email: 'new@balikha.art' }).success, 'valid email passes');
 assert(!changeEmailSchema.safeParse({ email: 'bad-email' }).success, 'invalid email fails');
+// Disposable rejection is intentionally NOT in this schema — it runs in
+// changeEmailAction + databaseHooks.user.update.before so the domain JSON stays
+// off the client bundle. A disposable address is shape-valid here.
 assert(
-  !changeEmailSchema.safeParse({ email: 'someone@mailinator.com' }).success,
-  'disposable email fails',
+  changeEmailSchema.safeParse({ email: 'someone@mailinator.com' }).success,
+  'disposable email is shape-valid (rejected server-side, not by the schema)',
 );
 
 process.stdout.write('changePasswordSchema\n');

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { isDisposableEmail } from '@/lib/email/disposable';
 
 // Better Auth's own bounds are min 8 / max 128 (its password.config defaults).
 // We cap at 128 here — NOT the 200 that signUpSchema allows — so the form never
@@ -9,18 +8,14 @@ const passwordField = z
   .min(8, 'Password must be at least 8 characters')
   .max(128, 'Password must be 128 characters or fewer');
 
-// New email for the account-email change. Disposable addresses are rejected for
-// parity with sign-up (the create hook blocks them there). The "differs from
-// current" check lives in the caller — it needs the session email, which a
-// pure schema doesn't have.
+// New email for the account-email change. Shape-only here on purpose:
+// disposable-domain rejection and the "differs from current" check are enforced
+// server-side (changeEmailAction + databaseHooks.user.update.before in
+// lib/auth.ts). Importing isDisposableEmail would pull the ~3500-domain JSON
+// into the client bundle, since this schema is used by the 'use client'
+// email-change-form (see the header in lib/email/disposable.ts).
 export const changeEmailSchema = z.object({
-  email: z
-    .string()
-    .email('Enter a valid email address')
-    .max(254)
-    .refine((email) => !isDisposableEmail(email), {
-      message: 'Please use a permanent email address. Disposable providers are not allowed.',
-    }),
+  email: z.string().email('Enter a valid email address').max(254),
 });
 
 // Existing-password holders changing their password. currentPassword is only
