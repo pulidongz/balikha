@@ -11,7 +11,6 @@ interface Props {
   defaults: {
     firstName: string;
     lastName: string;
-    email: string;
   };
 }
 
@@ -77,14 +76,6 @@ export function ProfileForm({ defaults }: Props) {
             <p className="text-destructive text-xs">{fieldError('lastName')}</p>
           )}
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="profile-email">Email</Label>
-        <Input id="profile-email" value={defaults.email} readOnly disabled />
-        <p className="text-muted-foreground text-xs">
-          Email changes require re-verification — not available yet.
-        </p>
       </div>
 
       {error && (

@@ -8,9 +8,11 @@ import { env } from '@/env';
 import { sendEmail } from '@/lib/email/send';
 import { VerifyEmail } from '@/lib/email/templates/verify-email';
 import { ResetPasswordEmail } from '@/lib/email/templates/reset-password';
+import { ChangeEmail } from '@/lib/email/templates/change-email';
 import { logger } from '@/lib/logger';
 import { isDisposableEmail } from '@/lib/email/disposable';
 import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
+import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from '@/lib/auth-constants';
 import { mapGoogleProfileToNames, type GoogleNameProfile } from '@/lib/auth-google';
 
 // Surface "is Google sign-in available?" to server components without
@@ -81,6 +83,43 @@ export const auth = betterAuth({
     },
   },
   user: {
+    // Account email changes (#profile). When the current email is verified
+    // (true for Google accounts and verified email/password users), Better Auth
+    // sends a confirmation link to the CURRENT address; clicking it applies the
+    // change. This anti-hijack flow means a stolen session can't silently move
+    // the email — the real owner must click a link in their existing inbox.
+    changeEmail: {
+      enabled: true,
+      sendChangeEmailConfirmation: async ({ user, newEmail, url }, request) => {
+        // Skip internal/programmatic calls (request === undefined) — same guard
+        // as sendResetPassword / sendVerificationEmail. Logged so it stays
+        // observable.
+        if (!request) {
+          logger.info(
+            { event: 'email.change.skipped_internal_call', userId: user.id },
+            'Skipped email-change confirmation for internal (non-HTTP) call',
+          );
+          return;
+        }
+        // Deliberately sent to user.email (the CURRENT address), NOT newEmail —
+        // the confirmation must reach the existing owner, not the requested new
+        // address. Better Auth passes the current user here.
+        const result = await sendEmail({
+          to: user.email,
+          subject: 'Confirm your email change — Balikha',
+          react: createElement(ChangeEmail, { newEmail, confirmUrl: url }),
+        });
+        if (!result.ok) {
+          // Same swallow caveat as sendResetPassword above — the structured
+          // logger.error is the real observability hook.
+          logger.error(
+            { event: 'email.change.send_failed', userId: user.id, errMessage: result.error },
+            'Failed to send email-change confirmation',
+          );
+          throw new Error(`sendChangeEmailConfirmation failed: ${result.error}`);
+        }
+      },
+    },
     additionalFields: {
       // input:true → accepted from the email/password sign-up call and from
       // Google's mapProfileToUser. required:false so programmatic paths (seed)
@@ -94,6 +133,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    // Made explicit (Better Auth defaults to the same values) and shared with the
+    // change/set-password validators so the form and the endpoint agree on length.
+    minPasswordLength: MIN_PASSWORD_LENGTH,
+    maxPasswordLength: MAX_PASSWORD_LENGTH,
     resetPasswordTokenExpiresIn: 3600, // 1h — Better Auth default; explicit for clarity
     // Revokes all other sessions after a successful reset — the reset email's
     // "signs you out of all other devices" note depends on this being true.
@@ -207,6 +250,21 @@ export const auth = betterAuth({
           // firstName/lastName come from given/family (they may legitimately
           // differ).
           return { data: { ...user, acceptedTermsAt: new Date() } };
+        },
+      },
+      update: {
+        before: async (data) => {
+          // Server-side floor for the email-change path. changeEmail applies the
+          // new address through updateUserByEmail, which runs this hook, so a
+          // disposable address is blocked even for a scripted POST straight to
+          // /change-email that skips changeEmailAction. `email` is only present
+          // when the email is actually changing; other updates pass through.
+          if (typeof data.email === 'string' && isDisposableEmail(data.email)) {
+            throw new APIError('BAD_REQUEST', {
+              message: DISPOSABLE_EMAIL_MESSAGE,
+              code: 'DISPOSABLE_EMAIL',
+            });
+          }
         },
       },
     },
