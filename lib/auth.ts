@@ -12,6 +12,7 @@ import { ChangeEmail } from '@/lib/email/templates/change-email';
 import { logger } from '@/lib/logger';
 import { isDisposableEmail } from '@/lib/email/disposable';
 import { DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth-messages';
+import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from '@/lib/auth-constants';
 import { mapGoogleProfileToNames, type GoogleNameProfile } from '@/lib/auth-google';
 
 // Surface "is Google sign-in available?" to server components without
@@ -132,6 +133,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    // Made explicit (Better Auth defaults to the same values) and shared with the
+    // change/set-password validators so the form and the endpoint agree on length.
+    minPasswordLength: MIN_PASSWORD_LENGTH,
+    maxPasswordLength: MAX_PASSWORD_LENGTH,
     resetPasswordTokenExpiresIn: 3600, // 1h — Better Auth default; explicit for clarity
     // Revokes all other sessions after a successful reset — the reset email's
     // "signs you out of all other devices" note depends on this being true.

@@ -1,12 +1,14 @@
 import { z } from 'zod';
+import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from '@/lib/auth-constants';
 
-// Better Auth's own bounds are min 8 / max 128 (its password.config defaults).
-// We cap at 128 here — NOT the 200 that signUpSchema allows — so the form never
-// accepts a length the /change-password and setPassword endpoints would reject.
+// Bounds come from the shared constants that also drive Better Auth's
+// emailAndPassword config (lib/auth.ts), so the form never accepts a length the
+// /change-password and setPassword endpoints would reject. (signUpSchema's looser
+// max 200 is intentionally separate — these gate the credential-change endpoints.)
 const passwordField = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
-  .max(128, 'Password must be 128 characters or fewer');
+  .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  .max(MAX_PASSWORD_LENGTH, `Password must be ${MAX_PASSWORD_LENGTH} characters or fewer`);
 
 // New email for the account-email change. Shape-only here on purpose:
 // disposable-domain rejection and the "differs from current" check are enforced

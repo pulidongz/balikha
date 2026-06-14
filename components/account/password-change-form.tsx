@@ -93,7 +93,7 @@ export function PasswordChangeForm() {
           {error}
         </p>
       )}
-      {saved && !error && (
+      {saved && (
         <p role="status" className="text-success text-sm">
           Password updated. Other devices have been signed out.
         </p>

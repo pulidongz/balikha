@@ -119,7 +119,7 @@ export async function deleteAvatarAction(): Promise<Result<null>> {
 // is the hard floor for any path that skips this action. On success Better Auth
 // has only SENT a confirmation/verification link — the address is not changed
 // until the user clicks it — so there's nothing to revalidate here.
-export async function changeEmailAction(formData: FormData): Promise<Result<null>> {
+export async function changeEmailAction(formData: FormData): Promise<Result<{ sentTo: string }>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
   if (!current) return err('You must be signed in.');
@@ -149,7 +149,11 @@ export async function changeEmailAction(formData: FormData): Promise<Result<null
   }
 
   log.info({ userId: current.id }, 'Email change requested');
-  return ok(null);
+  // Which inbox the link lands in is Better Auth's call, keyed on the CURRENT
+  // server-side verification state: verified → confirmation to the current
+  // address (anti-hijack), unverified → verification to the new address. Report
+  // it from here so the UI doesn't re-derive it from a possibly-stale prop.
+  return ok({ sentTo: current.emailVerified ? current.email : newEmail });
 }
 
 // Sets a FIRST password for a user who has none (Google-only accounts). Email/

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,10 +44,10 @@ export function EmailChangeForm({ currentEmail, emailVerified }: Props) {
       setError(result.error);
       return;
     }
-    // A verified current email gets a confirmation link at the CURRENT address
-    // (anti-hijack); an unverified one gets a verification link at the NEW
-    // address. Point the user at the right inbox.
-    setSentTo(emailVerified ? currentEmail : parsed.data.email);
+    // The action reports which inbox the link went to, decided from the fresh
+    // server-side verification state — so this never names the wrong inbox if
+    // the emailVerified prop went stale since the page rendered.
+    setSentTo(result.data.sentTo);
     setEditing(false);
     setValue('');
   }
@@ -56,13 +57,9 @@ export function EmailChangeForm({ currentEmail, emailVerified }: Props) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm">{currentEmail}</span>
         {emailVerified ? (
-          <span className="bg-success/10 text-success rounded-full px-2 py-0.5 text-xs font-medium">
-            Verified
-          </span>
+          <Badge variant="success">Verified</Badge>
         ) : (
-          <span className="bg-secondary text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
-            Unverified
-          </span>
+          <Badge variant="secondary">Unverified</Badge>
         )}
       </div>
 
