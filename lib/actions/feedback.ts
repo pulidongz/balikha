@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { feedback } from '@/db/schema';
-import { getCurrentUser, tryRequireAdmin } from '@/lib/auth-helpers';
+import { tryRequireAdmin, tryRequireUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 
@@ -16,7 +16,14 @@ const FEEDBACK_PER_DAY = 20;
 const submitSchema = z.object({
   category: z.enum(['bug', 'idea', 'confusing', 'other']),
   message: z.string().trim().min(1, 'Say something first.').max(2000),
-  route: z.string().max(512).optional(),
+  // Same-origin pathname only: the dialog supplies usePathname(), but the action
+  // accepts unknown input, so a crafted call could otherwise store an absolute URL
+  // and frame feedback as coming from a privileged path in the admin queue.
+  route: z
+    .string()
+    .max(512)
+    .regex(/^\/[^\s]*$/, 'route must be a same-origin path')
+    .optional(),
 });
 
 async function countRecentFeedback(userId: string, since: Date): Promise<number> {
@@ -36,7 +43,9 @@ export async function submitFeedbackAction(input: unknown): Promise<Result<{ sub
     return err(firstError);
   }
 
-  const current = await getCurrentUser();
+  // tryRequireUser (not getCurrentUser) so a banned user with a still-live
+  // session can't reach the admin feedback queue — inherits requireUser's ban check.
+  const current = await tryRequireUser();
   if (!current) return err('You must be signed in.');
 
   const burst = await countRecentFeedback(current.id, new Date(Date.now() - 60 * 1000));

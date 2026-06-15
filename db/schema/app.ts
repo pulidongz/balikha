@@ -571,7 +571,12 @@ export const feedback = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     resolvedAt: timestamp('resolved_at'),
   },
-  (t) => [index('feedback_created_idx').on(t.createdAt)],
+  (t) => [
+    index('feedback_created_idx').on(t.createdAt),
+    // Rate-limit window counts per user (mirrors work_comments_user_created_idx):
+    // submitFeedbackAction runs WHERE user_id = $1 AND created_at >= $2 twice per submit.
+    index('feedback_user_created_idx').on(t.userId, t.createdAt),
+  ],
 );
 
 // Appreciations (T7): the public, nearly-free response unit — one per

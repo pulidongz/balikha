@@ -20,13 +20,15 @@ const DATE_FMT = new Intl.DateTimeFormat('en-PH', {
 
 const PAGE_SIZE = 50;
 
-// Category labels for display in the admin queue.
-const CATEGORY_LABEL: Record<string, string> = {
+// Category labels for display in the admin queue. `satisfies` keys this to the
+// feedbackCategory enum so a future enum value fails the build here rather than
+// silently rendering a raw DB string via a fallback.
+const CATEGORY_LABEL = {
   bug: 'Bug',
   idea: 'Idea',
   confusing: 'Confusing',
   other: 'Other',
-};
+} satisfies Record<'bug' | 'idea' | 'confusing' | 'other', string>;
 
 export default async function AdminFeedbackPage({
   searchParams,
@@ -89,7 +91,7 @@ export default async function AdminFeedbackPage({
                 <div className="space-y-1 text-sm">
                   <p className="flex flex-wrap items-center gap-1.5">
                     <span className="bg-secondary rounded-full px-2 py-0.5 text-xs font-medium">
-                      {CATEGORY_LABEL[r.category] ?? r.category}
+                      {CATEGORY_LABEL[r.category]}
                     </span>
                     {r.shopSlug !== null && (
                       <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">

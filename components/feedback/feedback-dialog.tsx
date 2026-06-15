@@ -33,12 +33,16 @@ export function FeedbackDialog({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // Bumped on close to remount the form so the uncontrolled textarea clears —
+  // without this, a reopen during the dialog's exit animation shows stale text.
+  const [formKey, setFormKey] = useState(0);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
       // Reset on close so a reopen starts clean.
       setError(null);
       setDone(false);
+      setFormKey((k) => k + 1);
     }
     onOpenChange(next);
   }
@@ -62,6 +66,7 @@ export function FeedbackDialog({
           </div>
         ) : (
           <form
+            key={formKey}
             noValidate
             action={(formData) => {
               setError(null);

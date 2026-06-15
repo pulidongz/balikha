@@ -162,6 +162,13 @@
       "when": 1781510681561,
       "tag": "0022_green_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781512284930,
+      "tag": "0023_nappy_skaar",
+      "breakpoints": true
     }
   ]
 }
