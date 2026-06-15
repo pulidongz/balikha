@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut, Shield, Store, User } from 'lucide-react';
+import { LayoutDashboard, LogOut, MessageSquare, Shield, Store, User } from 'lucide-react';
+import { FeedbackDialog } from '@/components/feedback/feedback-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -47,6 +48,7 @@ export function SiteHeaderUserMenu({
   const isAdmin = role === 'admin';
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -57,6 +59,7 @@ export function SiteHeaderUserMenu({
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Account menu"
@@ -105,11 +108,21 @@ export function SiteHeaderUserMenu({
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
+        {/* Defer open to a microtask so the menu finishes closing before the
+            dialog's focus trap activates — avoids a focus-restore race between
+            the two Base UI portal-managed components. */}
+        <DropdownMenuItem onClick={() => setTimeout(() => setFeedbackOpen(true), 0)}>
+          <MessageSquare className="mr-2 h-4 w-4" /> Send feedback
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
           <LogOut className="mr-2 h-4 w-4" />
           {signingOut ? 'Signing out…' : 'Sign out'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    {/* Rendered outside DropdownMenu so closing the menu doesn't unmount it. */}
+    <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+    </>
   );
 }

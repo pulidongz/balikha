@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getCurrentSession } from '@/lib/auth-helpers';
+import { FeedbackFooterLink } from '@/components/feedback/feedback-footer-link';
 
 export async function SiteFooter() {
   const session = await getCurrentSession();
@@ -27,6 +28,7 @@ export async function SiteFooter() {
           <Link href="/contact" className="hover:text-foreground">
             Contact
           </Link>
+          {session && <FeedbackFooterLink />}
           <Link href="/terms" className="hover:text-foreground">
             Terms
           </Link>
