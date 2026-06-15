@@ -60,69 +60,69 @@ export function SiteHeaderUserMenu({
 
   return (
     <>
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Account menu"
-        // size:icon-sm gives a strict 28×28 square so rounded-full produces
-        // a true circle. We turn OFF the ghost variant's bg-muted hover
-        // (it just merges with the AvatarFallback's matching bg-muted and
-        // leaves only the avatar's after:border showing — the "weird
-        // outline" effect). Hover state is instead driven by the
-        // AvatarFallback below via group-hover/button:.
-        className={buttonVariants({
-          variant: 'ghost',
-          size: 'icon-sm',
-          className:
-            'cursor-pointer rounded-full hover:bg-transparent aria-expanded:bg-transparent',
-        })}
-      >
-        <Avatar className="h-7 w-7 after:hidden">
-          <AvatarFallback className="group-hover/button:bg-foreground group-hover/button:text-background group-aria-expanded/button:bg-foreground group-aria-expanded/button:text-background text-xs transition-colors">
-            {initialsOf(userName)}
-          </AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="space-y-0.5">
-            <p className="text-sm font-medium">{userName}</p>
-            <p className="text-muted-foreground text-xs">{userEmail}</p>
-          </DropdownMenuLabel>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/account" />}>
-          <User className="mr-2 h-4 w-4" /> My account
-        </DropdownMenuItem>
-        {hasShop ? (
-          <DropdownMenuItem render={<Link href="/dashboard" />}>
-            <LayoutDashboard className="mr-2 h-4 w-4" /> My studio
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Account menu"
+          // size:icon-sm gives a strict 28×28 square so rounded-full produces
+          // a true circle. We turn OFF the ghost variant's bg-muted hover
+          // (it just merges with the AvatarFallback's matching bg-muted and
+          // leaves only the avatar's after:border showing — the "weird
+          // outline" effect). Hover state is instead driven by the
+          // AvatarFallback below via group-hover/button:.
+          className={buttonVariants({
+            variant: 'ghost',
+            size: 'icon-sm',
+            className:
+              'cursor-pointer rounded-full hover:bg-transparent aria-expanded:bg-transparent',
+          })}
+        >
+          <Avatar className="h-7 w-7 after:hidden">
+            <AvatarFallback className="group-hover/button:bg-foreground group-hover/button:text-background group-aria-expanded/button:bg-foreground group-aria-expanded/button:text-background text-xs transition-colors">
+              {initialsOf(userName)}
+            </AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="space-y-0.5">
+              <p className="text-sm font-medium">{userName}</p>
+              <p className="text-muted-foreground text-xs">{userEmail}</p>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href="/account" />}>
+            <User className="mr-2 h-4 w-4" /> My account
           </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem render={<Link href="/dashboard/become-seller" />}>
-            <Store className="mr-2 h-4 w-4" /> Share your work
-          </DropdownMenuItem>
-        )}
-        {isAdmin && (
-          <DropdownMenuItem render={<Link href="/admin" />}>
-            <Shield className="mr-2 h-4 w-4" /> Admin
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        {/* Defer open to a microtask so the menu finishes closing before the
+          {hasShop ? (
+            <DropdownMenuItem render={<Link href="/dashboard" />}>
+              <LayoutDashboard className="mr-2 h-4 w-4" /> My studio
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem render={<Link href="/dashboard/become-seller" />}>
+              <Store className="mr-2 h-4 w-4" /> Share your work
+            </DropdownMenuItem>
+          )}
+          {isAdmin && (
+            <DropdownMenuItem render={<Link href="/admin" />}>
+              <Shield className="mr-2 h-4 w-4" /> Admin
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          {/* Defer open to a microtask so the menu finishes closing before the
             dialog's focus trap activates — avoids a focus-restore race between
             the two Base UI portal-managed components. */}
-        <DropdownMenuItem onClick={() => setTimeout(() => setFeedbackOpen(true), 0)}>
-          <MessageSquare className="mr-2 h-4 w-4" /> Send feedback
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
-          <LogOut className="mr-2 h-4 w-4" />
-          {signingOut ? 'Signing out…' : 'Sign out'}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    {/* Rendered outside DropdownMenu so closing the menu doesn't unmount it. */}
-    <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+          <DropdownMenuItem onClick={() => setTimeout(() => setFeedbackOpen(true), 0)}>
+            <MessageSquare className="mr-2 h-4 w-4" /> Send feedback
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {/* Rendered outside DropdownMenu so closing the menu doesn't unmount it. */}
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
   );
 }

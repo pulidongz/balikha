@@ -293,7 +293,10 @@ function FeedbackCard({ count }: { count: number }) {
               ? 'new feedback item'
               : 'new feedback items'}
         </p>
-        <Link href="/admin/feedback" className="text-foreground mt-3 inline-block text-sm underline">
+        <Link
+          href="/admin/feedback"
+          className="text-foreground mt-3 inline-block text-sm underline"
+        >
           Review →
         </Link>
       </CardContent>
