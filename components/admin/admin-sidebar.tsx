@@ -22,6 +22,7 @@ const NAV: readonly NavItem[] = [
   { href: '/admin/products', label: 'Products', disabled: false, exact: false },
   { href: '/admin/search', label: 'Search analytics', disabled: false, exact: false },
   { href: '/admin/audit-log', label: 'Audit log', disabled: false, exact: false },
+  { href: '/admin/feedback', label: 'Feedback', disabled: false, exact: false },
 ];
 
 export function AdminSidebar() {

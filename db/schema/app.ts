@@ -551,6 +551,29 @@ export const commentReports = pgTable(
   ],
 );
 
+export const feedbackCategory = pgEnum('feedback_category', ['bug', 'idea', 'confusing', 'other']);
+
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    category: feedbackCategory('category').notNull(),
+    message: text('message').notNull(),
+    route: text('route'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at'),
+  },
+  (t) => [
+    index('feedback_created_idx').on(t.createdAt),
+    // Rate-limit window counts per user (mirrors work_comments_user_created_idx):
+    // submitFeedbackAction runs WHERE user_id = $1 AND created_at >= $2 twice per submit.
+    index('feedback_user_created_idx').on(t.userId, t.createdAt),
+  ],
+);
+
 // Appreciations (T7): the public, nearly-free response unit — one per
 // user per work. Same shape as artisan_follows: composite PK makes the
 // toggle structurally idempotent. Unlike the wishlist (private save),
