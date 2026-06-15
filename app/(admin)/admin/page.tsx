@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { count, eq, gte } from 'drizzle-orm';
 import { db } from '@/db';
 import { isNull } from 'drizzle-orm';
-import { commentReports, orders, searchEvents } from '@/db/schema';
+import { commentReports, feedback, orders, searchEvents } from '@/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   countActiveSellers30d,
@@ -24,6 +24,7 @@ export default async function AdminOverview() {
     searchCount7d,
     disputedCountRow,
     openReportsRow,
+    openFeedbackRow,
     totalUsers,
     totalProducts,
     activeSellers30d,
@@ -33,6 +34,7 @@ export default async function AdminOverview() {
     loadSearchCount7d(),
     db.select({ value: count() }).from(orders).where(eq(orders.status, 'disputed')),
     db.select({ value: count() }).from(commentReports).where(isNull(commentReports.resolvedAt)),
+    db.select({ value: count() }).from(feedback).where(isNull(feedback.resolvedAt)),
     countTotalUsers(),
     countTotalProducts(),
     countActiveSellers30d(),
@@ -41,6 +43,7 @@ export default async function AdminOverview() {
   ]);
   const disputedCount = disputedCountRow[0]?.value ?? 0;
   const openReportsCount = openReportsRow[0]?.value ?? 0;
+  const openFeedbackCount = openFeedbackRow[0]?.value ?? 0;
 
   return (
     <div className="space-y-8">
@@ -69,6 +72,7 @@ export default async function AdminOverview() {
         />
         <DisputesNeedingAttention count={disputedCount} />
         <CommentReportsCard count={openReportsCount} />
+        <FeedbackCard count={openFeedbackCount} />
         <SalesOverviewCard metrics={orderMetrics} />
         <EditorialFeaturingCard />
       </section>
@@ -263,6 +267,33 @@ function CommentReportsCard({ count }: { count: number }) {
           href="/admin/comment-reports"
           className="text-foreground mt-3 inline-block text-sm underline"
         >
+          Review →
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+// User-submitted feedback from the /feedback dialog — unresolved items
+// awaiting admin triage.
+function FeedbackCard({ count }: { count: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Feedback</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className={count > 0 ? 'text-destructive text-3xl font-medium' : 'text-3xl font-medium'}>
+          {count}
+        </p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          {count === 0
+            ? 'No new feedback.'
+            : count === 1
+              ? 'new feedback item'
+              : 'new feedback items'}
+        </p>
+        <Link href="/admin/feedback" className="text-foreground mt-3 inline-block text-sm underline">
           Review →
         </Link>
       </CardContent>
