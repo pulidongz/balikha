@@ -103,14 +103,12 @@ export default async function AdminFeedbackPage({
                     <span className="font-medium">{r.submitterName}</span>{' '}
                     <span className="text-muted-foreground">({r.submitterEmail})</span>
                   </p>
-                  {r.route && (
-                    <p className="text-muted-foreground text-xs">from {r.route}</p>
-                  )}
+                  {r.route && <p className="text-muted-foreground text-xs">from {r.route}</p>}
                   <p className="text-muted-foreground text-xs">{DATE_FMT.format(r.createdAt)}</p>
                 </div>
                 <FeedbackActions feedbackId={r.id} />
               </div>
-              <blockquote className="bg-secondary/50 whitespace-pre-line rounded-md p-3 text-sm">
+              <blockquote className="bg-secondary/50 rounded-md p-3 text-sm whitespace-pre-line">
                 {r.message}
               </blockquote>
             </li>

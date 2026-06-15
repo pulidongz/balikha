@@ -551,12 +551,7 @@ export const commentReports = pgTable(
   ],
 );
 
-export const feedbackCategory = pgEnum('feedback_category', [
-  'bug',
-  'idea',
-  'confusing',
-  'other',
-]);
+export const feedbackCategory = pgEnum('feedback_category', ['bug', 'idea', 'confusing', 'other']);
 
 export const feedback = pgTable(
   'feedback',

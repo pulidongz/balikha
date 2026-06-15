@@ -91,7 +91,7 @@ export function FeedbackDialog({
                 defaultValue="bug"
                 // Copies the focus-visible ring, border, and dark-mode tokens from
                 // Input so the native select matches Textarea/Input in both themes.
-                className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-8 w-full rounded-lg border px-2.5 text-sm outline-none transition-colors focus-visible:ring-3"
+                className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-8 w-full rounded-lg border px-2.5 text-sm transition-colors outline-none focus-visible:ring-3"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
