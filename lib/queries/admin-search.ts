@@ -25,12 +25,12 @@ type StatsRow = {
 async function getStats(): Promise<SearchStats> {
   const result = await db.execute<StatsRow>(sql`
     SELECT
-      COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '7 days') AS searches_7d,
-      COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days') AS searches_30d,
-      COUNT(DISTINCT normalized_query) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days') AS unique_queries_30d,
+      COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '7 days' AND is_suspected_bot = false) AS searches_7d,
+      COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days' AND is_suspected_bot = false) AS searches_30d,
+      COUNT(DISTINCT normalized_query) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days' AND is_suspected_bot = false) AS unique_queries_30d,
       COALESCE(
-        100.0 * COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days' AND product_result_count = 0)
-        / NULLIF(COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days'), 0),
+        100.0 * COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days' AND is_suspected_bot = false AND product_result_count = 0)
+        / NULLIF(COUNT(*) FILTER (WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days' AND is_suspected_bot = false), 0),
         0
       ) AS no_result_rate
     FROM search_events
@@ -62,6 +62,7 @@ async function getTopQueries() {
       AVG(product_result_count)::numeric AS avg_results
     FROM search_events
     WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days'
+      AND is_suspected_bot = false
     GROUP BY normalized_query
     ORDER BY count DESC, normalized_query ASC
     LIMIT 25
@@ -81,6 +82,7 @@ async function getNoResultQueries() {
     FROM search_events
     WHERE created_at >= LOCALTIMESTAMP - INTERVAL '30 days'
       AND product_result_count = 0
+      AND is_suspected_bot = false
     GROUP BY normalized_query
     ORDER BY count DESC, normalized_query ASC
     LIMIT 25
