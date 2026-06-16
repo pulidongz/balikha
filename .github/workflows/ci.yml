@@ -99,6 +99,9 @@ jobs:
       - name: Image sanitize checks
         run: npm run test:images
 
+      - name: Search bot-filter checks
+        run: npm run test:search-bot-filter
+
   build:
     name: Build
     runs-on: ubuntu-latest

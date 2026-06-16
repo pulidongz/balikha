@@ -37,7 +37,8 @@
     "test:admin-audit-coverage": "tsx scripts/check-admin-audit-coverage.ts",
     "test:csv": "tsx scripts/check-csv.ts",
     "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts",
-    "test:admin-product-moderation": "tsx --env-file=.env.development scripts/check-admin-product-moderation.ts"
+    "test:admin-product-moderation": "tsx --env-file=.env.development scripts/check-admin-product-moderation.ts",
+    "test:search-bot-filter": "tsx scripts/check-search-bot-filter.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",
