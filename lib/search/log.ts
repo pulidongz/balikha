@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { searchEvents } from '@/db/schema';
 import { logger } from '@/lib/logger';
 import type { ProductFilters, SearchResults } from './types';
+import { isLikelyBotQuery } from './bot-filter';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
@@ -43,6 +44,7 @@ export async function logSearchEvent(opts: {
     await db.insert(searchEvents).values({
       query: opts.query,
       normalizedQuery: normalizeQuery(opts.query),
+      isSuspectedBot: isLikelyBotQuery(opts.query),
       productResultCount: opts.results.totalProductCount,
       artisanResultCount: opts.results.artisans.length,
       catalogResultCount: opts.results.catalogs.length,
