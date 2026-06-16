@@ -301,6 +301,12 @@ export const searchEvents = pgTable(
     catalogResultCount: integer('catalog_result_count').notNull(),
     hadFilters: boolean('had_filters').notNull().default(false),
     wasLoggedIn: boolean('was_logged_in').notNull().default(false),
+    // Flagged by the JS classifier (lib/search/bot-filter.ts) at write time.
+    // Default false: additive, safe to deploy. At pre-launch scale (thousands
+    // of rows) a boolean filter on the existing created_at-indexed 30-day
+    // window is sufficient; revisit a partial index only if volume grows
+    // materially post-launch.
+    isSuspectedBot: boolean('is_suspected_bot').notNull().default(false),
     requestId: text('request_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
