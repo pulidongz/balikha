@@ -381,6 +381,66 @@ test (step 7 above) — the scratch DB is a real PII copy on the box.
 
 ---
 
+## Step 12 — Scheduled jobs: weekly digest & failure alerts
+
+Two oneshot jobs run on systemd timers besides the nightly backup:
+`balikha-weekly-digest.service` (Mondays 08:00 PHT) and
+`balikha-orders-tick.service` (hourly). All three oneshots
+(`...-weekly-digest`, `...-orders-tick`, `...-backup`) declare
+`OnFailure=balikha-job-failure-alert@%n.service`, a handler that emails
+`ADMIN_EMAIL` the failed unit name + the last 30 journal lines (via the
+Resend SDK; it reads config from `production.env` directly and logs to the
+journal).
+
+> The OnFailure wiring only reaches the box when `90-app-runtime.sh` is
+> re-run (`cp *.service` + `daemon-reload`) — a normal push-to-main deploy
+> does NOT re-run it. After any change to these units, re-run the provisioning
+> script and confirm `99-verify.sh` is green (it asserts both the digest timer
+> and the OnFailure wiring).
+
+### Verify the digest timer + alert wiring
+
+```bash
+ssh deploy@<ip> 'systemctl list-timers balikha-weekly-digest.timer'
+# Expected: timer listed, next trigger ~Monday 00:00 UTC (08:00 PHT).
+ssh deploy@<ip> 'systemctl show -p OnFailure balikha-weekly-digest.service'
+# Expected: OnFailure=balikha-job-failure-alert@...  (also asserted by 99-verify.sh)
+```
+
+### Run the digest manually
+
+```bash
+ssh deploy@<ip> 'sudo systemctl start balikha-weekly-digest.service'   # real send
+npm run digest:weekly -- --dry-run                                     # local, no send
+```
+
+### Read the logs
+
+```bash
+ssh deploy@<ip> 'journalctl -u balikha-weekly-digest.service -n 50 --no-pager'
+# The final line reports: sent / failed / skippedEmpty / skippedOptOut.
+```
+
+### Verify & debug failure alerting
+
+```bash
+# Fire the alert handler directly against a known unit:
+ssh deploy@<ip> 'sudo systemctl start balikha-job-failure-alert@balikha-weekly-digest.service'
+ssh deploy@<ip> "journalctl -u 'balikha-job-failure-alert@*' -n 20 --no-pager"
+# Expected: an email at ADMIN_EMAIL and a 'job-failure-alert: sent for ...' line.
+```
+
+If no email arrives, check the handler's own status — it is the silent-failure
+detector, so its own failure is observable only here:
+
+```bash
+ssh deploy@<ip> "systemctl status 'balikha-job-failure-alert@*' --no-pager"
+# A non-zero handler exit means a required mail var (ADMIN_EMAIL / EMAIL_FROM /
+# RESEND_API_KEY) is unset, or Resend rejected the send — the journal line says which.
+```
+
+---
+
 ## Step 11 — Roadmap note
 
 On successful completion of all 3 ACs, mark **4D** as done in
