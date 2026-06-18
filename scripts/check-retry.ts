@@ -68,6 +68,33 @@ async function main() {
     assert(calls === 1, 'does not retry when shouldRetry returns false');
   }
 
+  // shouldRetry predicate whose answer depends on result content — stops when
+  // the error matches 'invalid_api_key' even though retries remain.
+  {
+    let calls = 0;
+    const result = await sendWithRetry(
+      async () => {
+        calls++;
+        return calls === 1
+          ? { ok: false as const, error: 'transient' }
+          : { ok: false as const, error: 'invalid_api_key' };
+      },
+      {
+        retries: 2,
+        delayMs: 0,
+        shouldRetry: (r) => !r.ok && !r.error.includes('invalid_api_key'),
+      },
+    );
+    assert(result.ok === false, 'dynamic predicate: returns failed result');
+    assert(calls === 2, 'dynamic predicate: stops after 2 attempts when predicate returns false');
+    if (!result.ok) {
+      assert(
+        result.error === 'invalid_api_key',
+        'dynamic predicate: final error is invalid_api_key',
+      );
+    }
+  }
+
   if (failures > 0) {
     console.error(`\n${failures} assertion(s) failed`);
     process.exit(1);

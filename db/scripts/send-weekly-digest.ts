@@ -184,7 +184,7 @@ async function main() {
       {
         retries: 2,
         delayMs: 1000,
-        shouldRetry: (r) => r.ok || !isPermanentSendError(r.error),
+        shouldRetry: (r) => !r.ok && !isPermanentSendError(r.error),
       },
     );
     if (!result.ok) {

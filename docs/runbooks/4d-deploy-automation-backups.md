@@ -381,7 +381,7 @@ test (step 7 above) — the scratch DB is a real PII copy on the box.
 
 ---
 
-## Step 12 — Scheduled jobs: weekly digest & failure alerts
+## Step 11 — Scheduled jobs: weekly digest & failure alerts
 
 Two oneshot jobs run on systemd timers besides the nightly backup:
 `balikha-weekly-digest.service` (Mondays 08:00 PHT) and
@@ -441,7 +441,7 @@ ssh deploy@<ip> "systemctl status 'balikha-job-failure-alert@*' --no-pager"
 
 ---
 
-## Step 11 — Roadmap note
+## Step 12 — Roadmap note
 
 On successful completion of all 3 ACs, mark **4D** as done in
 `docs/plans/balikha-roadmap.md`:

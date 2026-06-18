@@ -42,8 +42,9 @@ async function readJournalTail(unit: string): Promise<string> {
     const { stdout } = await execFileAsync('journalctl', ['-u', unit, '-n', '30', '--no-pager']);
     return stdout.trim() || '(journal empty)';
   } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
     console.error(`job-failure-alert: could not read journal for ${unit}:`, e);
-    return '(journal unavailable — check the box directly)';
+    return `(journal unavailable: ${reason} — check the box directly)`;
   }
 }
 
@@ -80,7 +81,7 @@ async function main() {
     console.error(`job-failure-alert: Resend send failed for ${unit}:`, error);
     process.exit(1);
   }
-  console.error(`job-failure-alert: sent for ${unit}`);
+  console.warn(`job-failure-alert: sent for ${unit}`);
 }
 
 main()

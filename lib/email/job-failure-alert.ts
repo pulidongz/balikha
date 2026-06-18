@@ -6,8 +6,8 @@
 export function stripControlChars(text: string): string {
   return (
     text
-      // ANSI SGR escape sequences (colour codes).
-      .replace(/\x1b\[[0-9;]*m/g, '')
+      // ANSI CSI (e.g. colour/cursor) and OSC (e.g. hyperlinks) escape sequences.
+      .replace(/\x1b(?:\[[0-9;]*[A-Za-z]|\][^\x07]*\x07)/g, '')
       // Remaining C0 control chars except \n (\x0a) and \t (\x09).
       .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
   );
