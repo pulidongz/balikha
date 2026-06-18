@@ -1,15 +1,15 @@
 [Unit]
-Description=Balikha weekly artist digest email (T10)
-After=network-online.target postgresql.service
+Description=Balikha scheduled-job failure alert for %I
+After=network-online.target
 Wants=network-online.target
-OnFailure=balikha-job-failure-alert@%n.service
 
 [Service]
 Type=oneshot
 User=balikha-app
 Group=balikha-app
+SupplementaryGroups=systemd-journal
 WorkingDirectory=/opt/balikha/current
 EnvironmentFile=/etc/balikha/production.env
 Environment=NODE_ENV=production
 Environment=HOME=/var/lib/balikha
-ExecStart=/opt/balikha/current/node_modules/.bin/tsx db/scripts/send-weekly-digest.ts
+ExecStart=/opt/balikha/current/node_modules/.bin/tsx db/scripts/notify-job-failure.ts %I
