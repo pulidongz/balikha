@@ -13,6 +13,20 @@
 // Pass `--dry-run` to print decisions without sending.
 // Pass `--now=2026-06-01T00:00:00Z` to override the window end for testing.
 
+// Performance note (Pillar 4, #116): this issues O(4N) queries — for each
+// studio it runs four sequential count() queries (followers, appreciations,
+// comments, threads) in the main loop, and per-recipient send failures
+// retry with a 1s serialized sleep (delayMs below). Both are fine at launch
+// scale; revisit together (single grouped query + parallel/short-delay
+// sends) if the run duration climbs noticeably or the studio count grows
+// past a few hundred.
+//
+// Failure semantics (#116): per-recipient *send* failures are retried
+// (bounded) and counted in `failed`; a *permanent* send error (bad/missing
+// API key, quota) aborts the whole run loudly; a *query* failure also aborts
+// the run. Any non-zero exit is surfaced via the systemd OnFailure alert
+// (balikha-job-failure-alert@).
+
 import 'dotenv/config';
 import { createElement } from 'react';
 import { and, count, eq, gte, ne } from 'drizzle-orm';
@@ -30,6 +44,7 @@ import {
 } from '@/db/schema';
 import { env } from '@/env';
 import { sendEmail } from '@/lib/email/send';
+import { sendWithRetry } from '@/lib/email/send-with-retry';
 import { digestUnsubscribeToken } from '@/lib/email/digest-unsubscribe';
 import {
   WeeklyDigestEmail,
@@ -70,6 +85,18 @@ async function countsForArtisan(artisanProfileId: string): Promise<WeeklyDigestC
   };
 }
 
+// sendEmail returns err() for ALL Resend failures, including permanent ones
+// whose error string carries the structured code. Retrying these per-studio
+// is pointless and inflates the `failed` count, so we abort the whole run.
+const PERMANENT_SEND_ERRORS = [
+  'invalid_api_key',
+  'daily_quota_exceeded',
+  'Email provider not configured',
+];
+function isPermanentSendError(error: string): boolean {
+  return PERMANENT_SEND_ERRORS.some((code) => error.includes(code));
+}
+
 async function main() {
   const studios = await db
     .select({
@@ -83,6 +110,7 @@ async function main() {
     .innerJoin(user, eq(user.id, artisanProfiles.userId));
 
   let sent = 0;
+  let failed = 0;
   let skippedEmpty = 0;
   let skippedOptOut = 0;
 
@@ -141,18 +169,36 @@ async function main() {
       continue;
     }
 
-    const result = await sendEmail({
-      to: studio.ownerEmail,
-      subject: `Your week at ${studio.shopName} — Balikha`,
-      react: createElement(WeeklyDigestEmail, {
-        shopName: studio.shopName,
-        counts,
-        studioUrl: `${env.NEXT_PUBLIC_APP_URL}${studioPath(studio.shopSlug)}`,
-        unsubscribeUrl,
-      }),
-    });
+    const result = await sendWithRetry(
+      () =>
+        sendEmail({
+          to: studio.ownerEmail,
+          subject: `Your week at ${studio.shopName} — Balikha`,
+          react: createElement(WeeklyDigestEmail, {
+            shopName: studio.shopName,
+            counts,
+            studioUrl: `${env.NEXT_PUBLIC_APP_URL}${studioPath(studio.shopSlug)}`,
+            unsubscribeUrl,
+          }),
+        }),
+      {
+        retries: 2,
+        delayMs: 1000,
+        shouldRetry: (r) => r.ok || !isPermanentSendError(r.error),
+      },
+    );
     if (!result.ok) {
-      logger.error({ studio: studio.shopSlug, errMessage: result.error }, 'digest: send failed');
+      if (isPermanentSendError(result.error)) {
+        // Config-level failure: retrying every studio is pointless. Abort the
+        // whole run loudly — the non-zero exit triggers the OnFailure alert.
+        logger.error({ errMessage: result.error }, 'digest: permanent send error — aborting run');
+        throw new Error(`digest aborted: permanent send error: ${result.error}`);
+      }
+      failed++;
+      logger.error(
+        { studio: studio.shopSlug, errMessage: result.error },
+        'digest: send failed after retries',
+      );
       continue;
     }
     sent++;
@@ -160,7 +206,14 @@ async function main() {
   }
 
   logger.info(
-    { sent, skippedEmpty, skippedOptOut, dryRun: DRY_RUN, windowStart: CUTOFF.toISOString() },
+    {
+      sent,
+      failed,
+      skippedEmpty,
+      skippedOptOut,
+      dryRun: DRY_RUN,
+      windowStart: CUTOFF.toISOString(),
+    },
     'digest: done',
   );
 }
