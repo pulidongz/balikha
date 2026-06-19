@@ -208,22 +208,44 @@ quiet and legible. Fraunces is a soft, slightly old-style serif with warmth in
 its curves. The pairing is the personality in two fonts: Geist is the calm
 shopkeeper, Fraunces is the maker telling the story.
 
+### Tokenized Type Scale
+
+All sizes are defined as CSS custom properties under `@theme` in `app/globals.css`
+and auto-generate Tailwind utilities (`text-display`, `text-headline`, etc.).
+Use the utility class names — never hard-code a `font-size` value.
+
+| Token             | Utility         | Value                                   | Line-height | Tracking |
+| ----------------- | --------------- | --------------------------------------- | ----------- | -------- |
+| `--text-display`  | `text-display`  | `clamp(2.75rem, 1.6rem + 5vw, 4.75rem)` | 1.03        | −0.03em  |
+| `--text-headline` | `text-headline` | `clamp(2rem, 1.5rem + 1.8vw, 2.75rem)`  | 1.12        | −0.02em  |
+| `--text-title`    | `text-title`    | `1.375rem`                              | 1.3         | −0.01em  |
+| `--text-lead`     | `text-lead`     | `1.25rem`                               | 1.5         | —        |
+| `--text-body`     | `text-body`     | `1.0625rem`                             | 1.65        | —        |
+| `--text-label`    | `text-label`    | `0.875rem`                              | 1.4         | —        |
+| `--text-caption`  | `text-caption`  | `0.75rem`                               | 1.4         | —        |
+
+Display and Headline are fluid clamps. Title and below are fixed.
+
 ### Hierarchy
 
-- **Display** (Fraunces, 400, `clamp(2.25rem, 5vw, 3.75rem)`, line-height 1.1):
-  Hero copy on the home and storefront pages. Tracking pulled in slightly
-  (`-0.02em`).
-- **Headline** (Fraunces, 400, `1.875rem` / 30px, line-height 1.2): Section
-  titles ("Featured artisans", "Recent listings").
-- **Title** (Fraunces, 500, `1.25rem` / 20px, line-height 1.3): Product titles
-  on detail pages, artisan names on storefront cards, "About this piece" lead
-  lines. Note: in-card titles in the dashboard (`CardTitle`) use Geist at
+- **Display** (`text-display`, Fraunces 400, `clamp(2.75rem, 1.6rem + 5vw, 4.75rem)`,
+  line-height 1.03): Hero copy on the home and storefront pages. Tracking pulled
+  in (`-0.03em`).
+- **Headline** (`text-headline`, Fraunces 400, `clamp(2rem, 1.5rem + 1.8vw, 2.75rem)`,
+  line-height 1.12): Section titles ("Featured artisans", "Recent listings").
+  Tracking pulled in (`-0.02em`).
+- **Title** (`text-title`, Fraunces 500, `1.375rem`, line-height 1.3): Product
+  titles on detail pages, artisan names on storefront cards, "About this piece"
+  lead lines. Note: in-card titles in the dashboard (`CardTitle`) use Geist at
   `1rem`, weight 500, by design. The serif title is for editorial surfaces.
-- **Body** (Geist, 400, `1rem` / 16px, line-height 1.65): All running copy. Cap
-  measure at 65 to 75 characters per line.
-- **Label** (Geist, 500, `0.875rem` / 14px): Buttons, inputs, navigation, form
-  labels. Badges and fine captions step down to `0.75rem` / 12px, same font and
-  weight.
+- **Lead** (`text-lead`, Geist 400, `1.25rem`, line-height 1.5): Intro paragraphs,
+  "About this piece" opening lines.
+- **Body** (`text-body`, Geist 400, `1.0625rem`, line-height 1.65): All running
+  copy. Cap measure with `max-w-copy` (65ch).
+- **Label** (`text-label`, Geist 500, `0.875rem`, line-height 1.4): Buttons,
+  inputs, navigation, form labels.
+- **Caption** (`text-caption`, Geist 500, `0.75rem`, line-height 1.4): Badges
+  and fine captions.
 
 ### Named Rules
 
@@ -236,7 +258,108 @@ copy, section headlines, product titles on detail pages, artisan names, and
 long-form "about" prose. Everything else, including every control and every
 table, is Geist. Fraunces is loaded at weights 400 and 500 only.
 
-## 4. Elevation
+### Reading Measures
+
+Two container tokens cap line length to comfortable reading widths:
+
+- `max-w-lead` (46ch): Intro paragraphs, pull-quotes, short descriptive leads.
+- `max-w-copy` (65ch): Long-form body prose, "about" descriptions, policy text.
+
+Both are defined under `@theme` in `app/globals.css` as `--container-lead` and
+`--container-copy`, auto-generating `max-w-lead` and `max-w-copy` utilities.
+
+## 3a. Spacing
+
+Section vertical rhythm uses fluid tokens that scale between viewport breakpoints.
+All are defined under `@theme` in `app/globals.css` and auto-generate `py-*`
+utilities.
+
+| Token                  | Utility         | Value                     | Range    |
+| ---------------------- | --------------- | ------------------------- | -------- |
+| `--spacing-section`    | `py-section`    | `clamp(4rem, 6vw, 7rem)`  | 64→112px |
+| `--spacing-section-lg` | `py-section-lg` | `clamp(5rem, 9vw, 10rem)` | 80→160px |
+
+Use `py-section` on all below-the-fold marketing sections. Use `py-section-lg`
+on the hero / primary billboard area only.
+
+In addition, four live CSS variables (in `:root`, not `@theme`) control motion
+timing for CSS-only hover and press effects:
+
+| Variable        | Value | Role                                  |
+| --------------- | ----- | ------------------------------------- |
+| `--dur-reveal`  | 600ms | Base scroll-reveal duration           |
+| `--dur-hover`   | 520ms | Image/card hover transition           |
+| `--dur-press`   | 120ms | Button press nudge                    |
+| `--reveal-rise` | 24px  | Vertical offset for reveal animations |
+| `--stagger-gap` | 90ms  | Delay between staggered grid items    |
+
+## 4. Motion
+
+Balikha's motion system delivers liveliness in three tiers without impacting
+bundle weight or RSC boundaries.
+
+### Architecture
+
+- **Bundle:** `LazyMotion` + the lightweight `m` component + `domAnimation`
+  (~4.6 kB) via `MotionProvider` in the root layout. The full `motion` import
+  (~34 kB) is never loaded. The `strict` flag throws if any `motion.*` primitive
+  slips into a component.
+- **RSC boundary:** Motion components (`MotionProvider`, `Reveal`,
+  `StaggerGrid`, `StaggerGridItem`) are `'use client'` and animate only their
+  own wrapper element. Server-rendered `children` pass through and keep
+  rendering on the server — no data-fetching file ever becomes a client
+  component to add an animation.
+- **Reduced motion:** Every primitive calls `useReducedMotion()` and renders a
+  plain HTML element (snapping to the final state) when the OS setting is on.
+
+### Easing Tokens
+
+Two easing curves are available as CSS custom properties (also utilities via
+`@theme`):
+
+- `--ease-quart` / `ease-quart`: `cubic-bezier(0.23, 1, 0.32, 1)` — soft,
+  over-damped settle. Default for sections, grids, and product-register
+  surfaces.
+- `--ease-overshoot` / `ease-overshoot`: `cubic-bezier(0.34, 1.3, 0.64, 1)` —
+  slight spring past the resting point. Reserved for hero accents only.
+
+### Primitives
+
+**`<Reveal>`** (`components/motion/reveal.tsx`) — block-level scroll reveal.
+Fades and rises into view once when the element enters the viewport.
+
+- `variant="soft"` (default): 24px rise, quart ease — sections, content blocks.
+- `variant="section"`: 24px rise, overshoot ease — hero accents only.
+- `variant="subtle"`: 12px rise, quart ease — product register light entrance.
+- `delay` (seconds): optional stagger for sibling reveals.
+
+**`<StaggerGrid>` / `<StaggerGridItem>`** (`components/motion/stagger.tsx`) —
+animated `<ul>` / `<li>` pair that staggers its children into view. Used via
+`<ProductGrid stagger>`.
+
+### Tiered Liveliness
+
+| Tier             | Surface                            | Variants used                                                                         |
+| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |
+| Brand / hero     | Editorial landing, storefront hero | `section` (overshoot) for accents; `soft` for content blocks                          |
+| Brand / sections | Below-fold marketing sections      | `soft` reveal; `stagger` on product grids                                             |
+| Product register | Dashboard, account, admin          | `subtle` reveal for page headers only; data tables and dense lists are never animated |
+
+### Named Rules
+
+**Never reveal-gate above-the-fold content.** Hero text, the primary CTA, and
+the product buy path render immediately at full opacity. No JS-gated `opacity:0`
+can flash blank for users on slow connections. Reveals begin below the fold.
+
+**Overshoot is for accents, not full sections.** The `section`/overshoot variant
+is reserved for one or two hero accent elements per page. Section blocks and
+product grids use `soft` (quart) to settle without bouncing.
+
+**Hover and press stay CSS.** Card image scale on hover and the 1px button
+nudge on press are pure CSS transitions using `--dur-hover` and `--dur-press`.
+They do not use Motion primitives.
+
+## 5. Elevation
 
 The system is flat. There are no `box-shadow` tokens, and surfaces do not lift
 off the page. Depth and grouping are conveyed two ways: a hairline 1px ring at
@@ -259,7 +382,7 @@ shadow to fake importance.
 ring or a 1px Shoreline Sand border, never from a drop shadow. If a surface
 needs a shadow to read, the layout is wrong.
 
-## 5. Components
+## 6. Components
 
 Components are **warm and tactile**: soft radii, compact controls, gentle
 physical feedback. They feel handled rather than clicked.
@@ -337,7 +460,7 @@ through in Driftwood.
 This is "editorial, not retail" expressed in one component: the work is framed
 and given room, not boxed and ranked.
 
-## 6. Do's and Don'ts
+## 7. Do's and Don'ts
 
 ### Do:
 
