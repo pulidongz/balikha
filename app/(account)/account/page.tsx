@@ -9,6 +9,7 @@ import { NotificationsPreview } from '@/components/account/notifications-preview
 import { FirstTimeBuyerWelcome } from '@/components/account/first-time-buyer-welcome';
 import { RecentlyViewedStrip } from '@/components/marketplace/recently-viewed-strip';
 import { ResendVerificationBanner } from '@/components/auth/resend-verification-banner';
+import { Reveal } from '@/components/motion/reveal';
 
 export const metadata = {
   title: 'Your account',
@@ -54,9 +55,11 @@ export default async function AccountHome() {
   return (
     <div className="space-y-12">
       {!current.emailVerified && <ResendVerificationBanner email={current.email} />}
-      <header>
-        <h1 className="font-serif text-3xl">Hi, {current.firstName}</h1>
-      </header>
+      <Reveal variant="subtle">
+        <header>
+          <h1 className="text-headline font-serif">Hi, {current.firstName}</h1>
+        </header>
+      </Reveal>
 
       <FeedPreview items={feedItems} wishlistedIds={wishlistedIds} />
       <WishlistPreview items={wishlistItems} />

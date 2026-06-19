@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/marketplace/empty-state';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { getCurrentArtisanProfile, getCurrentSession } from '@/lib/auth-helpers';
 import { studioPath } from '@/lib/routes';
+import { Reveal } from '@/components/motion/reveal';
 
 export const metadata = {
   title: 'Dashboard',
@@ -110,10 +111,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-10 px-4 py-10 sm:px-6">
-      <header className="space-y-1">
-        <h1 className="font-serif text-3xl tracking-tight">Welcome back, {firstName}</h1>
-        <p className="text-muted-foreground text-sm">Managing {profile.shopName}.</p>
-      </header>
+      <Reveal variant="subtle">
+        <header className="space-y-1">
+          <h1 className="text-headline font-serif">Welcome back, {firstName}</h1>
+          <p className="text-muted-foreground text-sm">Managing {profile.shopName}.</p>
+        </header>
+      </Reveal>
 
       {/* Approval status banners — pending and rejected artists see a
           clear explanation of their application state. Approved artists
@@ -164,7 +167,7 @@ export default async function DashboardPage() {
       {/* Recent products */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-serif text-2xl tracking-tight">Recent products</h2>
+          <h2 className="text-title font-serif">Recent products</h2>
           <Link
             href="/dashboard/catalogs"
             className="text-muted-foreground hover:text-foreground text-sm"
