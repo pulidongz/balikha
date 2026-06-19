@@ -87,6 +87,10 @@ check "4B caddy enabled"               "systemctl is-enabled caddy"             
 check "4B balikha-app user exists"     "id balikha-app"                                "balikha-app"
 check "4B balikha.service enabled"     "systemctl is-enabled balikha.service"          "enabled"
 check "4B tick timer enabled"          "systemctl is-enabled balikha-orders-tick.timer" "enabled"
+check "digest timer enabled"           "systemctl is-enabled balikha-weekly-digest.timer" "enabled"
+check "digest OnFailure wired"         "systemctl show -p OnFailure balikha-weekly-digest.service" "balikha-job-failure-alert@"
+check "tick OnFailure wired"           "systemctl show -p OnFailure balikha-orders-tick.service"   "balikha-job-failure-alert@"
+check "backup OnFailure wired"         "systemctl show -p OnFailure balikha-backup.service"        "balikha-job-failure-alert@"
 
 # ---------------------------------------------------------------------------
 # 4D — backup tooling-presence checks (NOT "backups working" — backups cannot

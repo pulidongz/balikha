@@ -2,6 +2,7 @@
 Description=Balikha order lifecycle sweep (auto-cancel / auto-complete)
 After=network-online.target postgresql.service
 Wants=network-online.target
+OnFailure=balikha-job-failure-alert@%n.service
 
 [Service]
 Type=oneshot
