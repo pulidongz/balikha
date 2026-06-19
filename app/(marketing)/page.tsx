@@ -21,6 +21,8 @@ import { getRecentlyViewed } from '@/lib/queries/recently-viewed';
 import { formatRelativeTime } from '@/lib/format';
 import { studioPath } from '@/lib/routes';
 import { isThinCount } from '@/lib/thin-count';
+import { Reveal } from '@/components/motion/reveal';
+import { StaggerGrid, StaggerGridItem } from '@/components/motion/stagger';
 
 // Previously cached for 5 min, but personalized wishlist hearts make this
 // per-user. Calling getCurrentUser() opts the page into dynamic rendering
@@ -68,9 +70,7 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
       <header className="mb-10">
-        <h1 className="font-serif text-3xl tracking-tight md:text-4xl">
-          New from studios you follow
-        </h1>
+        <h1 className="text-headline font-serif">New from studios you follow</h1>
         <p className="text-muted-foreground mt-2 text-sm">The latest works, newest first.</p>
       </header>
 
@@ -79,31 +79,29 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
           <ProductGrid cols={3}>
             {feed.items.map((item) =>
               item.kind === 'work' ? (
-                <li key={`work-${item.id}`}>
-                  <ProductCard
-                    product={{
-                      id: item.id,
-                      slug: item.slug,
-                      title: item.title,
-                      price: item.price,
-                      currency: item.currency,
-                    }}
-                    artisan={{ shopSlug: item.artisanShopSlug, shopName: item.artisanShopName }}
-                    primaryImage={item.primaryImage}
-                    inWishlist={wishlistedIds.has(item.id)}
-                    isSignedIn
-                    artisanAvatarUrl={item.artisanPhotoUrl}
-                    relativeTimeLabel={formatRelativeTime(item.createdAt)}
-                    appreciationCount={feedAppreciationCounts.get(item.id)}
-                  />
-                </li>
+                <ProductCard
+                  key={`work-${item.id}`}
+                  product={{
+                    id: item.id,
+                    slug: item.slug,
+                    title: item.title,
+                    price: item.price,
+                    currency: item.currency,
+                  }}
+                  artisan={{ shopSlug: item.artisanShopSlug, shopName: item.artisanShopName }}
+                  primaryImage={item.primaryImage}
+                  inWishlist={wishlistedIds.has(item.id)}
+                  isSignedIn
+                  artisanAvatarUrl={item.artisanPhotoUrl}
+                  relativeTimeLabel={formatRelativeTime(item.createdAt)}
+                  appreciationCount={feedAppreciationCounts.get(item.id)}
+                />
               ) : (
-                <li key={`update-${item.id}`}>
-                  <UpdateCard
-                    update={item}
-                    relativeTimeLabel={formatRelativeTime(item.createdAt)}
-                  />
-                </li>
+                <UpdateCard
+                  key={`update-${item.id}`}
+                  update={item}
+                  relativeTimeLabel={formatRelativeTime(item.createdAt)}
+                />
               ),
             )}
           </ProductGrid>
@@ -131,7 +129,7 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
       {!hasFollows && (
         <section aria-label="Studios to follow" className="mb-16">
           <div className="mb-6">
-            <h2 className="font-serif text-2xl tracking-tight">Studios to follow</h2>
+            <h2 className="text-headline font-serif">Studios to follow</h2>
             <p className="text-muted-foreground mt-1 text-sm">
               Follow a studio and its new work lands here.
             </p>
@@ -152,7 +150,7 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
 
       <section id="recent" aria-label="Recent works across Balikha" className="mt-16">
         <div className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-serif text-2xl tracking-tight">Recent works across Balikha</h2>
+          <h2 className="text-headline font-serif">Recent works across Balikha</h2>
           <Link href="/browse" className="text-muted-foreground hover:text-foreground text-sm">
             Browse all →
           </Link>
@@ -214,14 +212,14 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
     <div>
       {/* Hero */}
       <section className="border-b">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-12 lg:py-28">
+        <div className="py-section-lg mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-12">
           <div className={`space-y-6 ${hasHeroCollage ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
-            <h1 className="font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-6xl">
+            <h1 className="text-display font-serif">
               Quietly made.
               <br />
               <span className="text-accent">Made to last.</span>
             </h1>
-            <p className="text-muted-foreground max-w-xl text-base leading-relaxed md:text-lg">
+            <p className="text-muted-foreground text-lead max-w-xl">
               Balikha is a small marketplace for handmade work from independent Filipino artisans:
               pottery, textiles, prints, and the long-form craft behind each piece.
             </p>
@@ -274,62 +272,61 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
           this is the gallery's wall text, not a sponsored card. */}
       {feature && (
         <section aria-label="In focus" className="bg-secondary/30 border-b">
-          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
-            <p className="text-accent text-xs font-medium tracking-[0.2em] uppercase">In focus</p>
-            {feature.artisan && (
-              <div className="mt-6 grid gap-8 md:grid-cols-12 md:items-center">
-                {feature.artisan.bannerImageUrl && (
-                  <div className="md:col-span-5">
-                    <div className="bg-secondary relative aspect-[4/3] overflow-hidden rounded-lg">
-                      <Image
-                        src={feature.artisan.bannerImageUrl}
-                        alt={feature.artisan.shopName}
-                        fill
-                        sizes="(min-width: 768px) 40vw, 100vw"
-                        className="object-cover"
-                      />
+          <div className="py-section mx-auto max-w-6xl px-4 sm:px-6">
+            <Reveal variant="soft">
+              <p className="text-accent text-xs font-medium tracking-[0.2em] uppercase">In focus</p>
+              {feature.artisan && (
+                <div className="mt-6 grid gap-8 md:grid-cols-12 md:items-center">
+                  {feature.artisan.bannerImageUrl && (
+                    <div className="md:col-span-5">
+                      <div className="bg-secondary relative aspect-[4/3] overflow-hidden rounded-lg">
+                        <Image
+                          src={feature.artisan.bannerImageUrl}
+                          alt={feature.artisan.shopName}
+                          fill
+                          sizes="(min-width: 768px) 40vw, 100vw"
+                          className="object-cover"
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-                {/* No banner → take the full row. A spanless child of the
-                    12-col grid would sit in a single ~90px track and wrap
-                    one word per line. */}
-                <div
-                  className={
-                    feature.artisan.bannerImageUrl
-                      ? 'space-y-4 md:col-span-7'
-                      : 'space-y-4 md:col-span-12'
-                  }
-                >
-                  <h2 className="font-serif text-3xl tracking-tight md:text-4xl">
-                    {feature.artisan.shopName}
-                  </h2>
-                  {feature.artisan.location && (
-                    <p className="text-muted-foreground text-sm">{feature.artisan.location}</p>
                   )}
-                  {feature.editorialText && (
-                    <p className="max-w-xl font-serif text-lg leading-relaxed">
-                      {feature.editorialText}
-                    </p>
-                  )}
-                  <Link
-                    href={studioPath(feature.artisan.shopSlug)}
-                    className={buttonVariants({ variant: 'outline' })}
+                  {/* No banner → take the full row. A spanless child of the
+                      12-col grid would sit in a single ~90px track and wrap
+                      one word per line. */}
+                  <div
+                    className={
+                      feature.artisan.bannerImageUrl
+                        ? 'space-y-4 md:col-span-7'
+                        : 'space-y-4 md:col-span-12'
+                    }
                   >
-                    Visit the studio →
-                  </Link>
+                    <h2 className="text-headline font-serif">{feature.artisan.shopName}</h2>
+                    {feature.artisan.location && (
+                      <p className="text-muted-foreground text-sm">{feature.artisan.location}</p>
+                    )}
+                    {feature.editorialText && (
+                      <p className="max-w-xl font-serif text-lg leading-relaxed">
+                        {feature.editorialText}
+                      </p>
+                    )}
+                    <Link
+                      href={studioPath(feature.artisan.shopSlug)}
+                      className={buttonVariants({ variant: 'outline' })}
+                    >
+                      Visit the studio →
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
-            {feature.works.length > 0 && (
-              <div className="mt-12">
-                <h3 className="text-muted-foreground mb-6 text-sm tracking-wider uppercase">
-                  Selected works
-                </h3>
-                <ProductGrid cols={4}>
-                  {feature.works.map((w) => (
-                    <li key={w.id}>
+              )}
+              {feature.works.length > 0 && (
+                <div className="mt-12">
+                  <h3 className="text-muted-foreground mb-6 text-sm tracking-wider uppercase">
+                    Selected works
+                  </h3>
+                  <ProductGrid cols={4} stagger>
+                    {feature.works.map((w) => (
                       <ProductCard
+                        key={w.id}
                         product={{
                           id: w.id,
                           slug: w.slug,
@@ -341,65 +338,72 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
                         primaryImage={w.primaryImage}
                         isSignedIn={false}
                       />
-                    </li>
-                  ))}
-                </ProductGrid>
-              </div>
-            )}
+                    ))}
+                  </ProductGrid>
+                </div>
+              )}
+            </Reveal>
           </div>
         </section>
       )}
 
       {/* Featured artisans */}
-      <section id="artisans" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
-        <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-serif text-3xl tracking-tight">Featured artisans</h2>
-          {/* Thin-count rule (T12): a "2 studios" headline advertises the
-              cold start. The grid speaks for itself until the count does. */}
-          {!isThinCount(featuredArtisans.length) && (
-            <p className="text-muted-foreground text-sm">
-              {featuredArtisans.length} {featuredArtisans.length === 1 ? 'studio' : 'studios'}
+      <section id="artisans" className="py-section mx-auto max-w-6xl px-4 sm:px-6">
+        <Reveal variant="soft">
+          <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-headline font-serif">Featured artisans</h2>
+            {/* Thin-count rule (T12): a "2 studios" headline advertises the
+                cold start. The grid speaks for itself until the count does. */}
+            {!isThinCount(featuredArtisans.length) && (
+              <p className="text-muted-foreground text-sm">
+                {featuredArtisans.length} {featuredArtisans.length === 1 ? 'studio' : 'studios'}
+              </p>
+            )}
+          </div>
+          {featuredArtisans.length === 0 ? (
+            <p className="text-muted-foreground">
+              Be the first.{' '}
+              <Link href="/sign-up" className="text-foreground underline-offset-4 hover:underline">
+                Open a studio on Balikha
+              </Link>
+              .
             </p>
+          ) : (
+            <StaggerGrid className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-4">
+              {featuredArtisans.map((a) => (
+                <StaggerGridItem key={a.id}>
+                  <ArtisanCard artisan={a} productCount={a.productCount} />
+                </StaggerGridItem>
+              ))}
+            </StaggerGrid>
           )}
-        </div>
-        {featuredArtisans.length === 0 ? (
-          <p className="text-muted-foreground">
-            Be the first.{' '}
-            <Link href="/sign-up" className="text-foreground underline-offset-4 hover:underline">
-              Open a studio on Balikha
-            </Link>
-            .
-          </p>
-        ) : (
-          <ul className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-4">
-            {featuredArtisans.map((a) => (
-              <li key={a.id}>
-                <ArtisanCard artisan={a} productCount={a.productCount} />
-              </li>
-            ))}
-          </ul>
-        )}
+        </Reveal>
       </section>
 
       {/* Recent listings */}
       <section id="recent" className="bg-secondary/40 border-t">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
-          <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="font-serif text-3xl tracking-tight">
-              {onFirstPage ? 'Recent listings' : 'More listings'}
-            </h2>
-            {!onFirstPage && (
-              <Link href="/#recent" className="text-muted-foreground hover:text-foreground text-sm">
-                ← Back to most recent
-              </Link>
-            )}
-          </div>
-          <RecentListingsSection
-            recent={recent}
-            isSignedIn={false}
-            wishlistedIds={new Set()}
-            nextHref={recent.nextCursor ? `/?cursor=${recent.nextCursor}#recent` : null}
-          />
+        <div className="py-section mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal variant="soft">
+            <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="text-headline font-serif">
+                {onFirstPage ? 'Recent listings' : 'More listings'}
+              </h2>
+              {!onFirstPage && (
+                <Link
+                  href="/#recent"
+                  className="text-muted-foreground hover:text-foreground text-sm"
+                >
+                  ← Back to most recent
+                </Link>
+              )}
+            </div>
+            <RecentListingsSection
+              recent={recent}
+              isSignedIn={false}
+              wishlistedIds={new Set()}
+              nextHref={recent.nextCursor ? `/?cursor=${recent.nextCursor}#recent` : null}
+            />
+          </Reveal>
         </div>
       </section>
     </div>

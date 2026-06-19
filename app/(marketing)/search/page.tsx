@@ -96,9 +96,9 @@ export default async function SearchPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+    <div className="py-section mx-auto max-w-6xl px-4 sm:px-6">
       <header className="mb-8">
-        <h1 className="font-serif text-3xl">
+        <h1 className="text-headline font-serif">
           Results for <em className="not-italic">&ldquo;{parsed.q}&rdquo;</em>
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -133,6 +133,7 @@ export default async function SearchPage({
                 nextHref={nextHref}
                 wishlistedProductIds={Array.from(wishlistedIds)}
                 isSignedIn={user !== null}
+                stagger
               />
             </div>
           </div>
@@ -169,9 +170,9 @@ async function SuggestionChips() {
 // load. No auto-retry; the visitor re-submits when ready.
 async function SearchThrottled({ query }: { query: string }) {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6 lg:py-24">
-      <h1 className="font-serif text-3xl">One moment</h1>
-      <p className="text-muted-foreground mx-auto mt-3 max-w-md text-sm">
+    <div className="py-section mx-auto max-w-2xl px-4 text-center sm:px-6">
+      <h1 className="text-headline font-serif">One moment</h1>
+      <p className="text-muted-foreground max-w-copy mx-auto mt-3 text-sm">
         That&rsquo;s a lot of searching in a short time. Give it a few seconds, then look for{' '}
         <em className="not-italic">&ldquo;{query}&rdquo;</em> again.
       </p>
@@ -181,9 +182,9 @@ async function SearchThrottled({ query }: { query: string }) {
 
 async function SearchEmptyState() {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6 lg:py-24">
-      <h1 className="font-serif text-3xl">Search the marketplace</h1>
-      <p className="text-muted-foreground mx-auto mt-3 max-w-md text-sm">
+    <div className="py-section mx-auto max-w-2xl px-4 text-center sm:px-6">
+      <h1 className="text-headline font-serif">Search the marketplace</h1>
+      <p className="text-muted-foreground max-w-copy text-lead mx-auto mt-3 leading-relaxed">
         Find handmade pieces by craft, material, or a maker&rsquo;s name — or start from
         what&rsquo;s actually on the shelves:
       </p>
@@ -195,7 +196,7 @@ async function SearchEmptyState() {
 async function NoResults({ query }: { query: string }) {
   return (
     <div className="bg-card rounded-md border p-8 text-center">
-      <h2 className="font-serif text-xl">No results for &ldquo;{query}&rdquo;</h2>
+      <h2 className="text-title font-serif">No results for &ldquo;{query}&rdquo;</h2>
       <p className="text-muted-foreground mt-2 text-sm">
         Try one of these — each is on a real piece right now:
       </p>

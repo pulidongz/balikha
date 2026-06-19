@@ -25,11 +25,13 @@ export async function RecentListingsSection({
   isSignedIn,
   wishlistedIds,
   nextHref,
+  stagger = false,
 }: {
   recent: Page<RecentProductRow>;
   isSignedIn: boolean;
   wishlistedIds: Set<string>;
   nextHref?: string | null;
+  stagger?: boolean;
 }) {
   // Seller reputation for the grid. getRecentProducts carries shop slug,
   // not profile id, so resolve slugs → ids in one query, then batch-fetch
@@ -65,33 +67,32 @@ export async function RecentListingsSection({
 
   return (
     <>
-      <ProductGrid cols={4}>
+      <ProductGrid cols={4} stagger={stagger}>
         {recent.items.map((p) => {
           const profileId = profileIdBySlug.get(p.artisanShopSlug);
           const bucket = profileId
             ? reputationByProfileId.get(profileId)?.responseTimeBucket
             : null;
           return (
-            <li key={p.id}>
-              <ProductCard
-                product={{
-                  id: p.id,
-                  slug: p.slug,
-                  title: p.title,
-                  price: p.price,
-                  currency: p.currency,
-                }}
-                artisan={{
-                  shopSlug: p.artisanShopSlug,
-                  shopName: p.artisanShopName,
-                }}
-                primaryImage={p.primaryImage ?? undefined}
-                inWishlist={wishlistedIds.has(p.id)}
-                isSignedIn={isSignedIn}
-                responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
-                appreciationCount={appreciationCounts.get(p.id)}
-              />
-            </li>
+            <ProductCard
+              key={p.id}
+              product={{
+                id: p.id,
+                slug: p.slug,
+                title: p.title,
+                price: p.price,
+                currency: p.currency,
+              }}
+              artisan={{
+                shopSlug: p.artisanShopSlug,
+                shopName: p.artisanShopName,
+              }}
+              primaryImage={p.primaryImage ?? undefined}
+              inWishlist={wishlistedIds.has(p.id)}
+              isSignedIn={isSignedIn}
+              responseTimeLabel={bucket ? bucketLabel(bucket) : undefined}
+              appreciationCount={appreciationCounts.get(p.id)}
+            />
           );
         })}
       </ProductGrid>

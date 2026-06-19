@@ -48,7 +48,7 @@ export default async function AdminOverview() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="font-serif text-3xl">Admin overview</h1>
+        <h1 className="text-headline font-serif">Admin overview</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Operational health and tools for the marketplace.
         </p>

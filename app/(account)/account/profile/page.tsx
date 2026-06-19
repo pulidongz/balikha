@@ -47,7 +47,7 @@ export default async function AccountProfilePage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-serif text-3xl">Profile</h1>
+        <h1 className="text-headline font-serif">Profile</h1>
         <p className="text-muted-foreground mt-1 text-sm">Your account details.</p>
       </header>
 

@@ -26,11 +26,9 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const onFirstPage = !cursor;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
+    <div className="py-section mx-auto max-w-6xl px-4 sm:px-6">
       <header className="mb-10">
-        <h1 className="font-serif text-3xl tracking-tight md:text-4xl">
-          Recent works across Balikha
-        </h1>
+        <h1 className="text-headline font-serif">Recent works across Balikha</h1>
         <p className="text-muted-foreground mt-2 text-sm">
           {onFirstPage
             ? 'The latest pieces from every studio, newest first.'
@@ -42,6 +40,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
         isSignedIn={viewer !== null}
         wishlistedIds={wishlistedIds}
         nextHref={recent.nextCursor ? `/browse?cursor=${recent.nextCursor}` : null}
+        stagger
       />
     </div>
   );

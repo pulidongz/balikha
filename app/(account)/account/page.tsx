@@ -55,7 +55,7 @@ export default async function AccountHome() {
     <div className="space-y-12">
       {!current.emailVerified && <ResendVerificationBanner email={current.email} />}
       <header>
-        <h1 className="font-serif text-3xl">Hi, {current.firstName}</h1>
+        <h1 className="text-headline font-serif">Hi, {current.firstName}</h1>
       </header>
 
       <FeedPreview items={feedItems} wishlistedIds={wishlistedIds} />

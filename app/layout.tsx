@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Fraunces } from 'next/font/google';
 import './globals.css';
 import { env } from '@/env';
+import { MotionProvider } from '@/components/motion/motion-provider';
 
 const geistSans = Geist({
   variable: '--font-sans',
@@ -56,7 +57,7 @@ export default function RootLayout({
         children still get full hydration validation, so real bugs surface.
       */}
       <body className="flex min-h-full flex-col" suppressHydrationWarning>
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

@@ -11,6 +11,7 @@ interface Props {
   nextHref: string | null;
   wishlistedProductIds: string[];
   isSignedIn: boolean;
+  stagger?: boolean;
 }
 
 /**
@@ -20,7 +21,13 @@ interface Props {
  * the same model the home grid uses. Forward-only: "Next" advances, Back
  * retreats.
  */
-export function ProductSearchGrid({ products, nextHref, wishlistedProductIds, isSignedIn }: Props) {
+export function ProductSearchGrid({
+  products,
+  nextHref,
+  wishlistedProductIds,
+  isSignedIn,
+  stagger = false,
+}: Props) {
   if (products.length === 0) {
     return (
       <div className="bg-card text-muted-foreground rounded-md border p-8 text-center text-sm">
@@ -33,24 +40,23 @@ export function ProductSearchGrid({ products, nextHref, wishlistedProductIds, is
 
   return (
     <div className="space-y-6">
-      <ProductGrid cols={4}>
+      <ProductGrid cols={4} stagger={stagger}>
         {products.map((p) => (
-          <li key={p.id}>
-            <ProductCard
-              product={{
-                id: p.id,
-                slug: p.slug,
-                title: p.title,
-                price: p.price,
-                currency: p.currency,
-              }}
-              artisan={{ shopSlug: p.artisanSlug, shopName: p.artisanName }}
-              primaryImage={p.imageUrl ? { url: p.imageUrl, altText: p.title } : null}
-              responseTimeLabel={p.responseTimeLabel ?? undefined}
-              inWishlist={wishlisted.has(p.id)}
-              isSignedIn={isSignedIn}
-            />
-          </li>
+          <ProductCard
+            key={p.id}
+            product={{
+              id: p.id,
+              slug: p.slug,
+              title: p.title,
+              price: p.price,
+              currency: p.currency,
+            }}
+            artisan={{ shopSlug: p.artisanSlug, shopName: p.artisanName }}
+            primaryImage={p.imageUrl ? { url: p.imageUrl, altText: p.title } : null}
+            responseTimeLabel={p.responseTimeLabel ?? undefined}
+            inWishlist={wishlisted.has(p.id)}
+            isSignedIn={isSignedIn}
+          />
         ))}
       </ProductGrid>
       {nextHref && (

@@ -35,6 +35,7 @@ export function CatalogSection({
   canFeature = false,
   featuredProductId = null,
   appreciationCounts,
+  stagger = false,
 }: {
   catalog: CatalogLike;
   artisan: ArtisanLike;
@@ -46,6 +47,7 @@ export function CatalogSection({
   featuredProductId?: string | null;
   // T7: per-product appreciation counts; absent products read as zero.
   appreciationCounts?: Map<string, number>;
+  stagger?: boolean;
 }) {
   if (products.length === 0) return null;
 
@@ -53,7 +55,7 @@ export function CatalogSection({
     <section className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-serif text-2xl tracking-tight">{catalog.title}</h2>
+          <h2 className="text-headline font-serif">{catalog.title}</h2>
           {catalog.isLimitedEdition && <Badge variant="limited">Limited</Badge>}
         </div>
         {/* Thin-count rule (T12). */}
@@ -64,13 +66,13 @@ export function CatalogSection({
         )}
       </div>
       {catalog.description && (
-        <p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">
+        <p className="text-muted-foreground max-w-copy text-sm leading-relaxed">
           {catalog.description}
         </p>
       )}
-      <ProductGrid cols={4}>
+      <ProductGrid cols={4} stagger={stagger}>
         {products.map((p) => (
-          <li key={p.id}>
+          <div key={p.id}>
             <ProductCard
               product={{
                 id: p.id,
@@ -92,7 +94,7 @@ export function CatalogSection({
             {canFeature && (
               <FeatureWorkButton productId={p.id} isFeatured={featuredProductId === p.id} />
             )}
-          </li>
+          </div>
         ))}
       </ProductGrid>
     </section>
