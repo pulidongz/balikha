@@ -1,6 +1,6 @@
 'use client';
-import { m, useInView, useReducedMotion, type Variants } from 'motion/react';
-import { useRef, type ReactNode } from 'react';
+import { m, useReducedMotion, type Variants } from 'motion/react';
+import { type ReactNode } from 'react';
 import { useMounted } from '@/components/motion/use-mounted';
 
 const ITEM_VARIANTS: Variants = {
@@ -20,21 +20,18 @@ export function StaggerGrid({
 }) {
   const prefersReducedMotion = useReducedMotion();
   const mounted = useMounted();
-  const ref = useRef<HTMLUListElement>(null);
-  // Drive `animate` from a useInView flag, not the `whileInView` gesture: the
-  // gesture leaves children added AFTER it fires (cursor pagination swaps in
-  // new items while the grid instance persists) stranded at opacity 0. A
-  // controlled target re-applies "show" to newly-mounted children. once:true =
-  // no replay on scroll-back.
-  const inView = useInView(ref, { once: true, margin: '0px 0px -10% 0px' });
 
+  // animate on mount (not whileInView): the viewport gesture didn't drive
+  // children added after it fired (cursor pagination swaps in new items while
+  // the grid instance persists, stranding them at opacity 0). A declarative
+  // `animate` target reliably reaches show on mount and re-applies to
+  // newly-mounted children. The useMounted gate keeps SSR/first render visible.
   if (!mounted || prefersReducedMotion) return <ul className={className}>{children}</ul>;
   return (
     <m.ul
-      ref={ref}
       className={className}
       initial="hidden"
-      animate={inView ? 'show' : 'hidden'}
+      animate="show"
       variants={{ show: { transition: { staggerChildren: gap } } }}
     >
       {children}
