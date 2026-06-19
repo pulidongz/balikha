@@ -38,7 +38,7 @@ export default async function SignUpPage({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-serif text-2xl">Create your account</CardTitle>
+        <CardTitle className="text-title font-serif">Create your account</CardTitle>
         <div aria-hidden="true" className="bg-accent h-0.5 w-9 rounded-full" />
         <CardDescription>
           {artistIntent
