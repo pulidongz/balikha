@@ -1,11 +1,28 @@
 'use client';
 import { m, useReducedMotion, type Variants } from 'motion/react';
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 
 const ITEM_VARIANTS: Variants = {
   hidden: { opacity: 0, y: 24 },
   show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.23, 1, 0.32, 1] } },
 };
+
+// useSyncExternalStore-based hydration gate: server snapshot returns false,
+// client snapshot returns true. SSR and the first client render agree (both
+// see false → plain element), then React re-renders with true → animated
+// element. No useEffect + setState, no hydration mismatch.
+function subscribe(): () => void {
+  return () => {};
+}
+function getSnapshot(): boolean {
+  return true;
+}
+function getServerSnapshot(): boolean {
+  return false;
+}
+function useMounted(): boolean {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
 /** Grid container (<ul>). Staggers its <StaggerGridItem> children. */
 export function StaggerGrid({
@@ -17,8 +34,10 @@ export function StaggerGrid({
   className?: string;
   gap?: number;
 }) {
-  const prefersReducedMotion = useReducedMotion() !== false;
-  if (prefersReducedMotion) return <ul className={className}>{children}</ul>;
+  const prefersReducedMotion = useReducedMotion();
+  const mounted = useMounted();
+
+  if (!mounted || prefersReducedMotion) return <ul className={className}>{children}</ul>;
   return (
     <m.ul
       className={className}
@@ -40,8 +59,10 @@ export function StaggerGridItem({
   children: ReactNode;
   className?: string;
 }) {
-  const prefersReducedMotion = useReducedMotion() !== false;
-  if (prefersReducedMotion) return <li className={className}>{children}</li>;
+  const prefersReducedMotion = useReducedMotion();
+  const mounted = useMounted();
+
+  if (!mounted || prefersReducedMotion) return <li className={className}>{children}</li>;
   return (
     <m.li className={className} variants={ITEM_VARIANTS}>
       {children}
