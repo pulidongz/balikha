@@ -1,7 +1,8 @@
 'use client';
 
 import { m, useReducedMotion } from 'motion/react';
-import { useSyncExternalStore, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useMounted } from '@/components/motion/use-mounted';
 
 /** Block-level scroll reveal. Children pass through from Server Components.
  *  Variants: section (24px + overshoot, accents only), soft (24px quart,
@@ -15,23 +16,6 @@ const EASE: Record<RevealVariant, [number, number, number, number]> = {
   soft: [0.23, 1, 0.32, 1],
   subtle: [0.23, 1, 0.32, 1],
 };
-
-// useSyncExternalStore-based hydration gate: server snapshot returns false,
-// client snapshot returns true. SSR and the first client render agree (both
-// see false → plain element), then React re-renders with true → animated
-// element. No useEffect + setState, no hydration mismatch.
-function subscribe(): () => void {
-  return () => {};
-}
-function getSnapshot(): boolean {
-  return true;
-}
-function getServerSnapshot(): boolean {
-  return false;
-}
-function useMounted(): boolean {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
 
 export function Reveal({
   children,

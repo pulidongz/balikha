@@ -1,4 +1,4 @@
-import { Children, type ReactNode } from 'react';
+import { Children, isValidElement, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { StaggerGrid, StaggerGridItem } from '@/components/motion/stagger';
 
@@ -23,14 +23,23 @@ export function ProductGrid({
   stagger?: boolean;
 }) {
   const gridClass = cn('grid gap-x-5 gap-y-8', COL_CLASS[cols], className);
+  const keyOf = (child: ReactNode) =>
+    isValidElement(child) ? (child.key ?? undefined) : undefined;
+
   if (stagger) {
     return (
       <StaggerGrid className={gridClass}>
-        {Children.map(children, (child, i) => (
-          <StaggerGridItem key={i}>{child}</StaggerGridItem>
+        {Children.map(children, (child) => (
+          <StaggerGridItem key={keyOf(child)}>{child}</StaggerGridItem>
         ))}
       </StaggerGrid>
     );
   }
-  return <ul className={gridClass}>{children}</ul>;
+  return (
+    <ul className={gridClass}>
+      {Children.map(children, (child) => (
+        <li key={keyOf(child)}>{child}</li>
+      ))}
+    </ul>
+  );
 }

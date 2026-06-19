@@ -69,12 +69,10 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-      <Reveal variant="soft">
-        <header className="mb-10">
-          <h1 className="text-headline font-serif">New from studios you follow</h1>
-          <p className="text-muted-foreground mt-2 text-sm">The latest works, newest first.</p>
-        </header>
-      </Reveal>
+      <header className="mb-10">
+        <h1 className="text-headline font-serif">New from studios you follow</h1>
+        <p className="text-muted-foreground mt-2 text-sm">The latest works, newest first.</p>
+      </header>
 
       {showFeed && (
         <>
@@ -248,9 +246,9 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
           </div>
           {hasHeroCollage && (
             <div className="hidden lg:col-span-5 lg:block">
-              <StaggerGrid className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {heroCollage.map((p) => (
-                  <StaggerGridItem
+                  <div
                     key={p.id}
                     className="bg-secondary relative aspect-square overflow-hidden rounded-lg"
                   >
@@ -261,9 +259,9 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
                       sizes="(min-width: 1024px) 21vw, 50vw"
                       className="object-cover"
                     />
-                  </StaggerGridItem>
+                  </div>
                 ))}
-              </StaggerGrid>
+              </div>
             </div>
           )}
         </div>

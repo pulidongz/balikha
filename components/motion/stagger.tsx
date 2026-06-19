@@ -1,28 +1,12 @@
 'use client';
 import { m, useReducedMotion, type Variants } from 'motion/react';
-import { useSyncExternalStore, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useMounted } from '@/components/motion/use-mounted';
 
 const ITEM_VARIANTS: Variants = {
   hidden: { opacity: 0, y: 24 },
   show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.23, 1, 0.32, 1] } },
 };
-
-// useSyncExternalStore-based hydration gate: server snapshot returns false,
-// client snapshot returns true. SSR and the first client render agree (both
-// see false → plain element), then React re-renders with true → animated
-// element. No useEffect + setState, no hydration mismatch.
-function subscribe(): () => void {
-  return () => {};
-}
-function getSnapshot(): boolean {
-  return true;
-}
-function getServerSnapshot(): boolean {
-  return false;
-}
-function useMounted(): boolean {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
 
 /** Grid container (<ul>). Staggers its <StaggerGridItem> children. */
 export function StaggerGrid({
