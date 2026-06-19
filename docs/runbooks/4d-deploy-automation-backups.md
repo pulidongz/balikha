@@ -424,10 +424,16 @@ ssh deploy@<ip> 'journalctl -u balikha-weekly-digest.service -n 50 --no-pager'
 ### Verify & debug failure alerting
 
 ```bash
-# Fire the alert handler directly against a known unit:
-ssh deploy@<ip> 'sudo systemctl start balikha-job-failure-alert@balikha-weekly-digest.service'
+# Fire the alert handler directly against a known unit. NOTE the DOUBLED
+# `.service.service`: the real trigger is `OnFailure=...@%n.service`, where %n is
+# the full failing-unit name (`balikha-weekly-digest.service`), so systemd
+# instantiates `...@balikha-weekly-digest.service.service` and the handler's `%i`
+# instance resolves to `balikha-weekly-digest.service`. Starting the single-suffix
+# form instead would make `%i` resolve to `balikha-weekly-digest` (no `.service`)
+# and the handler's guard would reject it — so the doubled form is the faithful test.
+ssh deploy@<ip> 'sudo systemctl start balikha-job-failure-alert@balikha-weekly-digest.service.service'
 ssh deploy@<ip> "journalctl -u 'balikha-job-failure-alert@*' -n 20 --no-pager"
-# Expected: an email at ADMIN_EMAIL and a 'job-failure-alert: sent for ...' line.
+# Expected: an email at ADMIN_EMAIL and a 'job-failure-alert: sent for balikha-weekly-digest.service' line.
 ```
 
 If no email arrives, check the handler's own status — it is the silent-failure

@@ -1,5 +1,9 @@
 [Unit]
-Description=Balikha scheduled-job failure alert for %I
+# %i (raw instance), NOT %I: systemd unescaping maps '-' -> '/', which corrupts
+# hyphenated unit names (balikha-weekly-digest -> balikha/weekly/digest). The
+# OnFailure=...@%n.service idiom makes the instance the failing unit's literal
+# name (e.g. balikha-weekly-digest.service), which %i returns verbatim.
+Description=Balikha scheduled-job failure alert for %i
 After=network-online.target
 Wants=network-online.target
 
@@ -12,4 +16,4 @@ WorkingDirectory=/opt/balikha/current
 EnvironmentFile=/etc/balikha/production.env
 Environment=NODE_ENV=production
 Environment=HOME=/var/lib/balikha
-ExecStart=/opt/balikha/current/node_modules/.bin/tsx db/scripts/notify-job-failure.ts %I
+ExecStart=/opt/balikha/current/node_modules/.bin/tsx db/scripts/notify-job-failure.ts %i
