@@ -32,6 +32,7 @@ import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
 import { studioPath, workPath } from '@/lib/routes';
 import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo/structured-data';
 import { JsonLd } from '@/components/seo/json-ld';
+import { Reveal } from '@/components/motion/reveal';
 
 // Previously cached for 5 min — now per-user because of wishlist hearts.
 // Calling getCurrentUser() makes this dynamic via headers().
@@ -280,7 +281,7 @@ export default async function ProductPublicPage({
             actions stay reachable while a long gallery scrolls. */}
         <section className="space-y-6 lg:sticky lg:top-20 lg:col-span-2 lg:self-start">
           <header className="space-y-2">
-            <h1 className="font-serif text-3xl leading-tight tracking-tight md:text-4xl">
+            <h1 className="text-display font-serif leading-tight tracking-tight">
               {product.title}
             </h1>
             <p className="text-muted-foreground text-sm">
@@ -418,163 +419,169 @@ export default async function ProductPublicPage({
           story → materials & technique → maker → quiet care/shipping.
           On mobile these follow the rail directly, so the reading order
           holds on every viewport. */}
-      <div className="mt-12 max-w-2xl space-y-10 md:mt-16">
-        {product.description && (
-          <section aria-label="About this piece">
-            <h2 className="font-serif text-2xl tracking-tight">About this piece</h2>
-            <p className="mt-4 text-base leading-relaxed whitespace-pre-line">
-              {product.description}
-            </p>
-          </section>
-        )}
-
-        {((product.materials && product.materials.length > 0) || product.technique) && (
-          <section aria-label="Materials and technique" className="border-t pt-8">
-            <h2 className="font-serif text-2xl tracking-tight">Materials & technique</h2>
-            <dl className="mt-4 space-y-3">
-              {product.materials && product.materials.length > 0 && (
-                <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-                  <dt className="text-muted-foreground text-sm sm:pt-1">Materials</dt>
-                  <dd className="text-base leading-relaxed">{product.materials.join(', ')}</dd>
-                </div>
-              )}
-              {product.technique && (
-                <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-                  <dt className="text-muted-foreground text-sm sm:pt-1">Technique</dt>
-                  <dd className="text-base leading-relaxed whitespace-pre-line">
-                    {product.technique}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </section>
-        )}
-
-        {/* The maker block — the hands stay visible. Follower identities
-            are never shown here (T10) and no count renders (T12). */}
-        <section aria-label="The maker" className="border-t pt-8">
-          <div className="flex items-center gap-4">
-            <Avatar className="ring-border size-16 ring-1">
-              <AvatarImage src={artisan.profilePhotoUrl ?? undefined} alt={artisan.shopName} />
-              <AvatarFallback className="font-serif text-xl">
-                {initialsOf(artisan.shopName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <Link
-                href={studioPath(artisan.shopSlug)}
-                className="font-serif text-xl tracking-tight underline-offset-4 hover:underline"
-              >
-                {artisan.shopName}
-              </Link>
-              <p className="text-muted-foreground text-sm">
-                {artisan.location && <>{artisan.location} · </>}
-                <Link href={studioPath(artisan.shopSlug)} className="hover:text-foreground">
-                  Visit the studio →
-                </Link>
+      <Reveal variant="soft">
+        <div className="max-w-copy mt-12 space-y-10 md:mt-16">
+          {product.description && (
+            <section aria-label="About this piece">
+              <h2 className="text-headline font-serif tracking-tight">About this piece</h2>
+              <p className="text-lead mt-4 leading-relaxed whitespace-pre-line">
+                {product.description}
               </p>
-            </div>
-            {!isOwnProduct && (
-              <FollowToggle
-                artisanProfileId={artisan.id}
-                initiallyFollowing={viewerFollowsArtisan}
-                isSignedIn={viewer !== null}
-                pendingFollowId={pendingFollowId}
-              />
-            )}
-          </div>
-        </section>
+            </section>
+          )}
 
-        {(product.careInstructions ||
-          product.dimensions ||
-          product.weightGrams !== null ||
-          artisan.policies) && (
-          <section aria-label="Care and details" className="border-t pt-8">
-            <details className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between font-serif text-xl tracking-tight [&::-webkit-details-marker]:hidden">
-                Care & details
-                <ChevronDownIcon
-                  aria-hidden
-                  className="text-muted-foreground size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-                />
-              </summary>
+          {((product.materials && product.materials.length > 0) || product.technique) && (
+            <section aria-label="Materials and technique" className="border-t pt-8">
+              <h2 className="text-headline font-serif tracking-tight">Materials & technique</h2>
               <dl className="mt-4 space-y-3">
-                {product.careInstructions && (
+                {product.materials && product.materials.length > 0 && (
                   <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-                    <dt className="text-muted-foreground text-sm">Care</dt>
-                    <dd className="text-sm leading-relaxed whitespace-pre-line">
-                      {product.careInstructions}
-                    </dd>
+                    <dt className="text-muted-foreground text-sm sm:pt-1">Materials</dt>
+                    <dd className="text-base leading-relaxed">{product.materials.join(', ')}</dd>
                   </div>
                 )}
-                {product.dimensions && (
+                {product.technique && (
                   <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-                    <dt className="text-muted-foreground text-sm">Dimensions</dt>
-                    <dd className="text-sm leading-relaxed">
-                      {[
-                        product.dimensions.width,
-                        product.dimensions.height,
-                        product.dimensions.depth,
-                      ]
-                        .filter((v): v is number => typeof v === 'number')
-                        .join(' × ')}{' '}
-                      {product.dimensions.unit ?? 'cm'}
-                    </dd>
-                  </div>
-                )}
-                {product.weightGrams !== null && (
-                  <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-                    <dt className="text-muted-foreground text-sm">Weight</dt>
-                    <dd className="text-sm leading-relaxed">{product.weightGrams} g</dd>
-                  </div>
-                )}
-                {artisan.policies && (
-                  <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-                    <dt className="text-muted-foreground text-sm">Shipping & policies</dt>
-                    <dd className="text-sm leading-relaxed whitespace-pre-line">
-                      {artisan.policies}
+                    <dt className="text-muted-foreground text-sm sm:pt-1">Technique</dt>
+                    <dd className="text-base leading-relaxed whitespace-pre-line">
+                      {product.technique}
                     </dd>
                   </div>
                 )}
               </dl>
-            </details>
-          </section>
-        )}
+            </section>
+          )}
 
-        <CommentsSection
-          productId={product.id}
-          workPathname={workPath(artisan.shopSlug, product.slug)}
-          viewerUserId={viewer?.id ?? null}
-          ownerUserId={artisan.userId}
-        />
-      </div>
+          {/* The maker block — the hands stay visible. Follower identities
+            are never shown here (T10) and no count renders (T12). */}
+          <section aria-label="The maker" className="border-t pt-8">
+            <div className="flex items-center gap-4">
+              <Avatar className="ring-border size-16 ring-1">
+                <AvatarImage src={artisan.profilePhotoUrl ?? undefined} alt={artisan.shopName} />
+                <AvatarFallback className="font-serif text-xl">
+                  {initialsOf(artisan.shopName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <Link
+                  href={studioPath(artisan.shopSlug)}
+                  className="font-serif text-xl tracking-tight underline-offset-4 hover:underline"
+                >
+                  {artisan.shopName}
+                </Link>
+                <p className="text-muted-foreground text-sm">
+                  {artisan.location && <>{artisan.location} · </>}
+                  <Link href={studioPath(artisan.shopSlug)} className="hover:text-foreground">
+                    Visit the studio →
+                  </Link>
+                </p>
+              </div>
+              {!isOwnProduct && (
+                <FollowToggle
+                  artisanProfileId={artisan.id}
+                  initiallyFollowing={viewerFollowsArtisan}
+                  isSignedIn={viewer !== null}
+                  pendingFollowId={pendingFollowId}
+                />
+              )}
+            </div>
+          </section>
+
+          {(product.careInstructions ||
+            product.dimensions ||
+            product.weightGrams !== null ||
+            artisan.policies) && (
+            <section aria-label="Care and details" className="border-t pt-8">
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between font-serif text-xl tracking-tight [&::-webkit-details-marker]:hidden">
+                  Care & details
+                  <ChevronDownIcon
+                    aria-hidden
+                    className="text-muted-foreground size-5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                  />
+                </summary>
+                <dl className="mt-4 space-y-3">
+                  {product.careInstructions && (
+                    <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                      <dt className="text-muted-foreground text-sm">Care</dt>
+                      <dd className="text-sm leading-relaxed whitespace-pre-line">
+                        {product.careInstructions}
+                      </dd>
+                    </div>
+                  )}
+                  {product.dimensions && (
+                    <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                      <dt className="text-muted-foreground text-sm">Dimensions</dt>
+                      <dd className="text-sm leading-relaxed">
+                        {[
+                          product.dimensions.width,
+                          product.dimensions.height,
+                          product.dimensions.depth,
+                        ]
+                          .filter((v): v is number => typeof v === 'number')
+                          .join(' × ')}{' '}
+                        {product.dimensions.unit ?? 'cm'}
+                      </dd>
+                    </div>
+                  )}
+                  {product.weightGrams !== null && (
+                    <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                      <dt className="text-muted-foreground text-sm">Weight</dt>
+                      <dd className="text-sm leading-relaxed">{product.weightGrams} g</dd>
+                    </div>
+                  )}
+                  {artisan.policies && (
+                    <div className="grid gap-1 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+                      <dt className="text-muted-foreground text-sm">Shipping & policies</dt>
+                      <dd className="text-sm leading-relaxed whitespace-pre-line">
+                        {artisan.policies}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </details>
+            </section>
+          )}
+
+          <CommentsSection
+            productId={product.id}
+            workPathname={workPath(artisan.shopSlug, product.slug)}
+            viewerUserId={viewer?.id ?? null}
+            ownerUserId={artisan.userId}
+          />
+        </div>
+      </Reveal>
 
       {/* More from this artisan */}
       {moreFromArtisan.length > 0 && (
-        <section className="mt-16 border-t pt-12 md:mt-20 md:pt-16">
-          <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="font-serif text-2xl tracking-tight">More from {artisan.shopName}</h2>
-            <Link
-              href={studioPath(artisan.shopSlug)}
-              className="text-muted-foreground hover:text-foreground text-sm"
-            >
-              View studio →
-            </Link>
-          </div>
-          <ProductGrid cols={4}>
-            {moreFromArtisan.map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                artisan={{ shopSlug: artisan.shopSlug, shopName: artisan.shopName }}
-                primaryImage={morePrimaryById.get(p.id)}
-                showArtisan={false}
-                inWishlist={wishlistedIds.has(p.id)}
-                isSignedIn={viewer !== null}
-              />
-            ))}
-          </ProductGrid>
-        </section>
+        <Reveal variant="soft">
+          <section className="mt-16 border-t pt-12 md:mt-20 md:pt-16">
+            <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="text-headline font-serif tracking-tight">
+                More from {artisan.shopName}
+              </h2>
+              <Link
+                href={studioPath(artisan.shopSlug)}
+                className="text-muted-foreground hover:text-foreground text-sm"
+              >
+                View studio →
+              </Link>
+            </div>
+            <ProductGrid cols={4} stagger>
+              {moreFromArtisan.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  artisan={{ shopSlug: artisan.shopSlug, shopName: artisan.shopName }}
+                  primaryImage={morePrimaryById.get(p.id)}
+                  showArtisan={false}
+                  inWishlist={wishlistedIds.has(p.id)}
+                  isSignedIn={viewer !== null}
+                />
+              ))}
+            </ProductGrid>
+          </section>
+        </Reveal>
       )}
     </div>
   );
