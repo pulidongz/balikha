@@ -17,15 +17,10 @@ export default function AboutPage() {
         work, and where buyers come to discover it.
       </p>
 
-      <Reveal
-        variant="soft"
-        className="max-w-copy text-muted-foreground mt-6 space-y-6 leading-relaxed"
-      >
-        <p>
-          Pottery, textiles, wood, silver, leather, glass, soap, paper, coffee: the work of small
-          makers who do the craft with their own hands.
-        </p>
-      </Reveal>
+      <p className="max-w-copy text-muted-foreground mt-6 space-y-6 leading-relaxed">
+        Pottery, textiles, wood, silver, leather, glass, soap, paper, coffee: the work of small
+        makers who do the craft with their own hands.
+      </p>
 
       <Reveal variant="soft" className="mt-14">
         <section>

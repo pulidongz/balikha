@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ProfileForm } from '@/components/account/profile-form';
 import { AvatarUploader } from '@/components/account/avatar-uploader';
 import { SecuritySection } from '@/components/account/security-section';
-import { Reveal } from '@/components/motion/reveal';
 
 export const metadata = {
   title: 'Profile',
@@ -47,12 +46,10 @@ export default async function AccountProfilePage() {
 
   return (
     <div className="space-y-6">
-      <Reveal variant="subtle">
-        <header>
-          <h1 className="text-headline font-serif">Profile</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Your account details.</p>
-        </header>
-      </Reveal>
+      <header>
+        <h1 className="text-headline font-serif">Profile</h1>
+        <p className="text-muted-foreground mt-1 text-sm">Your account details.</p>
+      </header>
 
       <Card>
         <CardHeader>

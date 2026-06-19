@@ -23,22 +23,22 @@ export function ProductGrid({
   stagger?: boolean;
 }) {
   const gridClass = cn('grid gap-x-5 gap-y-8', COL_CLASS[cols], className);
-  const keyOf = (child: ReactNode) =>
-    isValidElement(child) ? (child.key ?? undefined) : undefined;
 
   if (stagger) {
     return (
       <StaggerGrid className={gridClass}>
-        {Children.map(children, (child) => (
-          <StaggerGridItem key={keyOf(child)}>{child}</StaggerGridItem>
+        {Children.map(children, (child, i) => (
+          <StaggerGridItem key={isValidElement(child) ? (child.key ?? i) : i}>
+            {child}
+          </StaggerGridItem>
         ))}
       </StaggerGrid>
     );
   }
   return (
     <ul className={gridClass}>
-      {Children.map(children, (child) => (
-        <li key={keyOf(child)}>{child}</li>
+      {Children.map(children, (child, i) => (
+        <li key={isValidElement(child) ? (child.key ?? i) : i}>{child}</li>
       ))}
     </ul>
   );

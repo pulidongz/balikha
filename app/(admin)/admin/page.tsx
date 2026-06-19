@@ -16,7 +16,6 @@ import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
 import { ADMIN_ACTION_PILL, adminActionLabel } from '@/lib/admin/audit-display';
 import { RelativeTime } from '@/components/admin/relative-time';
 import { cn } from '@/lib/utils';
-import { Reveal } from '@/components/motion/reveal';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,14 +47,12 @@ export default async function AdminOverview() {
 
   return (
     <div className="space-y-8">
-      <Reveal variant="subtle">
-        <header>
-          <h1 className="text-headline font-serif">Admin overview</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Operational health and tools for the marketplace.
-          </p>
-        </header>
-      </Reveal>
+      <header>
+        <h1 className="text-headline font-serif">Admin overview</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Operational health and tools for the marketplace.
+        </p>
+      </header>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard label="Users" value={totalUsers} href="/admin/users" />

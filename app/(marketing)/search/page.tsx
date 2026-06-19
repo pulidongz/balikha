@@ -184,7 +184,7 @@ async function SearchEmptyState() {
   return (
     <div className="py-section mx-auto max-w-2xl px-4 text-center sm:px-6">
       <h1 className="text-headline font-serif">Search the marketplace</h1>
-      <p className="text-muted-foreground max-w-copy text-lead mx-auto mt-3">
+      <p className="text-muted-foreground max-w-copy text-lead mx-auto mt-3 leading-relaxed">
         Find handmade pieces by craft, material, or a maker&rsquo;s name — or start from
         what&rsquo;s actually on the shelves:
       </p>
@@ -196,7 +196,7 @@ async function SearchEmptyState() {
 async function NoResults({ query }: { query: string }) {
   return (
     <div className="bg-card rounded-md border p-8 text-center">
-      <h2 className="font-serif text-xl">No results for &ldquo;{query}&rdquo;</h2>
+      <h2 className="text-title font-serif">No results for &ldquo;{query}&rdquo;</h2>
       <p className="text-muted-foreground mt-2 text-sm">
         Try one of these — each is on a real piece right now:
       </p>

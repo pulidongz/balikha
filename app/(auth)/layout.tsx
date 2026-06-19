@@ -38,7 +38,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             {/* Staggered entrance — same auth-rise + inline-delay pattern
                 as the auth status surfaces. */}
             <p
-              className="auth-rise text-primary-foreground text-title font-serif"
+              className="auth-rise text-primary-foreground text-title font-serif tracking-tight"
               style={{ animationDelay: '200ms' }}
             >
               Handmade, from the Philippines.
