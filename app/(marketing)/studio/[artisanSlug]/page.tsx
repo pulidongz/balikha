@@ -10,6 +10,7 @@ import { env } from '@/env';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CatalogSection } from '@/components/marketplace/catalog-section';
+import { Reveal } from '@/components/motion/reveal';
 import { FollowToggle } from '@/components/marketplace/follow-toggle';
 import { PriceTag } from '@/components/marketplace/price-tag';
 import { SellerReputationSummary } from '@/components/marketplace/seller-reputation-summary';
@@ -280,7 +281,7 @@ export default async function ArtisanStorefrontPage({
             {isOwner && <PhotoEditDialog hasPhoto={profile.profilePhotoUrl !== null} />}
           </div>
           <div className="space-y-1 md:flex-1">
-            <h1 className="font-serif text-3xl tracking-tight md:text-4xl">{profile.shopName}</h1>
+            <h1 className="text-display font-serif tracking-tight">{profile.shopName}</h1>
             <p className="text-muted-foreground text-sm">
               {profile.location && <>{profile.location} · </>}Joined {joinedLabel}
             </p>
@@ -349,7 +350,7 @@ export default async function ArtisanStorefrontPage({
         {/* Story — multi-paragraph; whitespace-pre-line keeps the artist's
             paragraph breaks without storing markup. */}
         {profile.bio && (
-          <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-center text-base leading-relaxed whitespace-pre-line md:mx-0 md:text-left">
+          <p className="text-muted-foreground max-w-copy mx-auto mt-6 text-center text-base leading-relaxed whitespace-pre-line md:mx-0 md:text-left">
             {profile.bio}
           </p>
         )}
@@ -357,66 +358,70 @@ export default async function ArtisanStorefrontPage({
 
       {/* Featured work — owner-pinned, rendered larger than the grid. */}
       {featured && (
-        <section aria-label="Featured work" className="mx-auto max-w-6xl px-4 pt-14 sm:px-6">
-          <div className="mb-6 flex items-baseline justify-between gap-3">
-            <h2 className="font-serif text-2xl tracking-tight">Featured</h2>
-            {isOwner && <FeatureWorkButton productId={featured.id} isFeatured />}
-          </div>
-          <Link
-            href={workPath(profile.shopSlug, featured.slug)}
-            className="group grid items-center gap-6 focus-visible:outline-none md:grid-cols-2 md:gap-10"
-          >
-            <div className="bg-secondary relative aspect-[4/3] overflow-hidden rounded-lg">
-              {featuredImage ? (
-                <Image
-                  src={featuredImage.url}
-                  alt={featuredImage.altText ?? featured.title}
-                  fill
-                  sizes="(min-width: 768px) 50vw, 100vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                  No image
-                </div>
-              )}
+        <Reveal variant="soft">
+          <section aria-label="Featured work" className="mx-auto max-w-6xl px-4 pt-14 sm:px-6">
+            <div className="mb-6 flex items-baseline justify-between gap-3">
+              <h2 className="text-headline font-serif tracking-tight">Featured</h2>
+              {isOwner && <FeatureWorkButton productId={featured.id} isFeatured />}
             </div>
-            <div className="space-y-3">
-              <h3 className="group-hover:text-accent font-serif text-2xl leading-tight tracking-tight transition-colors md:text-3xl">
-                {featured.title}
-              </h3>
-              {featured.description && (
-                <p className="text-muted-foreground line-clamp-3 text-base leading-relaxed">
-                  {featured.description}
-                </p>
-              )}
-              {featured.price !== null && (
-                <PriceTag price={featured.price} currency={featured.currency} size="md" />
-              )}
-              <p className="text-muted-foreground text-sm">View work →</p>
-            </div>
-          </Link>
-        </section>
+            <Link
+              href={workPath(profile.shopSlug, featured.slug)}
+              className="group grid items-center gap-6 focus-visible:outline-none md:grid-cols-2 md:gap-10"
+            >
+              <div className="bg-secondary relative aspect-[4/3] overflow-hidden rounded-lg">
+                {featuredImage ? (
+                  <Image
+                    src={featuredImage.url}
+                    alt={featuredImage.altText ?? featured.title}
+                    fill
+                    sizes="(min-width: 768px) 50vw, 100vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+                    No image
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                <h3 className="group-hover:text-accent font-serif text-2xl leading-tight tracking-tight transition-colors md:text-3xl">
+                  {featured.title}
+                </h3>
+                {featured.description && (
+                  <p className="text-muted-foreground line-clamp-3 text-base leading-relaxed">
+                    {featured.description}
+                  </p>
+                )}
+                {featured.price !== null && (
+                  <PriceTag price={featured.price} currency={featured.currency} size="md" />
+                )}
+                <p className="text-muted-foreground text-sm">View work →</p>
+              </div>
+            </Link>
+          </section>
+        </Reveal>
       )}
 
       {/* Catalogs */}
-      <div className="mx-auto max-w-6xl space-y-16 px-4 py-16 sm:px-6 md:py-20">
+      <div className="py-section mx-auto max-w-6xl space-y-16 px-4 sm:px-6">
         {publishedCatalogs.length === 0 ||
         publishedCatalogs.every((c) => (productsByCatalog.get(c.id) ?? []).length === 0) ? (
           <p className="text-muted-foreground">No products listed yet. Check back soon.</p>
         ) : (
           publishedCatalogs.map((catalog) => (
-            <CatalogSection
-              key={catalog.id}
-              catalog={catalog}
-              artisan={profile}
-              products={productsByCatalog.get(catalog.id) ?? []}
-              wishlistedIds={wishlistedIds}
-              isSignedIn={viewer !== null}
-              canFeature={isOwner}
-              featuredProductId={profile.featuredProductId}
-              appreciationCounts={appreciationCounts}
-            />
+            <Reveal key={catalog.id} variant="soft">
+              <CatalogSection
+                catalog={catalog}
+                artisan={profile}
+                products={productsByCatalog.get(catalog.id) ?? []}
+                wishlistedIds={wishlistedIds}
+                isSignedIn={viewer !== null}
+                canFeature={isOwner}
+                featuredProductId={profile.featuredProductId}
+                appreciationCounts={appreciationCounts}
+                stagger
+              />
+            </Reveal>
           ))
         )}
 
