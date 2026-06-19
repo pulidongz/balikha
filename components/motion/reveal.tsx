@@ -25,7 +25,7 @@ export function Reveal({
   delay?: number;
   className?: string;
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion() !== false;
   if (prefersReducedMotion) return <div className={className}>{children}</div>;
   return (
     <m.div

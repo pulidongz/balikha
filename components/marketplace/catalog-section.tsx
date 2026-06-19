@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { FeatureWorkButton } from '@/components/studio/feature-work-button';
 import { isThinCount } from '@/lib/thin-count';
@@ -73,7 +72,7 @@ export function CatalogSection({
       )}
       <ProductGrid cols={4} stagger={stagger}>
         {products.map((p) => (
-          <Fragment key={p.id}>
+          <div key={p.id}>
             <ProductCard
               product={{
                 id: p.id,
@@ -95,7 +94,7 @@ export function CatalogSection({
             {canFeature && (
               <FeatureWorkButton productId={p.id} isFeatured={featuredProductId === p.id} />
             )}
-          </Fragment>
+          </div>
         ))}
       </ProductGrid>
     </section>

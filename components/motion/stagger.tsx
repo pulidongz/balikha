@@ -17,7 +17,7 @@ export function StaggerGrid({
   className?: string;
   gap?: number;
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion() !== false;
   if (prefersReducedMotion) return <ul className={className}>{children}</ul>;
   return (
     <m.ul
@@ -40,7 +40,7 @@ export function StaggerGridItem({
   children: ReactNode;
   className?: string;
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion() !== false;
   if (prefersReducedMotion) return <li className={className}>{children}</li>;
   return (
     <m.li className={className} variants={ITEM_VARIANTS}>

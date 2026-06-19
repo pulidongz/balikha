@@ -282,7 +282,7 @@ utilities.
 Use `py-section` on all below-the-fold marketing sections. Use `py-section-lg`
 on the hero / primary billboard area only.
 
-In addition, four live CSS variables (in `:root`, not `@theme`) control motion
+In addition, five live CSS variables (in `:root`, not `@theme`) control motion
 timing for CSS-only hover and press effects:
 
 | Variable        | Value | Role                                  |

@@ -23,23 +23,14 @@ export function ProductGrid({
   stagger?: boolean;
 }) {
   const gridClass = cn('grid gap-x-5 gap-y-8', COL_CLASS[cols], className);
-  const items = Children.toArray(children);
   if (stagger) {
     return (
       <StaggerGrid className={gridClass}>
-        {items.map((child) => (
-          <StaggerGridItem key={(child as { key?: string }).key ?? undefined}>
-            {child}
-          </StaggerGridItem>
+        {Children.map(children, (child, i) => (
+          <StaggerGridItem key={i}>{child}</StaggerGridItem>
         ))}
       </StaggerGrid>
     );
   }
-  return (
-    <ul className={gridClass}>
-      {items.map((child) => (
-        <li key={(child as { key?: string }).key ?? undefined}>{child}</li>
-      ))}
-    </ul>
-  );
+  return <ul className={gridClass}>{children}</ul>;
 }
