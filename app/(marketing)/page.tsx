@@ -79,31 +79,29 @@ async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string
           <ProductGrid cols={3}>
             {feed.items.map((item) =>
               item.kind === 'work' ? (
-                <li key={`work-${item.id}`}>
-                  <ProductCard
-                    product={{
-                      id: item.id,
-                      slug: item.slug,
-                      title: item.title,
-                      price: item.price,
-                      currency: item.currency,
-                    }}
-                    artisan={{ shopSlug: item.artisanShopSlug, shopName: item.artisanShopName }}
-                    primaryImage={item.primaryImage}
-                    inWishlist={wishlistedIds.has(item.id)}
-                    isSignedIn
-                    artisanAvatarUrl={item.artisanPhotoUrl}
-                    relativeTimeLabel={formatRelativeTime(item.createdAt)}
-                    appreciationCount={feedAppreciationCounts.get(item.id)}
-                  />
-                </li>
+                <ProductCard
+                  key={`work-${item.id}`}
+                  product={{
+                    id: item.id,
+                    slug: item.slug,
+                    title: item.title,
+                    price: item.price,
+                    currency: item.currency,
+                  }}
+                  artisan={{ shopSlug: item.artisanShopSlug, shopName: item.artisanShopName }}
+                  primaryImage={item.primaryImage}
+                  inWishlist={wishlistedIds.has(item.id)}
+                  isSignedIn
+                  artisanAvatarUrl={item.artisanPhotoUrl}
+                  relativeTimeLabel={formatRelativeTime(item.createdAt)}
+                  appreciationCount={feedAppreciationCounts.get(item.id)}
+                />
               ) : (
-                <li key={`update-${item.id}`}>
-                  <UpdateCard
-                    update={item}
-                    relativeTimeLabel={formatRelativeTime(item.createdAt)}
-                  />
-                </li>
+                <UpdateCard
+                  key={`update-${item.id}`}
+                  update={item}
+                  relativeTimeLabel={formatRelativeTime(item.createdAt)}
+                />
               ),
             )}
           </ProductGrid>
@@ -328,20 +326,19 @@ async function EditorialLanding({ cursor }: { cursor: string | undefined }) {
                 </h3>
                 <ProductGrid cols={4}>
                   {feature.works.map((w) => (
-                    <li key={w.id}>
-                      <ProductCard
-                        product={{
-                          id: w.id,
-                          slug: w.slug,
-                          title: w.title,
-                          price: w.price,
-                          currency: w.currency,
-                        }}
-                        artisan={{ shopSlug: w.artisanShopSlug, shopName: w.artisanShopName }}
-                        primaryImage={w.primaryImage}
-                        isSignedIn={false}
-                      />
-                    </li>
+                    <ProductCard
+                      key={w.id}
+                      product={{
+                        id: w.id,
+                        slug: w.slug,
+                        title: w.title,
+                        price: w.price,
+                        currency: w.currency,
+                      }}
+                      artisan={{ shopSlug: w.artisanShopSlug, shopName: w.artisanShopName }}
+                      primaryImage={w.primaryImage}
+                      isSignedIn={false}
+                    />
                   ))}
                 </ProductGrid>
               </div>

@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { FeatureWorkButton } from '@/components/studio/feature-work-button';
 import { isThinCount } from '@/lib/thin-count';
@@ -35,6 +36,7 @@ export function CatalogSection({
   canFeature = false,
   featuredProductId = null,
   appreciationCounts,
+  stagger = false,
 }: {
   catalog: CatalogLike;
   artisan: ArtisanLike;
@@ -46,6 +48,7 @@ export function CatalogSection({
   featuredProductId?: string | null;
   // T7: per-product appreciation counts; absent products read as zero.
   appreciationCounts?: Map<string, number>;
+  stagger?: boolean;
 }) {
   if (products.length === 0) return null;
 
@@ -68,9 +71,9 @@ export function CatalogSection({
           {catalog.description}
         </p>
       )}
-      <ProductGrid cols={4}>
+      <ProductGrid cols={4} stagger={stagger}>
         {products.map((p) => (
-          <li key={p.id}>
+          <Fragment key={p.id}>
             <ProductCard
               product={{
                 id: p.id,
@@ -92,7 +95,7 @@ export function CatalogSection({
             {canFeature && (
               <FeatureWorkButton productId={p.id} isFeatured={featuredProductId === p.id} />
             )}
-          </li>
+          </Fragment>
         ))}
       </ProductGrid>
     </section>

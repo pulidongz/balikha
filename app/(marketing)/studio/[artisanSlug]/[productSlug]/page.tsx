@@ -563,16 +563,15 @@ export default async function ProductPublicPage({
           </div>
           <ProductGrid cols={4}>
             {moreFromArtisan.map((p) => (
-              <li key={p.id}>
-                <ProductCard
-                  product={p}
-                  artisan={{ shopSlug: artisan.shopSlug, shopName: artisan.shopName }}
-                  primaryImage={morePrimaryById.get(p.id)}
-                  showArtisan={false}
-                  inWishlist={wishlistedIds.has(p.id)}
-                  isSignedIn={viewer !== null}
-                />
-              </li>
+              <ProductCard
+                key={p.id}
+                product={p}
+                artisan={{ shopSlug: artisan.shopSlug, shopName: artisan.shopName }}
+                primaryImage={morePrimaryById.get(p.id)}
+                showArtisan={false}
+                inWishlist={wishlistedIds.has(p.id)}
+                isSignedIn={viewer !== null}
+              />
             ))}
           </ProductGrid>
         </section>

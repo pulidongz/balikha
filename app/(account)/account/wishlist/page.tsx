@@ -86,21 +86,20 @@ export default async function WishlistPage() {
       ) : (
         <ProductGrid cols={3}>
           {items.map((p) => (
-            <li key={p.id}>
-              <ProductCard
-                product={{
-                  id: p.id,
-                  slug: p.slug,
-                  title: p.title,
-                  price: p.price,
-                  currency: p.currency,
-                }}
-                artisan={{ shopSlug: p.artisanShopSlug, shopName: p.artisanShopName }}
-                primaryImage={primaryByProductId.get(p.id) ?? null}
-                inWishlist
-                isSignedIn
-              />
-            </li>
+            <ProductCard
+              key={p.id}
+              product={{
+                id: p.id,
+                slug: p.slug,
+                title: p.title,
+                price: p.price,
+                currency: p.currency,
+              }}
+              artisan={{ shopSlug: p.artisanShopSlug, shopName: p.artisanShopName }}
+              primaryImage={primaryByProductId.get(p.id) ?? null}
+              inWishlist
+              isSignedIn
+            />
           ))}
         </ProductGrid>
       )}
