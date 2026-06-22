@@ -113,6 +113,11 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
       - name: Deploy
+        env:
+          # Stamped into /opt/balikha/current/RELEASE_SHA by deploy.sh so the
+          # smart-deploy decider (scripts/deploy-decide.ts) can recognize a
+          # CI-deployed commit as already-live and no-op a redundant deploy.
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           chmod +x infra/production/deploy.sh
           infra/production/deploy.sh \
