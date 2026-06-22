@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "node bin/build",
     "start": "next start",
+    "deploy": "infra/production/smart-deploy.sh",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "format": "prettier --write .",
