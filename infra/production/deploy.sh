@@ -13,6 +13,10 @@ set -euo pipefail
 HOST="${1:?ssh target required, e.g. deploy@1.2.3.4}"
 ARTIFACT="${2:?path to balikha-deploy-*.tar.gz required}"
 test -f "$ARTIFACT" || { echo "FATAL: artifact not found: $ARTIFACT"; exit 1; }
+# Commit being deployed — stamped into the release for idempotency/provenance
+# (read back by scripts/deploy-decide.ts). Defaults to 'unknown' when deploy.sh
+# is run by hand without smart-deploy.sh.
+RELEASE_SHA="${RELEASE_SHA:-unknown}"
 APP_DIR=/opt/balikha
 APP_HOME=/var/lib/balikha          # balikha-app's HOME (npm cache) — Issue 4
 RELEASES_TO_KEEP=5                  # Issue 9: prune old releases
@@ -35,6 +39,10 @@ set -euo pipefail
 sudo mkdir -p "$RELEASE"
 sudo tar -xzf /tmp/balikha-deploy.tar.gz -C "$RELEASE"
 sudo chown -R balikha-app:balikha-app "$RELEASE"
+# Record the deployed commit so deploy-decide.ts can read it back and treat a
+# re-run for the same commit as a no-op. RELEASE_SHA is expanded locally (this
+# heredoc is intentionally unquoted), baking the literal SHA into the release.
+printf '%s\n' "$RELEASE_SHA" | sudo tee "$RELEASE/RELEASE_SHA" >/dev/null
 # drizzle.config.ts loads .env.development if present and would override the
 # real DATABASE_URL — it must NOT exist on the box.
 if [ -e "$RELEASE/.env.development" ]; then
