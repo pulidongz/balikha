@@ -36,6 +36,9 @@ yarn-error.log*
 !.env.production.example
 !.env.backup.example
 
+# Local production build env (real NEXT_PUBLIC_* values) — never commit
+infra/production/build.env
+
 # vercel
 .vercel
 
