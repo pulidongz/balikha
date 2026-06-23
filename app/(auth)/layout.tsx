@@ -15,9 +15,9 @@ export const dynamic = 'force-dynamic';
 
 // Two-pane editorial shell for every (auth) page: form on cream, the
 // featured-work photo opposite (lg+ only; side alternates per route —
-// see AuthShell). Media comes from the founder-curated feature with
-// fallbacks (see getAuthPanelMedia); when there is no photo at all, the
-// panel is the navy brand statement alone.
+// see AuthShell). Media is a daily, fair rotation across artists (see
+// getAuthPanelMedia); the caption links to that artist's shop. When there
+// is no eligible photo, the panel is the navy brand statement alone.
 export default async function AuthLayout({ children }: { children: ReactNode }) {
   const media = await getAuthPanelMedia();
   return (
@@ -44,12 +44,13 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
               Handmade, from the Philippines.
             </p>
             {media && (
-              <p
-                className="auth-rise text-primary-foreground/75 mt-1 text-sm"
+              <Link
+                href={`/studio/${media.shopSlug}`}
+                className="auth-rise text-primary-foreground/75 hover:text-primary-foreground mt-1 inline-block text-sm transition-colors"
                 style={{ animationDelay: '320ms' }}
               >
                 {media.workTitle} · {media.shopName}
-              </p>
+              </Link>
             )}
           </div>
         </>
