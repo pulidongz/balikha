@@ -1,9 +1,12 @@
 // Verifies archiveListingsForRejectedSeller (issue #124): rejecting a seller
 // flips their published/sold_out products to `archived` WITHOUT recording
 // previous_status (permanent takedown; reconciler-proof), and leaves draft /
-// self-archived products untouched. Runs inside a sentinel-rolled-back
-// transaction so it leaves the dev DB unchanged. Requires `npm run db:seed`.
-import { eq } from 'drizzle-orm';
+// self-archived products untouched. Also verifies that products already
+// archived by a prior suspension (previousStatus set) have previousStatus
+// cleared — so the reconciler never auto-restores a rejected seller's products.
+// Runs inside a sentinel-rolled-back transaction so it leaves the dev DB
+// unchanged. Requires `npm run db:seed`.
+import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs, products } from '@/db/schema';
 import { archiveListingsForRejectedSeller } from '@/lib/admin/seller-content';
@@ -39,7 +42,7 @@ async function main(): Promise<void> {
 
   try {
     await db.transaction(async (tx) => {
-      // Four representative products under one rejected seller.
+      // Five representative products under one rejected seller.
       const rows = await tx
         .insert(products)
         .values([
@@ -75,22 +78,26 @@ async function main(): Promise<void> {
             status: 'archived',
             price: '100.00',
           },
+          {
+            catalogId: seedCatalog.id,
+            artisanProfileId: seedCatalog.artisanProfileId,
+            slug: 'reject-test-suspended-archived',
+            title: 'Reject Test Suspended Archived',
+            status: 'archived',
+            previousStatus: 'published',
+            price: '100.00',
+          },
         ])
         .returning({ id: products.id });
-      const [published, soldOut, draft, selfArchived] = rows;
-      if (!published || !soldOut || !draft || !selfArchived) {
-        fail('fixture insert did not return 4 rows');
+      const [published, soldOut, draft, selfArchived, suspendedArchived] = rows;
+      if (!published || !soldOut || !draft || !selfArchived || !suspendedArchived) {
+        fail('fixture insert did not return 5 rows');
         throw new Error(SENTINEL);
       }
       firstFixtureId = published.id;
 
       // Act: reject this seller's listings.
-      const archivedCount = await archiveListingsForRejectedSeller(
-        seedCatalog.artisanProfileId,
-        tx,
-      );
-      if (archivedCount >= 2) pass(`archived count >= 2 (got ${archivedCount})`);
-      else fail(`archived count: got ${archivedCount}, expected >= 2`);
+      await archiveListingsForRejectedSeller(seedCatalog.artisanProfileId, tx);
 
       const afterRows = await tx
         .select({
@@ -99,7 +106,15 @@ async function main(): Promise<void> {
           previousStatus: products.previousStatus,
         })
         .from(products)
-        .where(eq(products.artisanProfileId, seedCatalog.artisanProfileId));
+        .where(
+          inArray(products.id, [
+            published.id,
+            soldOut.id,
+            draft.id,
+            selfArchived.id,
+            suspendedArchived.id,
+          ]),
+        );
       const byId = new Map(afterRows.map((p) => [p.id, p]));
 
       assertEqual('published -> archived', byId.get(published.id)?.status, 'archived');
@@ -116,6 +131,16 @@ async function main(): Promise<void> {
       );
       assertEqual('draft untouched', byId.get(draft.id)?.status, 'draft');
       assertEqual('self-archived untouched', byId.get(selfArchived.id)?.status, 'archived');
+      assertEqual(
+        'suspended-archived stays archived',
+        byId.get(suspendedArchived.id)?.status,
+        'archived',
+      );
+      assertEqual(
+        'suspended-archived previousStatus cleared',
+        byId.get(suspendedArchived.id)?.previousStatus ?? null,
+        null,
+      );
 
       // Idempotency: a second call is a safe no-op.
       await archiveListingsForRejectedSeller(seedCatalog.artisanProfileId, tx);

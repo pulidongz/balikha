@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import type { Tx } from '@/db';
 import { artisanProfiles, products, user } from '@/db/schema';
@@ -146,6 +146,23 @@ export async function archiveListingsForRejectedSeller(
       ),
     )
     .returning({ id: products.id });
+
+  // A seller suspended *before* being rejected already has products at
+  // status='archived' with previousStatus set (from hideSellerListings). Those
+  // rows are skipped by the published/sold_out sweep above, so clear their
+  // previousStatus too — otherwise restoreExpiredSuspensions would republish a
+  // rejected seller's products once the suspension expires.
+  await tx
+    .update(products)
+    .set({ previousStatus: null })
+    .where(
+      and(
+        eq(products.artisanProfileId, artisanProfileId),
+        eq(products.status, 'archived'),
+        isNotNull(products.previousStatus),
+      ),
+    );
+
   return archived.length;
 }
 
@@ -183,7 +200,15 @@ export async function restoreExpiredSuspensions(): Promise<number> {
     .from(products)
     .innerJoin(artisanProfiles, eq(products.artisanProfileId, artisanProfiles.id))
     .innerJoin(user, eq(artisanProfiles.userId, user.id))
-    .where(and(isNotNull(products.previousStatus), eq(user.banned, false)));
+    // A rejected seller must never have products auto-restored — guard here in
+    // addition to archiveListingsForRejectedSeller clearing previousStatus.
+    .where(
+      and(
+        isNotNull(products.previousStatus),
+        eq(user.banned, false),
+        ne(artisanProfiles.approvalStatus, 'rejected'),
+      ),
+    );
 
   if (affected.length === 0) {
     logger.info('Suspension reconciler: no expired suspensions to restore');
