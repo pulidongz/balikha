@@ -4,25 +4,27 @@ import { artisanProfiles, productImages, products } from '@/db/schema';
 import { dailyPick, manilaDateKey } from '@/lib/queries/daily-index';
 
 export interface AuthPanelMedia {
-  imageUrl: string;
+  images: string[]; // the chosen product's image URLs, ordered by position; [0] = primary
   workTitle: string;
   shopName: string;
   shopSlug: string;
+  productSlug: string;
 }
 
-// Photo for the auth pages' editorial side panel. A daily, fair rotation across
-// artists: one artist per Manila calendar day, chosen by rendezvous hashing
-// (stable within the day; each artist equally likely regardless of catalog
-// size), then their newest published piece. No eligible artist → null (the
-// layout renders the navy brand panel without a photo). Never an empty/broken
-// panel.
+// Media for the auth pages' editorial side panel: a daily, fair rotation across
+// artists (one artist per Manila day via rendezvous hashing), showing the
+// multiple photos of that artist's newest published piece as a slideshow. No
+// eligible artist → null (the layout renders the navy brand panel). Never an
+// empty/broken panel.
+//
+// Published-only is intentional — the entry surface features currently-buyable
+// work, and the caption deep-links to the piece (sold_out pieces never headline).
 //
 // Eligibility = "has >=1 published product with an image". No approvalStatus
 // filter is needed: publishing requires an approved seller (enforced in the
 // publish actions and as a transaction backstop in lib/actions/product.ts), and
 // suspension takes published products down — so a published product implies an
-// approved, non-suspended artisan. Same gating the rest of the public site
-// relies on (product status, not an approval re-check).
+// approved, non-suspended artisan.
 export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
   // Distinct eligible artists. Order is irrelevant — dailyPick is
   // order-independent (rendezvous + id tie-break).
@@ -40,12 +42,13 @@ export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
     eligible.map((e) => e.id),
   );
 
-  // The chosen artist's representative piece: newest published product with its
-  // primary image (lowest position).
-  const [piece] = await db
+  // The chosen artist's representative piece: newest published product that has
+  // an image. (The productImages join guarantees >=1 image exists.)
+  const [product] = await db
     .select({
-      imageUrl: productImages.url,
-      workTitle: products.title,
+      id: products.id,
+      title: products.title,
+      slug: products.slug,
       shopName: artisanProfiles.shopName,
       shopSlug: artisanProfiles.shopSlug,
     })
@@ -53,13 +56,28 @@ export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
     .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
     .innerJoin(productImages, eq(productImages.productId, products.id))
     .where(and(eq(products.artisanProfileId, chosenId), eq(products.status, 'published')))
-    .orderBy(desc(products.createdAt), asc(productImages.position))
+    .orderBy(desc(products.createdAt))
     .limit(1);
 
-  // Eligibility guarantees a piece; if a race unpublished it between the two
-  // queries, degrade to the legitimate no-photo state (null is a valid return
-  // of this function) rather than throwing on an auth page.
-  if (!piece) return null;
+  if (!product) return null;
 
-  return piece;
+  // All of that product's images, ordered (position 0 first = primary).
+  const imageRows = await db
+    .select({ url: productImages.url })
+    .from(productImages)
+    .where(eq(productImages.productId, product.id))
+    .orderBy(asc(productImages.position));
+
+  const images = imageRows.map((r) => r.url);
+  // Eligibility guarantees images; if a race emptied them, degrade to the
+  // legitimate no-photo state rather than throwing on an auth page.
+  if (images.length === 0) return null;
+
+  return {
+    images,
+    workTitle: product.title,
+    shopName: product.shopName,
+    shopSlug: product.shopSlug,
+    productSlug: product.slug,
+  };
 }
