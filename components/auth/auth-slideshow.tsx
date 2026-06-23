@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { m, useReducedMotion } from 'motion/react';
 import { useMounted } from '@/components/motion/use-mounted';
 import { cn } from '@/lib/utils';
@@ -34,13 +34,21 @@ export function AuthSlideshow({
 
   const animate = mounted && !prefersReducedMotion && images.length > 1;
 
+  // Read `paused` through a ref inside the interval so pausing/resuming does not
+  // tear down and recreate the timer (which would reset the current slide's full
+  // SLIDE_MS countdown on every hover/blur).
+  const pausedRef = useRef(paused);
   useEffect(() => {
-    if (!animate || paused) return;
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    if (!animate) return;
     const id = setInterval(() => {
-      setIndex((i) => (i + 1) % images.length);
+      if (!pausedRef.current) setIndex((i) => (i + 1) % images.length);
     }, SLIDE_MS);
     return () => clearInterval(id);
-  }, [animate, paused, images.length]);
+  }, [animate, images.length]);
 
   const first = images[0];
   if (!first) return null;
@@ -53,17 +61,25 @@ export function AuthSlideshow({
     );
   }
 
+  // Only toggle pause when focus actually crosses the component boundary —
+  // intra-dot tabbing (relatedTarget stays inside) must not flip `paused`.
+  const onBoundaryFocus = (paused: boolean) => (e: React.FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setPaused(paused);
+  };
+
   return (
     <div
       className="absolute inset-0"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      onFocus={onBoundaryFocus(true)}
+      onBlur={onBoundaryFocus(false)}
     >
       {images.map((src, i) => (
+        // key includes the index so two identical image URLs don't collapse to
+        // one React element (no DB UNIQUE(productId, url) constraint).
         <m.div
-          key={src}
+          key={`${src}-${i}`}
           // opacity:0 slides must not intercept clicks meant for the caption
           // link beneath them — make click-through deterministic.
           className={cn('absolute inset-0', i !== index && 'pointer-events-none')}
@@ -87,11 +103,13 @@ export function AuthSlideshow({
       >
         {images.map((src, i) => (
           <button
-            key={src}
+            key={`${src}-${i}`}
             type="button"
             onClick={() => setIndex(i)}
             aria-label={`Show photo ${i + 1} of ${images.length}`}
-            aria-current={i === index}
+            // Omit on inactive dots: aria-current="false" is announced as noise
+            // by some screen readers.
+            aria-current={i === index ? 'true' : undefined}
             // 24px hit target (SC 2.5.8) around an 8px visual dot, with a visible
             // focus ring (SC 2.4.7) tuned for the navy panel.
             className="group focus-visible:ring-primary-foreground focus-visible:ring-offset-primary grid size-6 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-offset-2"

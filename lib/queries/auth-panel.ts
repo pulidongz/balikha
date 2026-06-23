@@ -17,15 +17,20 @@ export interface AuthPanelMedia {
 // eligible artist → null (the layout renders the navy brand panel). Never an
 // empty/broken panel.
 //
-// Published-only is intentional — the entry surface features currently-buyable
-// work, and the caption deep-links to the piece (sold_out pieces never headline).
-//
-// Eligibility = "has >=1 published product with an image". No approvalStatus
-// filter is needed: publishing requires an approved seller (enforced in the
-// publish actions and as a transaction backstop in lib/actions/product.ts), and
-// suspension takes published products down — so a published product implies an
-// approved, non-suspended artisan.
+// Eligibility = "an APPROVED artisan has >=1 published, FOR-SALE product with an
+// image". Both filters are explicit defense-in-depth: publishing already
+// requires an approved seller, but reject_seller does NOT archive products (only
+// suspend/ban do), so a later-rejected seller could otherwise slip through; and
+// showcase/commission-inquiry products are published-but-not-buyable. The entry
+// surface features currently-buyable work from makers in good standing, and the
+// caption deep-links to a purchasable piece.
 export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
+  const eligibleWhere = and(
+    eq(products.status, 'published'),
+    eq(products.salesMode, 'for_sale'),
+    eq(artisanProfiles.approvalStatus, 'approved'),
+  );
+
   // Distinct eligible artists. Order is irrelevant — dailyPick is
   // order-independent (rendezvous + id tie-break).
   const eligible = await db
@@ -33,7 +38,7 @@ export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
     .from(artisanProfiles)
     .innerJoin(products, eq(products.artisanProfileId, artisanProfiles.id))
     .innerJoin(productImages, eq(productImages.productId, products.id))
-    .where(eq(products.status, 'published'));
+    .where(eligibleWhere);
 
   if (eligible.length === 0) return null;
 
@@ -42,7 +47,7 @@ export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
     eligible.map((e) => e.id),
   );
 
-  // The chosen artist's representative piece: newest published product that has
+  // The chosen artist's representative piece: newest eligible product that has
   // an image. (The productImages join guarantees >=1 image exists.)
   const [product] = await db
     .select({
@@ -55,7 +60,7 @@ export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
     .from(products)
     .innerJoin(artisanProfiles, eq(artisanProfiles.id, products.artisanProfileId))
     .innerJoin(productImages, eq(productImages.productId, products.id))
-    .where(and(eq(products.artisanProfileId, chosenId), eq(products.status, 'published')))
+    .where(and(eq(products.artisanProfileId, chosenId), eligibleWhere))
     .orderBy(desc(products.createdAt))
     .limit(1);
 

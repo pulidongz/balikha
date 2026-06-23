@@ -4,7 +4,7 @@ import { dailyPick, manilaDateKey } from '../lib/queries/daily-index';
 let passed = 0;
 function ok(name: string, cond: boolean, detail = '') {
   assert.ok(cond, `${name}${detail ? ` — ${detail}` : ''}`);
-  console.error('  ✓', name);
+  process.stdout.write(`  ✓ ${name}\n`);
   passed++;
 }
 
@@ -91,4 +91,4 @@ ok('15:30Z → PH same day', manilaDateKey(new Date('2026-06-23T15:30:00Z')) ===
 // ...but 16:30Z (00:30 PH) has rolled to the 24th
 ok('16:30Z → PH next day', manilaDateKey(new Date('2026-06-23T16:30:00Z')) === '2026-06-24');
 
-console.error(`\n${passed} checks passed`);
+process.stdout.write(`\n${passed} checks passed\n`);
