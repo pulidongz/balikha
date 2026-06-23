@@ -102,6 +102,11 @@ jobs:
       - name: Search bot-filter checks
         run: npm run test:search-bot-filter
 
+      # Pure, deterministic guard on the auth-panel daily rotation (rendezvous
+      # pick + Manila date key). No DB/secrets — same profile as the checks above.
+      - name: Daily-index rotation checks
+        run: npm run test:daily-index
+
   build:
     name: Build
     runs-on: ubuntu-latest

@@ -42,7 +42,8 @@
     "test:search-bot-filter": "tsx scripts/check-search-bot-filter.ts",
     "test:retry": "tsx scripts/check-retry.ts",
     "test:job-alert": "tsx scripts/check-job-failure-alert.ts",
-    "test:classify-deploy-run": "tsx scripts/check-classify-deploy-run.ts"
+    "test:classify-deploy-run": "tsx scripts/check-classify-deploy-run.ts",
+    "test:daily-index": "tsx scripts/check-daily-index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",

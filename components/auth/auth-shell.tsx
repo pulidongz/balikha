@@ -26,11 +26,13 @@ export function AuthShell({ panel, children }: { panel: ReactNode; children: Rea
       <div className="bg-background flex flex-1 flex-col items-center justify-center px-4 py-12">
         <div className="auth-rise flex w-full flex-col items-center">{children}</div>
       </div>
-      {/* Decorative panel — atmosphere, not navigation. Hidden below lg;
-          overflow-hidden clips the photo's slow drift overscan. */}
+      {/* Featured-artisan panel: a daily piece as a crossfade slideshow with a
+          link to its product. Hidden below lg; overflow-hidden clips the photo
+          drift/crossfade overscan. The form renders first (above) so it leads
+          the DOM/tab order. */}
       {!noPanel && (
         <aside
-          aria-hidden="true"
+          aria-label="Featured artisan"
           className="bg-primary relative hidden overflow-hidden lg:block lg:w-[44%]"
         >
           {panel}
