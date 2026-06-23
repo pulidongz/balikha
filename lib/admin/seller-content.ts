@@ -115,6 +115,41 @@ export async function restoreSellerListings(userId: string, tx: Tx): Promise<num
 }
 
 // ---------------------------------------------------------------------------
+// archiveListingsForRejectedSeller
+// ---------------------------------------------------------------------------
+// Reject is a PERMANENT takedown (issue #124) — a harder decision than a
+// suspend. For a rejected seller (by artisanProfileId), flips every
+// `published`/`sold_out` product to `archived`. Unlike hideSellerListings it
+// deliberately does NOT record `previous_status`:
+//   - reject-archived products are not auto-restorable (re-approval does not
+//     bring them back; a re-approved seller re-publishes manually), and
+//   - leaving `previous_status` NULL keeps the suspension reconciler
+//     (`restoreExpiredSuspensions`) from ever un-archiving them. A rejected
+//     seller is NOT `banned`, so a recorded `previous_status` would be matched
+//     by that reconciler and silently reverted on the next orders tick.
+//
+// Idempotent: a second call matches no `published`/`sold_out` rows. Must run
+// inside the same Drizzle transaction as rejectSellerApplication. Returns the
+// number of products archived.
+// ---------------------------------------------------------------------------
+export async function archiveListingsForRejectedSeller(
+  artisanProfileId: string,
+  tx: Tx,
+): Promise<number> {
+  const archived = await tx
+    .update(products)
+    .set({ status: 'archived', previousStatus: null })
+    .where(
+      and(
+        eq(products.artisanProfileId, artisanProfileId),
+        inArray(products.status, ['published', 'sold_out']),
+      ),
+    )
+    .returning({ id: products.id });
+  return archived.length;
+}
+
+// ---------------------------------------------------------------------------
 // restoreExpiredSuspensions
 // ---------------------------------------------------------------------------
 // Reconciler that closes the gap between the Better Auth admin plugin's
