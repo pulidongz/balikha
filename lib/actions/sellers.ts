@@ -10,6 +10,7 @@ import { tryRequireAdmin } from '@/lib/auth-helpers';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
+import { archiveListingsForRejectedSeller } from '@/lib/admin/seller-content';
 import { dispatchSellerApplicationEmail } from '@/lib/email/notifications';
 
 // ---------------------------------------------------------------------------
@@ -118,7 +119,11 @@ export async function approveSellerApplication(
 // rejectSellerApplication
 // ---------------------------------------------------------------------------
 // Sets the seller profile to `rejected`, stores the applicant-facing note,
-// and notifies the applicant. Works on any source status (Decision #4).
+// and notifies the applicant. Works on any source status (Decision #4) —
+// including an already-`approved` seller ("Revoke (reject)" in the admin UI).
+// In that case it ALSO archives the seller's live products in the same
+// transaction (issue #124): a permanent takedown that does not record
+// `previous_status`. See archiveListingsForRejectedSeller.
 // ---------------------------------------------------------------------------
 
 export async function rejectSellerApplication(
@@ -147,6 +152,7 @@ export async function rejectSellerApplication(
   if (!profile) return err('Seller profile not found');
 
   const note = parsed.data.note ?? null;
+  let archivedListingCount = 0;
 
   await db.transaction(async (tx) => {
     await tx
@@ -159,6 +165,10 @@ export async function rejectSellerApplication(
         updatedAt: now,
       })
       .where(eq(artisanProfiles.id, profile.id));
+
+    // Issue #124: reject is a takedown for approved sellers, so archive any
+    // live products in the same transaction. Permanent — see the helper.
+    archivedListingCount = await archiveListingsForRejectedSeller(profile.id, tx);
 
     await tx.insert(notifications).values({
       userId: profile.userId,
@@ -185,7 +195,7 @@ export async function rejectSellerApplication(
   });
 
   log.info(
-    { adminId: admin.id, artisanProfileId: profile.id, decision: 'rejected' },
+    { adminId: admin.id, artisanProfileId: profile.id, decision: 'rejected', archivedListingCount },
     'Seller application rejected',
   );
 

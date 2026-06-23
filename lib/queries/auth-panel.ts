@@ -18,12 +18,12 @@ export interface AuthPanelMedia {
 // empty/broken panel.
 //
 // Eligibility = "an APPROVED artisan has >=1 published, FOR-SALE product with an
-// image". Both filters are explicit defense-in-depth: publishing already
-// requires an approved seller, but reject_seller does NOT archive products (only
-// suspend/ban do), so a later-rejected seller could otherwise slip through; and
-// showcase/commission-inquiry products are published-but-not-buyable. The entry
-// surface features currently-buyable work from makers in good standing, and the
-// caption deep-links to a purchasable piece.
+// image". Both filters are explicit defense-in-depth. reject_seller now archives
+// a seller's products too (issue #124), so a rejected seller's products are
+// already excluded by the published filter — but the approvalStatus filter stays
+// as belt-and-suspenders (it also guards the profile against any race window),
+// and the salesMode filter keeps showcase/commission-inquiry pieces out. The
+// entry surface features currently-buyable work from makers in good standing.
 export async function getAuthPanelMedia(): Promise<AuthPanelMedia | null> {
   const eligibleWhere = and(
     eq(products.status, 'published'),
