@@ -94,9 +94,10 @@ export default async function ProductPublicPage({
   // One-shot params set by the sign-in redirects of AppreciateButton and
   // FollowToggle; each button applies its own client-side and strips it
   // from the URL (T5 pattern).
-  const { appreciate, follow } = await searchParams;
+  const { appreciate, follow, comments } = await searchParams;
   const pendingAppreciateId = typeof appreciate === 'string' ? appreciate : null;
   const pendingFollowId = typeof follow === 'string' ? follow : null;
+  const commentsCursor = typeof comments === 'string' ? comments : null;
 
   const viewer = await getCurrentUser();
   // These four reads are mutually independent — run them concurrently instead
@@ -555,6 +556,7 @@ export default async function ProductPublicPage({
             workPathname={workPath(artisan.shopSlug, product.slug)}
             viewerUserId={viewer?.id ?? null}
             ownerUserId={artisan.userId}
+            cursor={commentsCursor}
           />
         </div>
       </Reveal>

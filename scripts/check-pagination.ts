@@ -7,12 +7,29 @@
  * the rows it inserted. Requires `npm run db:seed`.
  * Run: npm run test:pagination
  */
-import { and, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, like, notInArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanFollows, artisanProfiles, products, user, wishlistItems } from '@/db/schema';
+import {
+  artisanFollows,
+  artisanProfiles,
+  products,
+  user,
+  wishlistItems,
+  workComments,
+} from '@/db/schema';
 import { getWishlistPage, type WishlistRow } from '@/lib/queries/wishlist';
 import { getFollowingPage, type FollowingRow } from '@/lib/queries/follows';
+import { getWorkCommentsPage, type WorkCommentRow } from '@/lib/queries/comments';
 import { assert, section, finish } from './lib/check-harness';
+
+function isNonDecreasing(dates: Date[]): boolean {
+  for (let i = 1; i < dates.length; i += 1) {
+    const cur = dates[i];
+    const prev = dates[i - 1];
+    if (cur && prev && cur.getTime() < prev.getTime()) return false;
+  }
+  return true;
+}
 
 // Collect every item across pages, following nextCursor. Bounded so a
 // pagination bug (nextCursor never null) fails loudly instead of looping.
@@ -57,10 +74,17 @@ async function main(): Promise<void> {
 
   const productIds = prods.map((p) => p.id);
   const artisanIds = artisans.map((a) => a.id);
+  const commentProductId = productIds[0];
+  if (!commentProductId) {
+    console.error('✗ no seeded product for comment fixtures');
+    process.exit(1);
+  }
+  const COMMENT_MARK = 'pagination-test-';
   // Distinct timestamps, EXCEPT indices 1 and 2 share one — this exercises the
   // (createdAt, tiebreaker) keyset path where createdAt alone is ambiguous.
   const base = new Date('2026-06-01T12:00:00.000Z');
   const stamp = (i: number) => new Date(base.getTime() - (i === 2 ? 1 : i) * 1000);
+  const newest = base; // stamp(0) — the single newest comment
 
   try {
     // --- Fixtures ---
@@ -84,6 +108,24 @@ async function main(): Promise<void> {
       artisanIds.map((aid, i) => ({
         userId: buyer.id,
         artisanProfileId: aid,
+        createdAt: stamp(i),
+      })),
+    );
+    // Comment fixtures live on one seeded product, tagged with COMMENT_MARK so
+    // cleanup is precise. Delete any residue from a prior crashed run first.
+    await db
+      .delete(workComments)
+      .where(
+        and(
+          eq(workComments.productId, commentProductId),
+          like(workComments.body, `${COMMENT_MARK}%`),
+        ),
+      );
+    await db.insert(workComments).values(
+      [0, 1, 2, 3, 4].map((i) => ({
+        productId: commentProductId,
+        userId: buyer.id,
+        body: `${COMMENT_MARK}${i}`,
         createdAt: stamp(i),
       })),
     );
@@ -117,6 +159,34 @@ async function main(): Promise<void> {
       isNonIncreasing(fl.items.map((r) => r.followedAt)),
       'following ordered by followedAt DESC',
     );
+
+    // --- Comments pagination (newest-window default, cursor walks BACKWARD) ---
+    section('getWorkCommentsPage — latest window + walk-earlier');
+    const windows: WorkCommentRow[][] = [];
+    let cCursor: string | null = null;
+    let cPages = 0;
+    do {
+      const p = await getWorkCommentsPage(commentProductId, { cursor: cCursor, limit: 2 });
+      windows.push(p.items);
+      cCursor = p.nextCursor;
+      cPages += 1;
+      if (cPages > 200) throw new Error('runaway comments pagination');
+    } while (cCursor);
+    const flat = windows.flat();
+    const mine = flat.filter((c) => c.body.startsWith(COMMENT_MARK));
+    const mineIds = mine.map((c) => c.id);
+    const firstWindow = windows[0] ?? [];
+    assert(cPages >= 3, `comments paged across multiple windows (${cPages} for limit 2)`);
+    assert(mine.length === 5, `all 5 inserted comments returned (got ${mine.length})`);
+    assert(new Set(mineIds).size === mineIds.length, 'no duplicate comments across windows');
+    assert(
+      windows.every((w) => isNonDecreasing(w.map((c) => c.createdAt))),
+      'each window renders chronologically (ASC)',
+    );
+    assert(
+      firstWindow.at(-1)?.createdAt.getTime() === newest.getTime(),
+      'default (no-cursor) window ends with the newest comment',
+    );
   } finally {
     // Remove only the rows this test inserted.
     await db
@@ -128,6 +198,14 @@ async function main(): Promise<void> {
         and(
           eq(artisanFollows.userId, buyer.id),
           inArray(artisanFollows.artisanProfileId, artisanIds),
+        ),
+      );
+    await db
+      .delete(workComments)
+      .where(
+        and(
+          eq(workComments.productId, commentProductId),
+          like(workComments.body, `${COMMENT_MARK}%`),
         ),
       );
   }
