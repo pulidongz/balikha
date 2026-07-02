@@ -65,9 +65,40 @@ async function main(): Promise<void> {
     .from(user)
     .where(notInArray(user.id, db.select({ uid: artisanProfiles.userId }).from(artisanProfiles)))
     .limit(1);
-  const prods = await db.select({ id: products.id }).from(products).limit(5);
-  const artisans = await db.select({ id: artisanProfiles.id }).from(artisanProfiles).limit(5);
-  if (!buyer || prods.length < 5 || artisans.length < 5) {
+  if (!buyer) {
+    console.error('✗ no non-artisan buyer found — run `npm run db:seed` first');
+    process.exit(1);
+  }
+  // Pick fixtures the buyer does NOT already have, so the delete-by-id cleanup
+  // only ever removes rows THIS run inserted (never a developer's pre-existing
+  // wishlist/follow data on a seeded product/artisan).
+  const prods = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(
+      notInArray(
+        products.id,
+        db
+          .select({ pid: wishlistItems.productId })
+          .from(wishlistItems)
+          .where(eq(wishlistItems.userId, buyer.id)),
+      ),
+    )
+    .limit(5);
+  const artisans = await db
+    .select({ id: artisanProfiles.id })
+    .from(artisanProfiles)
+    .where(
+      notInArray(
+        artisanProfiles.id,
+        db
+          .select({ aid: artisanFollows.artisanProfileId })
+          .from(artisanFollows)
+          .where(eq(artisanFollows.userId, buyer.id)),
+      ),
+    )
+    .limit(5);
+  if (prods.length < 5 || artisans.length < 5) {
     console.error('✗ not enough seeded data — run `npm run db:seed` first');
     process.exit(1);
   }
