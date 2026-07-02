@@ -39,10 +39,23 @@ assert(
   'missing id field → null',
 );
 
-section('encodeCursor — tiebreaker id can be any string (uuid or composite key)');
-// getFollowingPage uses artisanProfileId (not a row id) as the tiebreaker — any
-// string must survive the round-trip.
-const composite = encodeCursor(when, 'artisan-profile-uuid-xyz');
-assert(decodeCursor(composite)?.id === 'artisan-profile-uuid-xyz', 'non-id tiebreaker round-trips');
+section('decodeCursor — rejects a well-formed cursor with a non-uuid tiebreaker');
+// Security (audit): a crafted base64url cursor with a valid ISO `c` but a
+// non-uuid `i` must decode to null (→ page 1), NOT reach `lt(<uuid column>, 'x')`
+// where Postgres throws a 22P02 cast error — an unauthenticated 500 on the
+// public product page via ?comments=.
+const craft = (i: string) =>
+  Buffer.from(JSON.stringify({ c: when.toISOString(), i })).toString('base64url');
+assert(decodeCursor(craft('x')) === null, 'non-uuid tiebreaker → null (no uuid-cast 500)');
+assert(decodeCursor(craft('123')) === null, 'numeric-string tiebreaker → null');
+assert(decodeCursor(craft("' OR 1=1--")) === null, 'sql-ish tiebreaker → null');
+
+section('encodeCursor — a real uuid tiebreaker round-trips');
+// getFollowingPage uses artisanProfileId (a uuid) as its tiebreaker.
+const followUuid = '0b1e5d2a-1111-4222-8333-444455556666';
+assert(
+  decodeCursor(encodeCursor(when, followUuid))?.id === followUuid,
+  'uuid tiebreaker round-trips',
+);
 
 finish('All cursor checks passed');
