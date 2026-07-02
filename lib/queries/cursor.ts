@@ -18,9 +18,16 @@ const cursorSchema = z.object({
 /**
  * Encode a (createdAt, id) pair as a base64url cursor.
  *
- * The id tiebreaker matters: rows inserted in the same millisecond would
- * otherwise alternate appearing on consecutive pages, because a sort by
- * createdAt alone is non-deterministic across them.
+ * The id tiebreaker matters: rows sharing a createdAt would otherwise alternate
+ * appearing on consecutive pages, because a sort by createdAt alone is
+ * non-deterministic across them.
+ *
+ * Precision (#135): `createdAt.toISOString()` is millisecond-precision, so the
+ * keyset-feeding `created_at` columns are declared `timestamp(3)` (see
+ * db/schema/app.ts) to match. If a column were left at Postgres's default
+ * microsecond precision, a boundary row at `…123456` would round-trip through
+ * this cursor as `…123000` and the next page would silently skip rows in the
+ * same millisecond — the exact case the id tiebreaker exists to handle.
  */
 export function encodeCursor(createdAt: Date, id: string): string {
   return Buffer.from(JSON.stringify({ c: createdAt.toISOString(), i: id })).toString('base64url');
