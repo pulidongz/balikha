@@ -5,18 +5,11 @@
  * network / secrets. Run: npm run test:safe-next
  */
 import { safeNextOr } from '../lib/safe-next';
+import { assert, section, finish } from './lib/check-harness';
 
 const FALLBACK = '/dashboard';
-let failures = 0;
-function assert(cond: boolean, msg: string) {
-  if (cond) process.stdout.write(`  ✓ ${msg}\n`);
-  else {
-    failures++;
-    console.error(`  ✗ ${msg}`);
-  }
-}
 
-process.stdout.write('safeNextOr — accepts same-origin paths\n');
+section('safeNextOr — accepts same-origin paths');
 assert(safeNextOr('/account', FALLBACK) === '/account', 'plain path passes through');
 assert(
   safeNextOr('/studio/maria-ceramics/vase-1', FALLBACK) === '/studio/maria-ceramics/vase-1',
@@ -28,7 +21,7 @@ assert(
 );
 assert(safeNextOr('/orders#section', FALLBACK) === '/orders#section', 'path with fragment passes');
 
-process.stdout.write('safeNextOr — rejects open-redirect vectors\n');
+section('safeNextOr — rejects open-redirect vectors');
 assert(safeNextOr('https://evil.example', FALLBACK) === FALLBACK, 'absolute URL rejected');
 assert(safeNextOr('//evil.example', FALLBACK) === FALLBACK, 'protocol-relative // rejected');
 assert(safeNextOr('/\\evil.example', FALLBACK) === FALLBACK, 'backslash trick /\\ rejected');
@@ -46,13 +39,9 @@ assert(
   'disallowed characters (angle brackets) rejected',
 );
 
-process.stdout.write('safeNextOr — falls back on empty/null\n');
+section('safeNextOr — falls back on empty/null');
 assert(safeNextOr(null, FALLBACK) === FALLBACK, 'null falls back');
 assert(safeNextOr('', FALLBACK) === FALLBACK, 'empty string falls back');
 assert(safeNextOr('relative/no/slash', FALLBACK) === FALLBACK, 'path without leading / falls back');
 
-if (failures > 0) {
-  console.error(`\n${failures} assertion(s) failed`);
-  process.exit(1);
-}
-process.stdout.write('\nAll safe-next open-redirect checks passed\n');
+finish('All safe-next open-redirect checks passed');

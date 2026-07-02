@@ -111,6 +111,11 @@ jobs:
       - name: Safe-next open-redirect checks
         run: npm run test:safe-next
 
+      # Regression guard ensuring transitionOrder stays out of a 'use server'
+      # module (order-lifecycle auth-bypass fix). Pure — no DB/secrets.
+      - name: Transition server-only guard checks
+        run: npm run test:transition-guard
+
       # Pure, deterministic guard on the auth-panel daily rotation (rendezvous
       # pick + Manila date key). No DB/secrets — same profile as the checks above.
       - name: Daily-index rotation checks
