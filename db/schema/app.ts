@@ -226,7 +226,7 @@ export const products = pgTable(
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(immutable_array_to_string(materials, ' '), '')), 'B') || setweight(to_tsvector('english', coalesce(description, '')), 'C')`,
     ),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
@@ -446,7 +446,7 @@ export const artisanFollows = pgTable(
     artisanProfileId: uuid('artisan_profile_id')
       .notNull()
       .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.artisanProfileId] }),
@@ -481,7 +481,7 @@ export const studioUpdates = pgTable(
       .notNull()
       .references(() => artisanProfiles.id, { onDelete: 'cascade' }),
     body: text('body').notNull().default(''),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
@@ -518,7 +518,7 @@ export const workComments = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   },
   (t) => [
     // Covers the page read (per work, chronological) in one index.
@@ -618,7 +618,7 @@ export const wishlistItems = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
     listId: uuid('list_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   },
   (t) => [
     index('wishlist_items_user_idx').on(t.userId),

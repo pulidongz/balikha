@@ -60,6 +60,11 @@ export function buildTsQuery(raw: string): string {
 interface ProductCursor {
   rank: number;
   /**
+   * Precision (#135): this keys on products.created_at, which is declared
+   * timestamp(3) so its stored precision matches the millisecond value carried
+   * here — see lib/queries/cursor.ts. If that column's precision ever changes,
+   * this keyset would silently skip same-millisecond rows too.
+   *
    * Epoch milliseconds. We deliberately don't store an ISO string —
    * round-tripping `Date.toISOString()` (UTC) through Postgres `::timestamp`
    * (which is timestamp-without-time-zone) drops the Z and re-interprets

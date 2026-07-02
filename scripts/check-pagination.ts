@@ -7,7 +7,7 @@
  * the rows it inserted. Requires `npm run db:seed`.
  * Run: npm run test:pagination
  */
-import { and, eq, inArray, like, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanFollows,
@@ -106,11 +106,19 @@ async function main(): Promise<void> {
   const productIds = prods.map((p) => p.id);
   const artisanIds = artisans.map((a) => a.id);
   const commentProductId = productIds[0];
-  if (!commentProductId) {
-    console.error('✗ no seeded product for comment fixtures');
+  const microProductId = productIds[1];
+  if (!commentProductId || !microProductId) {
+    console.error('✗ not enough seeded products for comment fixtures');
     process.exit(1);
   }
   const COMMENT_MARK = 'pagination-test-';
+  // Sub-millisecond fixtures (#135): three comments in the SAME millisecond but
+  // different microseconds. Written as raw SQL timestamp literals since a JS Date
+  // can't express sub-ms. On the fixed timestamp(3) columns these all round to
+  // …10.123, so the id tiebreaker must page through them with no skip; on the old
+  // microsecond columns the ms-truncated cursor would skip two of them.
+  const MICRO_MARK = 'usprec-';
+  const microStamps = ['12:00:10.123111', '12:00:10.123222', '12:00:10.123333'];
   // Distinct timestamps, EXCEPT indices 1 and 2 share one — this exercises the
   // (createdAt, tiebreaker) keyset path where createdAt alone is ambiguous.
   const base = new Date('2026-06-01T12:00:00.000Z');
@@ -158,6 +166,20 @@ async function main(): Promise<void> {
         userId: buyer.id,
         body: `${COMMENT_MARK}${i}`,
         createdAt: stamp(i),
+      })),
+    );
+    // Sub-ms fixtures on a second product (see MICRO_MARK note above).
+    await db
+      .delete(workComments)
+      .where(
+        and(eq(workComments.productId, microProductId), like(workComments.body, `${MICRO_MARK}%`)),
+      );
+    await db.insert(workComments).values(
+      microStamps.map((ts, i) => ({
+        productId: microProductId,
+        userId: buyer.id,
+        body: `${MICRO_MARK}${i}`,
+        createdAt: sql`timestamp '2026-06-01 ${sql.raw(ts)}'`,
       })),
     );
 
@@ -218,6 +240,21 @@ async function main(): Promise<void> {
       firstWindow.at(-1)?.createdAt.getTime() === newest.getTime(),
       'default (no-cursor) window ends with the newest comment',
     );
+
+    // --- Sub-millisecond keyset (#135): same-ms rows must not be skipped ---
+    section('getWorkCommentsPage — same-millisecond rows (microsecond precision)');
+    // limit 1 forces a page boundary between every same-ms row — the exact spot
+    // the ms-truncated cursor used to skip.
+    const micro = await collectAll<WorkCommentRow>((cursor) =>
+      getWorkCommentsPage(microProductId, { cursor, limit: 1 }),
+    );
+    const microMine = micro.items.filter((c) => c.body.startsWith(MICRO_MARK));
+    const microIds = microMine.map((c) => c.id);
+    assert(
+      microMine.length === microStamps.length,
+      `all ${microStamps.length} same-ms rows returned, none skipped (got ${microMine.length})`,
+    );
+    assert(new Set(microIds).size === microIds.length, 'no duplicate same-ms rows across pages');
   } finally {
     // Remove only the rows this test inserted.
     await db
@@ -238,6 +275,11 @@ async function main(): Promise<void> {
           eq(workComments.productId, commentProductId),
           like(workComments.body, `${COMMENT_MARK}%`),
         ),
+      );
+    await db
+      .delete(workComments)
+      .where(
+        and(eq(workComments.productId, microProductId), like(workComments.body, `${MICRO_MARK}%`)),
       );
   }
 

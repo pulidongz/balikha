@@ -176,6 +176,13 @@
       "when": 1781644766437,
       "tag": "0024_nebulous_dexter_bennett",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782978960155,
+      "tag": "0025_clammy_dragon_lord",
+      "breakpoints": true
     }
   ]
 }
