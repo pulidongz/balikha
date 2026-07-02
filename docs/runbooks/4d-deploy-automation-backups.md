@@ -49,7 +49,7 @@ On the box (as root):
 # tarball excludes ./.env*, so `.env.backup.example` is not in the release tree.
 # This heredoc reproduces that template (see .env.backup.example in the repo):
 sudo tee /etc/balikha/backup.env >/dev/null <<'EOF'
-BACKUP_S3_ENDPOINT=https://30d8e334acd6a66be73c7d0442f5a5c9.r2.cloudflarestorage.com
+BACKUP_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 BACKUP_S3_BUCKET=balikha-backups
 AWS_ACCESS_KEY_ID=<r2 backups access key id>
 AWS_SECRET_ACCESS_KEY=<r2 backups secret access key>
