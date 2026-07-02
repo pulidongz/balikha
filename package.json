@@ -38,6 +38,8 @@
     "test:auth-validators": "tsx scripts/check-auth-validators.ts",
     "test:safe-next": "tsx scripts/check-safe-next.ts",
     "test:transition-guard": "tsx scripts/check-transition-server-only.ts",
+    "test:cursor": "tsx scripts/check-cursor.ts",
+    "test:pagination": "tsx --env-file=.env.development scripts/check-pagination.ts",
     "test:admin-audit-coverage": "tsx scripts/check-admin-audit-coverage.ts",
     "test:csv": "tsx scripts/check-csv.ts",
     "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts",
