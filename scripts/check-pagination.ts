@@ -243,19 +243,12 @@ async function main(): Promise<void> {
 
     // --- Sub-millisecond keyset (#135): same-ms rows must not be skipped ---
     section('getWorkCommentsPage — same-millisecond rows (microsecond precision)');
-    const microWindows: WorkCommentRow[][] = [];
-    let mCursor: string | null = null;
-    let mPages = 0;
-    do {
-      // limit 1 forces a page boundary between every same-ms row — the exact
-      // spot the ms-truncated cursor used to skip.
-      const p = await getWorkCommentsPage(microProductId, { cursor: mCursor, limit: 1 });
-      microWindows.push(p.items);
-      mCursor = p.nextCursor;
-      mPages += 1;
-      if (mPages > 200) throw new Error('runaway micro pagination');
-    } while (mCursor);
-    const microMine = microWindows.flat().filter((c) => c.body.startsWith(MICRO_MARK));
+    // limit 1 forces a page boundary between every same-ms row — the exact spot
+    // the ms-truncated cursor used to skip.
+    const micro = await collectAll<WorkCommentRow>((cursor) =>
+      getWorkCommentsPage(microProductId, { cursor, limit: 1 }),
+    );
+    const microMine = micro.items.filter((c) => c.body.startsWith(MICRO_MARK));
     const microIds = microMine.map((c) => c.id);
     assert(
       microMine.length === microStamps.length,
