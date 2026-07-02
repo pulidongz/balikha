@@ -102,6 +102,20 @@ jobs:
       - name: Search bot-filter checks
         run: npm run test:search-bot-filter
 
+      # Regression guard on the JSON-LD serializer that escapes </script> and
+      # U+2028/U+2029 (stored-XSS fix). Pure — no DB/secrets.
+      - name: JSON-LD escaping checks
+        run: npm run test:json-ld
+
+      # Regression guard on the open-redirect defense for ?next= targets. Pure.
+      - name: Safe-next open-redirect checks
+        run: npm run test:safe-next
+
+      # Regression guard ensuring transitionOrder stays out of a 'use server'
+      # module (order-lifecycle auth-bypass fix). Pure — no DB/secrets.
+      - name: Transition server-only guard checks
+        run: npm run test:transition-guard
+
       # Pure, deterministic guard on the auth-panel daily rotation (rendezvous
       # pick + Manila date key). No DB/secrets — same profile as the checks above.
       - name: Daily-index rotation checks

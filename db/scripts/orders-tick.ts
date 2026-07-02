@@ -30,7 +30,7 @@ import 'dotenv/config';
 import { and, asc, eq, lt } from 'drizzle-orm';
 import { db } from '@/db';
 import { orders } from '@/db/schema';
-import { transitionOrder } from '@/lib/actions/orders';
+import { transitionOrder } from '@/lib/orders/transition';
 import { returnStockIfPreShipment } from '@/lib/orders/stock';
 import { restoreExpiredSuspensions } from '@/lib/admin/seller-content';
 import { env } from '@/env';
