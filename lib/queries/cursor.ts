@@ -5,7 +5,14 @@ import { z } from 'zod';
 // tampered/malformed cursor returns null instead of throwing.
 const cursorSchema = z.object({
   c: z.string(), // ISO timestamp of the last seen row's createdAt
-  i: z.string(), // last seen row's id (tiebreaker for same-millisecond rows)
+  // Last seen row's id (tiebreaker). MUST be a uuid: every cursor tiebreaker in
+  // this codebase is a uuid column (product/wishlist/comment id, or the
+  // artisanProfileId used by the id-less follows table). Validating it here means
+  // a crafted-but-well-formed cursor with a non-uuid `i` decodes to null (→ page
+  // 1) instead of reaching `lt(<uuid column>, 'x')` and throwing a Postgres
+  // 22P02 cast error — which on the public product page would be an
+  // unauthenticated crash.
+  i: z.uuid(),
 });
 
 /**

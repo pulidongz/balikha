@@ -116,6 +116,10 @@ jobs:
       - name: Transition server-only guard checks
         run: npm run test:transition-guard
 
+      # Guard on the cursor primitive shared by every paginated query. Pure.
+      - name: Cursor pagination primitive checks
+        run: npm run test:cursor
+
       # Pure, deterministic guard on the auth-panel daily rotation (rendezvous
       # pick + Manila date key). No DB/secrets — same profile as the checks above.
       - name: Daily-index rotation checks

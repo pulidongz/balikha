@@ -1,13 +1,13 @@
-import { and, asc, count, desc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, not, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanFollows,
   artisanProfiles,
   notifications,
-  productImages,
   products,
   wishlistItems,
 } from '@/db/schema';
+import { attachPrimaryImages } from './product-images';
 
 // "Not a new_message notification" — the predicate that defines what
 // the general Notifications surface owns. Shared across the layout
@@ -35,37 +35,6 @@ export interface PreviewProductItem {
   artisanShopSlug: string;
   artisanShopName: string;
   primaryImage: { url: string; altText: string | null } | null;
-}
-
-// Internal: attach first product image via a separate IN-list query.
-// Keeps the helpers' join shape simple and matches the rest of the
-// codebase (e.g. /account/wishlist, /account/feed both do this).
-async function attachPrimaryImages<T extends { id: string }>(
-  rows: T[],
-): Promise<Array<T & { primaryImage: { url: string; altText: string | null } | null }>> {
-  if (rows.length === 0) return [];
-  const imageRows = await db
-    .select({
-      productId: productImages.productId,
-      url: productImages.url,
-      altText: productImages.altText,
-    })
-    .from(productImages)
-    .where(
-      inArray(
-        productImages.productId,
-        rows.map((r) => r.id),
-      ),
-    )
-    .orderBy(asc(productImages.position));
-
-  const primaryById = new Map<string, { url: string; altText: string | null }>();
-  for (const img of imageRows) {
-    if (!primaryById.has(img.productId)) {
-      primaryById.set(img.productId, { url: img.url, altText: img.altText });
-    }
-  }
-  return rows.map((r) => ({ ...r, primaryImage: primaryById.get(r.id) ?? null }));
 }
 
 // Most-recent published products from artisans the buyer follows. Cap at
