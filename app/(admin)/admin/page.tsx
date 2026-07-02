@@ -15,11 +15,17 @@ import {
 import { getAdminAuditLog } from '@/lib/queries/admin-audit-log';
 import { ADMIN_ACTION_PILL, adminActionLabel } from '@/lib/admin/audit-display';
 import { RelativeTime } from '@/components/admin/relative-time';
+import { requireAdmin } from '@/lib/auth-helpers';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminOverview() {
+  // Don't rely solely on the (admin) layout guard: layouts and pages render in
+  // parallel, so a layout redirect() does not prevent this page's privileged
+  // queries from executing. Guard here too, matching the other admin pages.
+  await requireAdmin();
+
   const [
     searchCount7d,
     disputedCountRow,

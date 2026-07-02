@@ -1,11 +1,16 @@
 import { loadSearchAnalytics } from '@/lib/queries/admin-search';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { requireAdmin } from '@/lib/auth-helpers';
 
 // Force dynamic rendering — this page reads live aggregates over a sliding
 // time window, so caching would only ever serve stale data.
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSearchAnalyticsPage() {
+  // Guard here too, not just in the (admin) layout: layout and page render in
+  // parallel, so the layout's redirect() would not stop this privileged query.
+  await requireAdmin();
+
   const { stats, topQueries, noResultQueries } = await loadSearchAnalytics();
 
   return (
