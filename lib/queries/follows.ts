@@ -1,8 +1,8 @@
-import { and, count, desc, eq, lt, or } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanFollows, artisanProfiles } from '@/db/schema';
 import { decodeCursor, encodeCursor } from './cursor';
-import { clampLimit, type Page, type PageRequest } from './paginate';
+import { clampLimit, keysetBefore, type Page, type PageRequest } from './paginate';
 
 // Cheap PK lookup — shared by the studio page and the work page so both
 // can seed FollowToggle's optimistic state. Null viewer short-circuits.
@@ -59,13 +59,9 @@ export async function getFollowingPage(
       cursor
         ? and(
             eq(artisanFollows.userId, userId),
-            or(
-              lt(artisanFollows.createdAt, cursor.createdAt),
-              and(
-                eq(artisanFollows.createdAt, cursor.createdAt),
-                lt(artisanFollows.artisanProfileId, cursor.id),
-              ),
-            ),
+            // No id column on artisan_follows (composite PK) → artisanProfileId
+            // is the keyset tiebreaker.
+            keysetBefore(artisanFollows.createdAt, artisanFollows.artisanProfileId, cursor),
           )
         : eq(artisanFollows.userId, userId),
     )

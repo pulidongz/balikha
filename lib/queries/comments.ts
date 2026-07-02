@@ -1,8 +1,8 @@
-import { and, count, desc, eq, lt, or } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { user, workComments } from '@/db/schema';
 import { decodeCursor, encodeCursor } from './cursor';
-import { clampLimit, type Page, type PageRequest } from './paginate';
+import { clampLimit, keysetBefore, type Page, type PageRequest } from './paginate';
 
 export interface WorkCommentRow {
   id: string;
@@ -45,10 +45,8 @@ export async function getWorkCommentsPage(
       cursor
         ? and(
             eq(workComments.productId, productId),
-            or(
-              lt(workComments.createdAt, cursor.createdAt),
-              and(eq(workComments.createdAt, cursor.createdAt), lt(workComments.id, cursor.id)),
-            ),
+            // "before" = older, since this fetches newest-first (see docblock).
+            keysetBefore(workComments.createdAt, workComments.id, cursor),
           )
         : eq(workComments.productId, productId),
     )

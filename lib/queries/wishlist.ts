@@ -1,8 +1,9 @@
-import { and, asc, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { artisanProfiles, productImages, products, wishlistItems } from '@/db/schema';
+import { artisanProfiles, products, wishlistItems } from '@/db/schema';
 import { decodeCursor, encodeCursor } from './cursor';
-import { clampLimit, type Page, type PageRequest } from './paginate';
+import { clampLimit, keysetBefore, type Page, type PageRequest } from './paginate';
+import { attachPrimaryImages } from './product-images';
 
 // Returns the set of product IDs currently in the user's wishlist.
 // Anonymous callers (userId === null) get an empty set, so the caller can
@@ -71,10 +72,7 @@ export async function getWishlistPage(
       cursor
         ? and(
             eq(wishlistItems.userId, userId),
-            or(
-              lt(wishlistItems.createdAt, cursor.createdAt),
-              and(eq(wishlistItems.createdAt, cursor.createdAt), lt(wishlistItems.id, cursor.id)),
-            ),
+            keysetBefore(wishlistItems.createdAt, wishlistItems.id, cursor),
           )
         : eq(wishlistItems.userId, userId),
     )
@@ -84,42 +82,9 @@ export async function getWishlistPage(
   const hasMore = rows.length > limit;
   const visible = hasMore ? rows.slice(0, limit) : rows;
 
-  // First image per product, fetched in one IN-list query rather than N+1.
-  const primaryByProductId = new Map<string, { url: string; altText: string | null }>();
-  if (visible.length > 0) {
-    const imageRows = await db
-      .select({
-        productId: productImages.productId,
-        url: productImages.url,
-        altText: productImages.altText,
-      })
-      .from(productImages)
-      .where(
-        inArray(
-          productImages.productId,
-          visible.map((p) => p.id),
-        ),
-      )
-      .orderBy(asc(productImages.position));
-    for (const img of imageRows) {
-      if (!primaryByProductId.has(img.productId)) {
-        primaryByProductId.set(img.productId, { url: img.url, altText: img.altText });
-      }
-    }
-  }
-
-  const items: WishlistRow[] = visible.map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    price: p.price,
-    currency: p.currency,
-    artisanShopSlug: p.artisanShopSlug,
-    artisanShopName: p.artisanShopName,
-    primaryImage: primaryByProductId.get(p.id) ?? null,
-    addedAt: p.addedAt,
-    wishlistId: p.wishlistId,
-  }));
+  // `visible` rows carry the product `id`, so the shared helper adds each
+  // product's primary image and the result already matches WishlistRow.
+  const items: WishlistRow[] = await attachPrimaryImages(visible);
 
   const last = items[items.length - 1];
   return {
