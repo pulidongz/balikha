@@ -57,8 +57,15 @@ balikha.art {
 		# so it cannot break the site. It cannot be safely enforced yet because
 		# Next.js App Router injects inline bootstrap scripts that need a
 		# per-request nonce (generated in proxy.ts) instead of 'unsafe-inline'.
-		# Migration path: (1) ship this report-only policy, (2) watch reports for
-		# a week and tighten the source lists, (3) add nonce generation in
+		# NOTE: this header has no report-uri/report-to, so violations are visible
+		# only in each visitor's browser devtools — they are NOT collected
+		# centrally. Wiring a reporting endpoint (Sentry security ingest, which is
+		# already the connect-src origin, or a first-party /csp-report handler) is
+		# a prerequisite for the "collect violations" migration step and is
+		# tracked in the CSP-enforcement ticket (#126).
+		# Migration path: (1) ship this report-only policy, (2) wire a reporting
+		# endpoint + add report-to and watch violations (or validate manually via
+		# devtools), tightening the source lists, (3) add nonce generation in
 		# proxy.ts and drop 'unsafe-inline' from script-src, (4) rename the header
 		# to Content-Security-Policy to enforce. Known origins: Turnstile
 		# (challenges.cloudflare.com), Sentry ingest (*.ingest.sentry.io), R2
