@@ -12,7 +12,12 @@ import {
   wishlistItems,
 } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
-import { requireOwnership, tryRequireArtisan } from '@/lib/auth-helpers';
+import {
+  assertVerifiedEmail,
+  getCurrentUser,
+  requireOwnership,
+  tryRequireArtisan,
+} from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { workPath } from '@/lib/routes';
 import { logger } from '@/lib/logger';
@@ -95,6 +100,13 @@ export async function createProductAction(
 ): Promise<Result<{ slug: string; productId: string }>> {
   const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
+
+  // Email verification can lapse after an email change even for an existing
+  // artisan, so gate listing creation on it (getCurrentUser is request-cached).
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   // Verify catalog ownership before doing anything expensive.
   const [catalog] = await db

@@ -14,7 +14,7 @@ import {
   products,
   sellerBlockedBuyers,
 } from '@/db/schema';
-import { tryRequireUser, tryRequireArtisan } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, tryRequireUser, tryRequireArtisan } from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
@@ -76,6 +76,9 @@ export async function createPrePurchaseThread(
   // authenticated" isn't permanently pinned to the key.
   const buyer = await tryRequireUser();
   if (!buyer) return err('Not authenticated');
+
+  const verified = assertVerifiedEmail(buyer);
+  if (!verified.ok) return err(verified.error);
 
   return withIdempotency({
     key: parsed.data.idempotencyKey,
@@ -345,6 +348,9 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
 
   const sender = await tryRequireUser();
   if (!sender) return err('Not authenticated');
+
+  const verified = assertVerifiedEmail(sender);
+  if (!verified.ok) return err(verified.error);
 
   const accessResult = await assertThreadAccess(parsed.data.threadId, sender.id);
   if (!accessResult.ok) return err(accessResult.error);
