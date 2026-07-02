@@ -1,74 +1,57 @@
-'use server';
-
 import { sql } from 'drizzle-orm';
-import { z } from 'zod';
 import { db } from '@/db';
 import { recentlyViewed } from '@/db/schema';
-import { getCurrentUser } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
 
-const recordSchema = z.object({
-  productId: z.string().uuid(),
-});
-
 const RECENT_VIEW_CAP = 50;
 
-// Fire-and-forget tracker called from the product detail page server
-// component. Anonymous viewers are not tracked. Errors are swallowed —
-// "viewed this once" is a nicety, never a reason to break the product
-// page. (The plan §8 calls this out explicitly.)
+// Records a signed-in viewer's product view. NOT a `'use server'` action and it
+// takes the already-resolved userId rather than calling getCurrentUser() —
+// because the only caller invokes it from a Server Component inside `after()`,
+// where Request APIs (headers/cookies, and therefore getCurrentUser) are
+// unavailable (Next 16 `after` docs: read request data during render and pass
+// the values in). The page resolves the viewer during render and passes its id.
 //
-// Per buyer plan §11 conventions: recently-viewed is BUYER-PRIVATE.
-// Sellers must not be able to see who viewed their product. No query
-// in this codebase joins recentlyViewed back to user identity for any
-// seller-facing surface.
-export async function recordRecentlyViewedAction(input: unknown): Promise<void> {
-  const parsed = recordSchema.safeParse(input);
-  if (!parsed.success) return;
-
-  const current = await getCurrentUser();
-  if (!current) return;
-
+// Best-effort: DB errors are swallowed — "viewed this once" is a nicety, never a
+// reason to break the product page. Per buyer plan §11, recently-viewed is
+// BUYER-PRIVATE: no seller-facing query joins it back to user identity.
+export async function recordRecentlyViewed(userId: string, productId: string): Promise<void> {
   try {
     // Upsert on the composite PK (userId, productId): first view inserts,
-    // subsequent views bump lastViewedAt. The PK is what makes this
-    // single-row instead of "select-then-decide".
+    // subsequent views bump lastViewedAt.
     await db
       .insert(recentlyViewed)
-      .values({ userId: current.id, productId: parsed.data.productId })
+      .values({ userId, productId })
       .onConflictDoUpdate({
         target: [recentlyViewed.userId, recentlyViewed.productId],
         set: { lastViewedAt: new Date() },
       });
 
-    // Eviction sweep — keep the most-recent N rows for this user, drop
-    // anything older. Best-effort; if it fails, the table just grows
-    // slightly above the cap until the next view triggers another sweep.
+    // Eviction sweep — keep the most-recent N rows for this user, drop older.
+    // Best-effort; if it fails the table grows slightly above the cap until the
+    // next view triggers another sweep.
     await db.execute(sql`
       DELETE FROM recently_viewed
-      WHERE user_id = ${current.id}
+      WHERE user_id = ${userId}
       AND product_id NOT IN (
         SELECT product_id FROM recently_viewed
-        WHERE user_id = ${current.id}
+        WHERE user_id = ${userId}
         ORDER BY last_viewed_at DESC
         LIMIT ${RECENT_VIEW_CAP}
       )
     `);
   } catch (e) {
-    logger.error({ err: e, userId: current.id }, 'recordRecentlyViewed failed');
+    logger.error({ err: e, userId }, 'recordRecentlyViewed failed');
     // Intentionally swallow — never break the product page render.
   }
 
-  // Funnel telemetry: product_viewed (authenticated viewers only —
-  // anonymous viewers returned early above). Separate best-effort call;
-  // the helper owns its try/catch so it cannot break the page render.
-  // artisanProfileId is left null here (the action only receives a
-  // productId); per-artisan view rollups can JOIN products on entity_id.
+  // Funnel telemetry: product_viewed. logAnalyticsEvent owns its own try/catch
+  // and reads request_id defensively, so it is safe inside after().
   await logAnalyticsEvent({
     type: 'product_viewed',
-    userId: current.id,
+    userId,
     entityType: 'product',
-    entityId: parsed.data.productId,
+    entityId: productId,
   });
 }

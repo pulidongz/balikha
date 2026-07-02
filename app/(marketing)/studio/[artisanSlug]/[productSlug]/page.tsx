@@ -28,7 +28,7 @@ import { isFollowingArtisan } from '@/lib/queries/follows';
 import { getWishlistProductIds } from '@/lib/queries/wishlist';
 import { bucketLabel, getSellerReputationCached } from '@/lib/queries/seller-reputation';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
-import { recordRecentlyViewedAction } from '@/lib/actions/recently-viewed';
+import { recordRecentlyViewed } from '@/lib/actions/recently-viewed';
 import { studioPath, workPath } from '@/lib/routes';
 import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo/structured-data';
 import { JsonLd } from '@/components/seo/json-ld';
@@ -109,16 +109,17 @@ export default async function ProductPublicPage({
       isFollowingArtisan(viewer?.id ?? null, artisan.id),
     ]);
 
-  // Track this view. Fire-and-forget — the helper swallows its own errors so a
-  // tracking failure can't break the product page render, and after() keeps its
-  // upsert + eviction + analytics writes off the render path. No-op for
-  // anonymous viewers (the helper checks the current user).
-  after(() => recordRecentlyViewedAction({ productId: product.id }));
-
-  // T11: anonymous views (recordRecentlyViewedAction only covers
-  // signed-in viewers). after() keeps it off the render path; owner
-  // self-views are excluded at stats-query time by user id.
-  if (!viewer) {
+  // Track this view off the render path via after(). Pass the already-resolved
+  // viewer id (resolved above during render) into the tracker rather than
+  // re-reading the session inside the callback: Request APIs like
+  // headers()/getCurrentUser() are unavailable inside after() in a Server
+  // Component (Next 16 `after` docs). Best-effort — the tracker swallows its own
+  // errors. Owner self-views are excluded at stats-query time by user id.
+  if (viewer) {
+    // Signed-in: record recently-viewed + the product_viewed funnel event.
+    after(() => recordRecentlyViewed(viewer.id, product.id));
+  } else {
+    // T11: anonymous viewers get the funnel event only (no recently-viewed).
     after(() =>
       logAnalyticsEvent({
         type: 'product_viewed',
