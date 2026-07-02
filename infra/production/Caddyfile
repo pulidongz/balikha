@@ -50,6 +50,20 @@ balikha.art {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		# Lock down powerful browser features the app never uses. Enforced now
+		# (safe — nothing here is used, so nothing breaks).
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		# CSP is REPORT-ONLY for now: it never blocks, it only reports violations,
+		# so it cannot break the site. It cannot be safely enforced yet because
+		# Next.js App Router injects inline bootstrap scripts that need a
+		# per-request nonce (generated in proxy.ts) instead of 'unsafe-inline'.
+		# Migration path: (1) ship this report-only policy, (2) watch reports for
+		# a week and tighten the source lists, (3) add nonce generation in
+		# proxy.ts and drop 'unsafe-inline' from script-src, (4) rename the header
+		# to Content-Security-Policy to enforce. Known origins: Turnstile
+		# (challenges.cloudflare.com), Sentry ingest (*.ingest.sentry.io), R2
+		# images (images.balikha.art).
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.balikha.art; connect-src 'self' https://*.ingest.sentry.io; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
 	}
 	reverse_proxy 127.0.0.1:3000 {
 		header_up Host {host}
