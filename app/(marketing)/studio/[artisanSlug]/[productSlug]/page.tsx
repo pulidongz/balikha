@@ -99,15 +99,21 @@ export default async function ProductPublicPage({
   const pendingFollowId = typeof follow === 'string' ? follow : null;
 
   const viewer = await getCurrentUser();
-  const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
-  const appreciationCounts = await getAppreciationCounts([product.id]);
-  const viewerAppreciated = await hasAppreciated(viewer?.id ?? null, product.id);
-  const viewerFollowsArtisan = await isFollowingArtisan(viewer?.id ?? null, artisan.id);
+  // These four reads are mutually independent — run them concurrently instead
+  // of as a serial round-trip chain on this hot public page.
+  const [wishlistedIds, appreciationCounts, viewerAppreciated, viewerFollowsArtisan] =
+    await Promise.all([
+      getWishlistProductIds(viewer?.id ?? null),
+      getAppreciationCounts([product.id]),
+      hasAppreciated(viewer?.id ?? null, product.id),
+      isFollowingArtisan(viewer?.id ?? null, artisan.id),
+    ]);
 
-  // Track this view. Fire-and-forget — the helper swallows its own
-  // errors so a tracking failure can't break the product page render.
-  // No-op for anonymous viewers (helper checks current user).
-  await recordRecentlyViewedAction({ productId: product.id });
+  // Track this view. Fire-and-forget — the helper swallows its own errors so a
+  // tracking failure can't break the product page render, and after() keeps its
+  // upsert + eviction + analytics writes off the render path. No-op for
+  // anonymous viewers (the helper checks the current user).
+  after(() => recordRecentlyViewedAction({ productId: product.id }));
 
   // T11: anonymous views (recordRecentlyViewedAction only covers
   // signed-in viewers). after() keeps it off the render path; owner

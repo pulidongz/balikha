@@ -50,22 +50,28 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
 /** Signed-in homepage: reverse-chronological work from followed studios. */
 async function HomeFeed({ viewerId, cursor }: { viewerId: string; cursor: string | undefined }) {
-  const hasFollows = await followsAnyStudio(viewerId);
-  const wishlistedIds = await getWishlistProductIds(viewerId);
-  const recentlyViewed = await getRecentlyViewed(viewerId, 12);
-
-  const feed = hasFollows ? await getFollowedFeed(viewerId, { cursor }) : null;
-  const showFeed = feed !== null && feed.items.length > 0;
-  const feedAppreciationCounts = showFeed
-    ? await getAppreciationCounts(feed.items.filter((i) => i.kind === 'work').map((p) => p.id))
-    : new Map<string, number>();
+  // First tier — these four are mutually independent, so fetch concurrently.
   // Discovery is ALWAYS available from home — a bounded strip of recent work
   // across Balikha, shown beneath the feed regardless of who you follow, so
   // following a studio never costs you access to the wider catalog. Bounded
   // (no cursor): it's a teaser; /browse carries full pagination. Its own
   // page-1 query means it never collides with the feed's ?cursor=.
-  const discover = await getRecentProducts({ limit: DISCOVER_LIMIT });
-  const studiosToFollow = hasFollows ? [] : await getStudiosToFollow(viewerId, STUDIOS_TO_FOLLOW);
+  const [hasFollows, wishlistedIds, recentlyViewed, discover] = await Promise.all([
+    followsAnyStudio(viewerId),
+    getWishlistProductIds(viewerId),
+    getRecentlyViewed(viewerId, 12),
+    getRecentProducts({ limit: DISCOVER_LIMIT }),
+  ]);
+
+  // Second tier — both depend only on hasFollows, so run them together.
+  const [feed, studiosToFollow] = await Promise.all([
+    hasFollows ? getFollowedFeed(viewerId, { cursor }) : Promise.resolve(null),
+    hasFollows ? Promise.resolve([]) : getStudiosToFollow(viewerId, STUDIOS_TO_FOLLOW),
+  ]);
+  const showFeed = feed !== null && feed.items.length > 0;
+  const feedAppreciationCounts = showFeed
+    ? await getAppreciationCounts(feed.items.filter((i) => i.kind === 'work').map((p) => p.id))
+    : new Map<string, number>();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
