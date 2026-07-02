@@ -387,6 +387,17 @@ export async function setProductStatusAction(
   const parsedStatus = productStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
 
+  // Email-verification gate for publishing (mirrors createProductAction):
+  // verification can lapse after an email change even for an approved seller, so
+  // re-check before putting a listing live. Non-publish transitions
+  // (draft/archive/sold_out) are intentionally not gated.
+  if (parsedStatus.data === 'published') {
+    const user = await getCurrentUser();
+    if (!user) return err('Not authenticated');
+    const verified = assertVerifiedEmail(user);
+    if (!verified.ok) return err(verified.error);
+  }
+
   // Primary approval gate (seller-level authorization, Decision #6).
   // Checked before opening the transaction so the rejection is fast and clear.
   if (parsedStatus.data === 'published' && profile.approvalStatus !== 'approved') {
@@ -452,6 +463,15 @@ export async function setProductsStatusAction(
 
   const parsedStatus = productStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
+
+  // Email-verification gate for publishing (mirrors createProductAction), same
+  // as the single-product action. Non-publish transitions are not gated.
+  if (parsedStatus.data === 'published') {
+    const user = await getCurrentUser();
+    if (!user) return err('Not authenticated');
+    const verified = assertVerifiedEmail(user);
+    if (!verified.ok) return err(verified.error);
+  }
 
   // Primary approval gate (Decision #6). Reject the whole bulk request once,
   // before the transaction opens — no partial publish, no per-product error.
