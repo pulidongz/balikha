@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { formatRelativeTime } from '@/lib/format';
 import { countWorkComments, getWorkCommentsPage } from '@/lib/queries/comments';
+import { decodeCursor } from '@/lib/queries/cursor';
 import { isThinCount } from '@/lib/thin-count';
 import { CommentForm } from './comment-form';
 import { CommentItemActions } from './comment-item-actions';
@@ -33,7 +34,11 @@ export async function CommentsSection({
     countWorkComments(productId),
   ]);
   const comments = page.items;
-  const isPagedBack = Boolean(cursor);
+  // Derive from decode SUCCESS, not raw presence: getWorkCommentsPage treats an
+  // undecodable cursor as page 1 (latest window), so a malformed ?comments= must
+  // not put the UI in paged-back mode (which would hide the form + show a bogus
+  // "Back to latest").
+  const isPagedBack = cursor !== null && decodeCursor(cursor) !== null;
 
   return (
     <section id="comments" aria-label="Comments" className="space-y-6 border-t pt-8">
