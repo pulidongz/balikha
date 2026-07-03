@@ -1,7 +1,6 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { count, eq } from 'drizzle-orm';
 import { db } from '@/db';
@@ -10,7 +9,6 @@ import { auth } from '@/lib/auth';
 import { tryRequireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
-import { recordAdminAction } from '@/lib/admin/audit';
 import { hideSellerListings, restoreSellerListings } from '@/lib/admin/seller-content';
 import { runAdminAuthCall } from '@/lib/admin/auth-call';
 import { recordAdminMutation } from '@/lib/admin/user-mutations';
@@ -232,39 +230,28 @@ export async function promoteToAdmin(input: unknown): Promise<Result<{ userId: s
   const log = await getRequestLogger();
   const { userId } = parsed.data;
 
-  try {
-    await auth.api.setRole({
-      body: { userId, role: 'admin' },
-      headers: await headers(),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'setRole (promote) failed',
-    );
-    return err(`Failed to promote user: ${message}`);
-  }
-
-  try {
-    await recordAdminAction({
-      actorUserId: admin.id,
-      action: 'promote_admin',
+  const promoted = await runAdminAuthCall(
+    async () => auth.api.setRole({ body: { userId, role: 'admin' }, headers: await headers() }),
+    {
+      log,
+      adminId: admin.id,
       targetUserId: userId,
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'promote audit write failed',
-    );
-    return err(`Failed to record promotion audit: ${message}`);
-  }
+      failureLogMessage: 'setRole (promote) failed',
+      failureErrPrefix: 'Failed to promote user',
+    },
+  );
+  if (!promoted.ok) return promoted;
 
-  log.info({ adminId: admin.id, targetUserId: userId }, 'User promoted to admin');
-
-  revalidatePath('/admin/users');
-  revalidatePath(`/admin/users/${userId}`);
+  const recorded = await recordAdminMutation({
+    log,
+    admin,
+    userId,
+    action: 'promote_admin',
+    failureLogMessage: 'promote audit write failed',
+    failureErrMessage: (message) => `Failed to record promotion audit: ${message}`,
+    successLogMessage: 'User promoted to admin',
+  });
+  if (!recorded.ok) return recorded;
 
   return ok({ userId });
 }
@@ -288,39 +275,28 @@ export async function demoteToUser(input: unknown): Promise<Result<{ userId: str
   const [adminCount] = await db.select({ count: count() }).from(user).where(eq(user.role, 'admin'));
   if ((adminCount?.count ?? 0) <= 1) return err('Cannot demote the last remaining admin');
 
-  try {
-    await auth.api.setRole({
-      body: { userId, role: 'user' },
-      headers: await headers(),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'setRole (demote) failed',
-    );
-    return err(`Failed to demote user: ${message}`);
-  }
-
-  try {
-    await recordAdminAction({
-      actorUserId: admin.id,
-      action: 'demote_admin',
+  const demoted = await runAdminAuthCall(
+    async () => auth.api.setRole({ body: { userId, role: 'user' }, headers: await headers() }),
+    {
+      log,
+      adminId: admin.id,
       targetUserId: userId,
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'demote audit write failed',
-    );
-    return err(`Failed to record demotion audit: ${message}`);
-  }
+      failureLogMessage: 'setRole (demote) failed',
+      failureErrPrefix: 'Failed to demote user',
+    },
+  );
+  if (!demoted.ok) return demoted;
 
-  log.info({ adminId: admin.id, targetUserId: userId }, 'User demoted to user');
-
-  revalidatePath('/admin/users');
-  revalidatePath(`/admin/users/${userId}`);
+  const recorded = await recordAdminMutation({
+    log,
+    admin,
+    userId,
+    action: 'demote_admin',
+    failureLogMessage: 'demote audit write failed',
+    failureErrMessage: (message) => `Failed to record demotion audit: ${message}`,
+    successLogMessage: 'User demoted to user',
+  });
+  if (!recorded.ok) return recorded;
 
   return ok({ userId });
 }
