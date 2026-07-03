@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { feedback } from '@/db/schema';
-import { tryRequireAdmin, tryRequireUser } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, tryRequireAdmin, tryRequireUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 
@@ -47,6 +47,9 @@ export async function submitFeedbackAction(input: unknown): Promise<Result<{ sub
   // session can't reach the admin feedback queue — inherits requireUser's ban check.
   const current = await tryRequireUser();
   if (!current) return err('You must be signed in.');
+
+  const verified = assertVerifiedEmail(current);
+  if (!verified.ok) return err(verified.error);
 
   const burst = await countRecentFeedback(current.id, new Date(Date.now() - 60 * 1000));
   if (burst >= FEEDBACK_PER_MINUTE) {

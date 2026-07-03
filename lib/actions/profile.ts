@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { user } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, getCurrentUser } from '@/lib/auth-helpers';
 import { userHasPassword } from '@/lib/account/credentials';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -54,6 +54,9 @@ export async function updateProfileAction(formData: FormData): Promise<Result<nu
 export async function uploadAvatarAction(formData: FormData): Promise<Result<null>> {
   const current = await getCurrentUser();
   if (!current) return err('You must be signed in.');
+
+  const verified = assertVerifiedEmail(current);
+  if (!verified.ok) return err(verified.error);
 
   const file = formData.get('avatar');
   if (!(file instanceof File) || file.size === 0) {
