@@ -125,6 +125,17 @@ jobs:
       - name: Daily-index rotation checks
         run: npm run test:daily-index
 
+      # Regression guard on the pure runAdminAuthCall helper shared by the six
+      # admin user-status actions (success passthrough, error message
+      # extraction, log fields). No DB/secrets.
+      - name: Admin auth-call helper checks
+        run: npm run test:admin-auth-call
+
+      # Guard that every AdminActionType enum value has a documented row in
+      # the audit coverage list. No DB/secrets.
+      - name: Admin audit coverage checks
+        run: npm run test:admin-audit-coverage
+
   build:
     name: Build
     runs-on: ubuntu-latest
