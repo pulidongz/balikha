@@ -12,6 +12,8 @@ import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { hideSellerListings, restoreSellerListings } from '@/lib/admin/seller-content';
+import { runAdminAuthCall } from '@/lib/admin/auth-call';
+import { recordAdminMutation } from '@/lib/admin/user-mutations';
 
 // ---------------------------------------------------------------------------
 // Input schemas
@@ -54,49 +56,37 @@ export async function suspendUser(input: unknown): Promise<Result<{ userId: stri
   // banExpiresIn is in seconds; the plugin accepts it as a duration.
   const banExpiresIn = durationDays * 24 * 60 * 60;
 
-  try {
-    await auth.api.banUser({
-      body: { userId, banReason: reason, banExpiresIn },
-      headers: await headers(),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'banUser (suspend) failed',
-    );
-    return err(`Failed to suspend user: ${message}`);
-  }
+  const banned = await runAdminAuthCall(
+    async () =>
+      auth.api.banUser({
+        body: { userId, banReason: reason, banExpiresIn },
+        headers: await headers(),
+      }),
+    {
+      log,
+      adminId: admin.id,
+      targetUserId: userId,
+      failureLogMessage: 'banUser (suspend) failed',
+      failureErrPrefix: 'Failed to suspend user',
+    },
+  );
+  if (!banned.ok) return banned;
 
-  try {
-    await db.transaction(async (tx) => {
-      await hideSellerListings(userId, tx);
-      await recordAdminAction(
-        {
-          actorUserId: admin.id,
-          action: 'suspend',
-          targetUserId: userId,
-          reason,
-          metadata: { durationDays },
-        },
-        tx,
-      );
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'post-suspend transaction failed',
-    );
-    return err(
+  const recorded = await recordAdminMutation({
+    log,
+    admin,
+    userId,
+    action: 'suspend',
+    reason,
+    metadata: { durationDays },
+    listingOp: hideSellerListings,
+    failureLogMessage: 'post-suspend transaction failed',
+    failureErrMessage: (message) =>
       `User was suspended but follow-up failed — listings may still be visible. Error: ${message}`,
-    );
-  }
-
-  log.info({ adminId: admin.id, targetUserId: userId, durationDays }, 'User suspended');
-
-  revalidatePath('/admin/users');
-  revalidatePath(`/admin/users/${userId}`);
+    successLogMessage: 'User suspended',
+    successLogFields: { durationDays },
+  });
+  if (!recorded.ok) return recorded;
 
   return ok({ userId });
 }
@@ -115,45 +105,29 @@ export async function unsuspendUser(input: unknown): Promise<Result<{ userId: st
   const log = await getRequestLogger();
   const { userId } = parsed.data;
 
-  try {
-    await auth.api.unbanUser({
-      body: { userId },
-      headers: await headers(),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'unbanUser (unsuspend) failed',
-    );
-    return err(`Failed to unsuspend user: ${message}`);
-  }
+  const unbanned = await runAdminAuthCall(
+    async () => auth.api.unbanUser({ body: { userId }, headers: await headers() }),
+    {
+      log,
+      adminId: admin.id,
+      targetUserId: userId,
+      failureLogMessage: 'unbanUser (unsuspend) failed',
+      failureErrPrefix: 'Failed to unsuspend user',
+    },
+  );
+  if (!unbanned.ok) return unbanned;
 
-  try {
-    await db.transaction(async (tx) => {
-      await restoreSellerListings(userId, tx);
-      await recordAdminAction(
-        {
-          actorUserId: admin.id,
-          action: 'unsuspend',
-          targetUserId: userId,
-        },
-        tx,
-      );
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'post-unsuspend transaction failed',
-    );
-    return err(`Failed to complete unsuspend follow-up: ${message}`);
-  }
-
-  log.info({ adminId: admin.id, targetUserId: userId }, 'User unsuspended');
-
-  revalidatePath('/admin/users');
-  revalidatePath(`/admin/users/${userId}`);
+  const recorded = await recordAdminMutation({
+    log,
+    admin,
+    userId,
+    action: 'unsuspend',
+    listingOp: restoreSellerListings,
+    failureLogMessage: 'post-unsuspend transaction failed',
+    failureErrMessage: (message) => `Failed to complete unsuspend follow-up: ${message}`,
+    successLogMessage: 'User unsuspended',
+  });
+  if (!recorded.ok) return recorded;
 
   return ok({ userId });
 }
@@ -174,45 +148,31 @@ export async function banUser(input: unknown): Promise<Result<{ userId: string }
   const log = await getRequestLogger();
   const { userId, reason } = parsed.data;
 
-  try {
-    await auth.api.banUser({
-      body: { userId, banReason: reason },
-      headers: await headers(),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error({ adminId: admin.id, targetUserId: userId, error: message }, 'banUser (ban) failed');
-    return err(`Failed to ban user: ${message}`);
-  }
+  const banned = await runAdminAuthCall(
+    async () => auth.api.banUser({ body: { userId, banReason: reason }, headers: await headers() }),
+    {
+      log,
+      adminId: admin.id,
+      targetUserId: userId,
+      failureLogMessage: 'banUser (ban) failed',
+      failureErrPrefix: 'Failed to ban user',
+    },
+  );
+  if (!banned.ok) return banned;
 
-  try {
-    await db.transaction(async (tx) => {
-      await hideSellerListings(userId, tx);
-      await recordAdminAction(
-        {
-          actorUserId: admin.id,
-          action: 'ban',
-          targetUserId: userId,
-          reason,
-        },
-        tx,
-      );
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'post-ban transaction failed',
-    );
-    return err(
+  const recorded = await recordAdminMutation({
+    log,
+    admin,
+    userId,
+    action: 'ban',
+    reason,
+    listingOp: hideSellerListings,
+    failureLogMessage: 'post-ban transaction failed',
+    failureErrMessage: (message) =>
       `User was banned but follow-up failed — listings may still be visible. Error: ${message}`,
-    );
-  }
-
-  log.info({ adminId: admin.id, targetUserId: userId }, 'User banned');
-
-  revalidatePath('/admin/users');
-  revalidatePath(`/admin/users/${userId}`);
+    successLogMessage: 'User banned',
+  });
+  if (!recorded.ok) return recorded;
 
   return ok({ userId });
 }
@@ -231,45 +191,29 @@ export async function unbanUser(input: unknown): Promise<Result<{ userId: string
   const log = await getRequestLogger();
   const { userId } = parsed.data;
 
-  try {
-    await auth.api.unbanUser({
-      body: { userId },
-      headers: await headers(),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'unbanUser (unban) failed',
-    );
-    return err(`Failed to unban user: ${message}`);
-  }
+  const unbanned = await runAdminAuthCall(
+    async () => auth.api.unbanUser({ body: { userId }, headers: await headers() }),
+    {
+      log,
+      adminId: admin.id,
+      targetUserId: userId,
+      failureLogMessage: 'unbanUser (unban) failed',
+      failureErrPrefix: 'Failed to unban user',
+    },
+  );
+  if (!unbanned.ok) return unbanned;
 
-  try {
-    await db.transaction(async (tx) => {
-      await restoreSellerListings(userId, tx);
-      await recordAdminAction(
-        {
-          actorUserId: admin.id,
-          action: 'unban',
-          targetUserId: userId,
-        },
-        tx,
-      );
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    log.error(
-      { adminId: admin.id, targetUserId: userId, error: message },
-      'post-unban transaction failed',
-    );
-    return err(`Failed to complete unban follow-up: ${message}`);
-  }
-
-  log.info({ adminId: admin.id, targetUserId: userId }, 'User unbanned');
-
-  revalidatePath('/admin/users');
-  revalidatePath(`/admin/users/${userId}`);
+  const recorded = await recordAdminMutation({
+    log,
+    admin,
+    userId,
+    action: 'unban',
+    listingOp: restoreSellerListings,
+    failureLogMessage: 'post-unban transaction failed',
+    failureErrMessage: (message) => `Failed to complete unban follow-up: ${message}`,
+    successLogMessage: 'User unbanned',
+  });
+  if (!recorded.ok) return recorded;
 
   return ok({ userId });
 }
