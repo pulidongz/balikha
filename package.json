@@ -42,6 +42,7 @@
     "test:pagination": "tsx --env-file=.env.development scripts/check-pagination.ts",
     "test:admin-audit-coverage": "tsx scripts/check-admin-audit-coverage.ts",
     "test:admin-auth-call": "tsx scripts/check-admin-auth-call.ts",
+    "test:verified-email-gating": "tsx scripts/check-verified-email-gating.ts",
     "test:csv": "tsx scripts/check-csv.ts",
     "test:admin-metrics": "tsx --env-file=.env.development scripts/check-admin-metrics.ts",
     "test:admin-product-moderation": "tsx --env-file=.env.development scripts/check-admin-product-moderation.ts",
