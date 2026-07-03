@@ -136,8 +136,10 @@ jobs:
       - name: Admin audit coverage checks
         run: npm run test:admin-audit-coverage
 
-      # Presence tripwire for the per-action email-verification posture: every
-      # action in the REQUIRED list still calls assertVerifiedEmail. No DB/secrets.
+      # Exhaustive guard on the per-action email-verification posture: every
+      # lib/actions server action must be classified GATED or UNGATED, and every
+      # GATED action must still call assertVerifiedEmail. A new unclassified
+      # action fails this check. No DB/secrets.
       - name: Verified-email gating checks
         run: npm run test:verified-email-gating
 

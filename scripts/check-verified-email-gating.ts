@@ -14,8 +14,17 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 // silently rot as the action layer grows. Byte-hosting upload route handlers
 // are covered as explicit GATED entries too.
 //
-// This committed list IS the audit's decision record (issue #132). The
-// presence check is comment-aware: a commented-out guard does not satisfy it.
+// This committed list IS the audit's decision record (issue #132).
+//
+// LIMITS (this is a tripwire, not a proof): the GATED check is a per-function
+// PRESENCE check, comment-aware, requiring an assigned `= assertVerifiedEmail(`
+// call (a bare discarded call does not satisfy it). It does NOT prove every
+// branch is gated — `fileDispute`, `setProductStatusAction`, and
+// `setProductsStatusAction` gate one branch by design (see their inline
+// rationale). Nor is the scanned region a precise AST body: it runs to the next
+// `export async function`, so a private helper between two exports is absorbed
+// into the preceding action's slice. Both are acceptable for a deletion
+// tripwire; branch placement and precise scope are reviewed by humans.
 
 type Entry = { file: string; action: string };
 
@@ -37,6 +46,10 @@ const GATED: Entry[] = [
   { file: 'lib/actions/orders.ts', action: 'placeOrder' },
   { file: 'lib/actions/orders.ts', action: 'cancelAsBuyer' },
   { file: 'lib/actions/orders.ts', action: 'markReceived' },
+  // fileDispute gates the BUYER branch only (see `// gate buyers only` at the
+  // call site) — a seller can always raise a grievance even if unverified, same
+  // logic as the declineOrder/cancelAsSeller exits. Buyer-branch gating is
+  // pre-existing intent; this presence check confirms the buyer guard survives.
   { file: 'lib/actions/orders.ts', action: 'fileDispute' },
   // Seller-side commerce progression — mirrors the gated buyer-side actions.
   { file: 'lib/actions/orders.ts', action: 'acceptOrder' },
@@ -101,6 +114,10 @@ const UNGATED: Entry[] = [
   { file: 'lib/actions/notifications.ts', action: 'markReadAction' },
   { file: 'lib/actions/notifications.ts', action: 'markAllReadAction' },
   { file: 'lib/actions/orders.ts', action: 'reorderAction' },
+  // respondToDispute — bounded, admin-supervised disclosure: a dispute statement
+  // is visible only to the two order parties + the adjudicating admin (dispute
+  // details are not public), inside a process both sides already reached via
+  // gated commerce. Not open-ended messaging; no independent spam surface.
   { file: 'lib/actions/orders.ts', action: 'respondToDispute' },
   // Seller order EXITS — intentionally exempt (not "self-management"): a seller
   // must always be able to release a buyer's order even if their email has
@@ -180,22 +197,42 @@ function main(): void {
 
   section('GATED actions call assertVerifiedEmail (comment-stripped)');
   for (const e of GATED) {
-    const source = readFileSync(path.join(repoRoot, e.file), 'utf8');
+    const source = readSource(e.file);
+    if (source === null) {
+      assert(false, `${e.file} exists (GATED entry ${e.action} points at a missing file)`);
+      continue;
+    }
     const slice = actionSlice(source, e.action);
     assert(slice !== null, `${e.file} exports ${e.action}`);
+    // Require the ASSIGNED form `= assertVerifiedEmail(` so a discarded call
+    // (`assertVerifiedEmail(user);` with the Result thrown away) does not pass.
     assert(
-      slice !== null && stripComments(slice).includes('assertVerifiedEmail('),
-      `${e.action} (${e.file}) calls assertVerifiedEmail`,
+      slice !== null && /=\s*assertVerifiedEmail\(/.test(stripComments(slice)),
+      `${e.action} (${e.file}) captures an assertVerifiedEmail result`,
     );
   }
 
   section('every UNGATED entry still exists (catches renames/removals)');
   for (const e of UNGATED) {
-    const source = readFileSync(path.join(repoRoot, e.file), 'utf8');
+    const source = readSource(e.file);
+    if (source === null) {
+      assert(false, `${e.file} exists (UNGATED entry ${e.action} points at a missing file)`);
+      continue;
+    }
     assert(actionSlice(source, e.action) !== null, `${e.file} exports ${e.action}`);
   }
 
   finish('verified-email gating checks passed');
+}
+
+// Read a classified file, returning null (not throwing) on a bad path so the
+// caller converts it into a clean `✗` assertion instead of a raw ENOENT trace.
+function readSource(file: string): string | null {
+  try {
+    return readFileSync(path.join(repoRoot, file), 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 main();
