@@ -7,6 +7,7 @@ import { productImages, products } from '@/db/schema';
 import {
   ForbiddenError,
   UnauthorizedError,
+  assertVerifiedEmail,
   requireArtisan,
   requireOwnership,
   requireUser,
@@ -36,8 +37,9 @@ import { MAX_IMAGE_BYTES } from '@/lib/storage/upload-product-image';
 export async function POST(request: NextRequest) {
   // --- Auth, with distinct 401/403 codes ---
   let profile: Awaited<ReturnType<typeof requireArtisan>>;
+  let user: Awaited<ReturnType<typeof requireUser>>;
   try {
-    await requireUser();
+    user = await requireUser();
     profile = await requireArtisan();
   } catch (e) {
     if (e instanceof UnauthorizedError) {
@@ -49,6 +51,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You must have an artisan profile.' }, { status: 403 });
     }
     throw e;
+  }
+
+  // Email verification can lapse after an email change; gate byte-hosting on
+  // the current state (per-action posture — see lib/auth-helpers.ts).
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) {
+    return NextResponse.json({ error: verified.error }, { status: 403 });
   }
 
   // --- Content-Length pre-check (DoS protection BEFORE buffering) ---

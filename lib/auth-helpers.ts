@@ -169,6 +169,15 @@ export async function requireSellerProfile() {
 export const EMAIL_NOT_VERIFIED_MESSAGE =
   'Please verify your email before continuing. Check your inbox for the verification link.';
 
+// Balikha's email-verification posture is PER-ACTION gating: unverified
+// accounts keep full sessions and can browse, wishlist, and follow, but
+// every action that creates public content, hosts image bytes, or moves
+// commerce must call this guard. The auth layer deliberately does NOT set
+// `requireEmailVerification` — it would kill the signup→browse flow, cannot
+// cover OAuth users or already-issued sessions, and the resend affordance
+// only exists behind a session. When gating a new privileged action, also
+// add it to scripts/check-verified-email-gating.ts or CI will not protect it.
+//
 // For action sites — non-throwing, returns Result. Takes the already-loaded
 // user object (no extra DB roundtrip). Usage:
 //   const verified = assertVerifiedEmail(buyer);

@@ -5,7 +5,12 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs } from '@/db/schema';
 import { uniqueSlug } from '@/lib/slug';
-import { requireOwnership, tryRequireArtisan } from '@/lib/auth-helpers';
+import {
+  assertVerifiedEmail,
+  getCurrentUser,
+  requireOwnership,
+  tryRequireArtisan,
+} from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import {
   catalogCreateSchema,
@@ -17,6 +22,11 @@ import {
 export async function createCatalogAction(formData: FormData): Promise<Result<{ slug: string }>> {
   const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
+
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   const parsed = catalogCreateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -53,6 +63,11 @@ export async function updateCatalogAction(
 ): Promise<Result<null>> {
   const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
+
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   // Load + ownership check, fetching only what's needed for the response.
   const [catalog] = await db
@@ -100,6 +115,16 @@ export async function setCatalogStatusAction(
 
   const parsedStatus = catalogStatusSchema.safeParse(status);
   if (!parsedStatus.success) return err('Invalid status.');
+
+  // Email-verification gate for publishing (mirrors setProductStatusAction):
+  // verification can lapse after an email change. Non-publish transitions
+  // (draft/archived) are intentionally not gated.
+  if (parsedStatus.data === 'published') {
+    const user = await getCurrentUser();
+    if (!user) return err('Not authenticated');
+    const verified = assertVerifiedEmail(user);
+    if (!verified.ok) return err(verified.error);
+  }
 
   // Single UPDATE constrained by both id AND ownership — saves a load
   // round-trip for this hot path. rowCount=0 means either the catalog

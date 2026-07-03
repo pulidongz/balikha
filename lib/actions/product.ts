@@ -184,6 +184,13 @@ export async function updateProductAction(
   const profile = await tryRequireArtisan();
   if (!profile) return err('You must have an artisan profile.');
 
+  // Email verification can lapse after an email change even for an existing
+  // artisan, so gate listing edits on it (getCurrentUser is request-cached).
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
+
   const [product] = await db
     .select({ id: products.id, artisanProfileId: products.artisanProfileId })
     .from(products)

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, commentReports, products, workComments } from '@/db/schema';
-import { getCurrentUser, tryRequireAdmin } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, getCurrentUser, tryRequireAdmin } from '@/lib/auth-helpers';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -45,6 +45,9 @@ export async function postWorkCommentAction(
 
   const current = await getCurrentUser();
   if (!current) return err('You must be signed in.');
+
+  const verified = assertVerifiedEmail(current);
+  if (!verified.ok) return err(verified.error);
 
   const { productId, body } = parsed.data;
 
@@ -133,6 +136,9 @@ export async function reportWorkCommentAction(input: unknown): Promise<Result<{ 
 
   const current = await getCurrentUser();
   if (!current) return err('You must be signed in.');
+
+  const verified = assertVerifiedEmail(current);
+  if (!verified.ok) return err(verified.error);
 
   const [comment] = await db
     .select({

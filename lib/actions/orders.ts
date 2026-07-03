@@ -18,6 +18,7 @@ import {
 } from '@/db/schema';
 import {
   assertVerifiedEmail,
+  getCurrentUser,
   tryRequireAdmin,
   tryRequireArtisan,
   tryRequireUser,
@@ -552,6 +553,14 @@ export async function acceptOrder(input: unknown): Promise<Result<{ orderId: str
   const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
+  // Email verification can lapse after an email change; gate seller commerce
+  // progression on the current state (declineOrder/cancelAsSeller stay ungated
+  // so a seller can always release a buyer's order). getCurrentUser is cached.
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
+
   return transitionOrder({
     orderId: parsed.data.orderId,
     expectedFrom: ['pending_seller_response'],
@@ -599,6 +608,14 @@ export async function markPaymentReceived(input: unknown): Promise<Result<{ orde
   const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
 
+  // Email verification can lapse after an email change; gate seller commerce
+  // progression on the current state (declineOrder/cancelAsSeller stay ungated
+  // so a seller can always release a buyer's order). getCurrentUser is cached.
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
+
   return transitionOrder({
     orderId: parsed.data.orderId,
     expectedFrom: ['pending_payment_arrangement'],
@@ -618,6 +635,14 @@ export async function markShipped(input: unknown): Promise<Result<{ orderId: str
 
   const seller = await tryRequireArtisan();
   if (!seller) return err('Artisan profile required');
+
+  // Email verification can lapse after an email change; gate seller commerce
+  // progression on the current state (declineOrder/cancelAsSeller stay ungated
+  // so a seller can always release a buyer's order). getCurrentUser is cached.
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   return transitionOrder({
     orderId: parsed.data.orderId,

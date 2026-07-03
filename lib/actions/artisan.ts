@@ -160,6 +160,13 @@ export async function updateArtisanProfileAction(formData: FormData): Promise<Re
   const profile = await getCurrentArtisanProfile();
   if (!profile) return err('No artisan profile to update.');
 
+  // Verification can lapse after an email change; gate public-profile edits
+  // on the current state (getCurrentArtisanProfile returns no emailVerified).
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
+
   const input = profileInputFromFormData(formData);
   const parsed = artisanProfileUpdateSchema.safeParse(input);
   if (!parsed.success) {
@@ -255,6 +262,11 @@ export async function uploadArtisanProfilePhotoAction(formData: FormData): Promi
   const profile = await getCurrentArtisanProfile();
   if (!profile) return err('No artisan profile to update.');
 
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
+
   const file = formData.get('photo');
   if (!(file instanceof File) || file.size === 0) {
     return err('Select an image to upload.');
@@ -309,6 +321,11 @@ export async function deleteArtisanProfilePhotoAction(): Promise<Result<null>> {
 export async function uploadArtisanBannerAction(formData: FormData): Promise<Result<null>> {
   const profile = await getCurrentArtisanProfile();
   if (!profile) return err('No artisan profile to update.');
+
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   const file = formData.get('banner');
   if (!(file instanceof File) || file.size === 0) {
