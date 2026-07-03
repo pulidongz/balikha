@@ -38,6 +38,10 @@ const GATED: Entry[] = [
   { file: 'lib/actions/orders.ts', action: 'cancelAsBuyer' },
   { file: 'lib/actions/orders.ts', action: 'markReceived' },
   { file: 'lib/actions/orders.ts', action: 'fileDispute' },
+  // Seller-side commerce progression — mirrors the gated buyer-side actions.
+  { file: 'lib/actions/orders.ts', action: 'acceptOrder' },
+  { file: 'lib/actions/orders.ts', action: 'markPaymentReceived' },
+  { file: 'lib/actions/orders.ts', action: 'markShipped' },
   { file: 'lib/actions/product.ts', action: 'createProductAction' },
   { file: 'lib/actions/product.ts', action: 'updateProductAction' },
   { file: 'lib/actions/product.ts', action: 'setProductStatusAction' },
@@ -97,12 +101,13 @@ const UNGATED: Entry[] = [
   { file: 'lib/actions/notifications.ts', action: 'markReadAction' },
   { file: 'lib/actions/notifications.ts', action: 'markAllReadAction' },
   { file: 'lib/actions/orders.ts', action: 'reorderAction' },
-  { file: 'lib/actions/orders.ts', action: 'acceptOrder' },
-  { file: 'lib/actions/orders.ts', action: 'declineOrder' },
-  { file: 'lib/actions/orders.ts', action: 'markPaymentReceived' },
-  { file: 'lib/actions/orders.ts', action: 'markShipped' },
-  { file: 'lib/actions/orders.ts', action: 'cancelAsSeller' },
   { file: 'lib/actions/orders.ts', action: 'respondToDispute' },
+  // Seller order EXITS — intentionally exempt (not "self-management"): a seller
+  // must always be able to release a buyer's order even if their email has
+  // lapsed, so refusing/cancelling is never blocked. Forward progression
+  // (acceptOrder/markPaymentReceived/markShipped) IS gated — see GATED above.
+  { file: 'lib/actions/orders.ts', action: 'declineOrder' },
+  { file: 'lib/actions/orders.ts', action: 'cancelAsSeller' },
   { file: 'lib/actions/profile.ts', action: 'updateProfileAction' },
   { file: 'lib/actions/profile.ts', action: 'changeEmailAction' },
   { file: 'lib/actions/profile.ts', action: 'setPasswordAction' },
