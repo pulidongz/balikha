@@ -20,7 +20,7 @@ function makeLogger() {
 async function main(): Promise<void> {
   section('runAdminAuthCall — success');
   {
-    const { log, errors } = makeLogger();
+    const { log, errors, infos } = makeLogger();
     const result = await runAdminAuthCall(async () => 'ignored', {
       log,
       adminId: 'admin-1',
@@ -31,11 +31,12 @@ async function main(): Promise<void> {
     assert(result.ok, 'returns ok when the call resolves');
     assert(result.ok && result.data === null, 'ok payload is null');
     assert(errors.length === 0, 'logs nothing on success');
+    assert(infos.length === 0, 'logs nothing extra on success');
   }
 
   section('runAdminAuthCall — thrown Error');
   {
-    const { log, errors } = makeLogger();
+    const { log, errors, infos } = makeLogger();
     const result = await runAdminAuthCall(
       async () => {
         throw new Error('boom');
@@ -61,11 +62,12 @@ async function main(): Promise<void> {
         errors[0]?.fields.error === 'boom',
       'log fields carry adminId / targetUserId / error',
     );
+    assert(infos.length === 0, 'logs nothing extra on failure');
   }
 
   section('runAdminAuthCall — non-Error throw');
   {
-    const { log } = makeLogger();
+    const { log, infos } = makeLogger();
     const result = await runAdminAuthCall(
       async () => {
         throw 'string failure';
@@ -82,6 +84,7 @@ async function main(): Promise<void> {
       !result.ok && result.error === 'Failed to x user: string failure',
       'non-Error throws are String()-ed',
     );
+    assert(infos.length === 0, 'logs nothing extra on failure');
   }
 
   finish('runAdminAuthCall checks passed');
