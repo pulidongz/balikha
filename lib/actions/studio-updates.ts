@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { studioUpdateImages, studioUpdates } from '@/db/schema';
-import { getCurrentArtisanProfile } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { studioPath } from '@/lib/routes';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -33,6 +33,11 @@ export async function createStudioUpdateAction(
 
   const profile = await getCurrentArtisanProfile();
   if (!profile) return err('Only studios can post updates.');
+
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   const parsedBody = bodySchema.safeParse(formData.get('body') ?? '');
   if (!parsedBody.success) return err(`Keep it under ${MAX_BODY_LENGTH} characters.`);
@@ -92,6 +97,11 @@ export async function editStudioUpdateAction(input: unknown): Promise<Result<nul
 
   const profile = await getCurrentArtisanProfile();
   if (!profile) return err('Only studios can edit updates.');
+
+  const user = await getCurrentUser();
+  if (!user) return err('Not authenticated');
+  const verified = assertVerifiedEmail(user);
+  if (!verified.ok) return err(verified.error);
 
   const [updated] = await db
     .update(studioUpdates)
