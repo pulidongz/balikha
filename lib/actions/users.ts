@@ -72,7 +72,7 @@ export async function suspendUser(input: unknown): Promise<Result<{ userId: stri
 
   const recorded = await recordAdminMutation({
     log,
-    admin,
+    adminId: admin.id,
     userId,
     action: 'suspend',
     reason,
@@ -117,7 +117,7 @@ export async function unsuspendUser(input: unknown): Promise<Result<{ userId: st
 
   const recorded = await recordAdminMutation({
     log,
-    admin,
+    adminId: admin.id,
     userId,
     action: 'unsuspend',
     listingOp: restoreSellerListings,
@@ -160,7 +160,7 @@ export async function banUser(input: unknown): Promise<Result<{ userId: string }
 
   const recorded = await recordAdminMutation({
     log,
-    admin,
+    adminId: admin.id,
     userId,
     action: 'ban',
     reason,
@@ -203,7 +203,7 @@ export async function unbanUser(input: unknown): Promise<Result<{ userId: string
 
   const recorded = await recordAdminMutation({
     log,
-    admin,
+    adminId: admin.id,
     userId,
     action: 'unban',
     listingOp: restoreSellerListings,
@@ -244,7 +244,7 @@ export async function promoteToAdmin(input: unknown): Promise<Result<{ userId: s
 
   const recorded = await recordAdminMutation({
     log,
-    admin,
+    adminId: admin.id,
     userId,
     action: 'promote_admin',
     failureLogMessage: 'promote audit write failed',
@@ -289,7 +289,7 @@ export async function demoteToUser(input: unknown): Promise<Result<{ userId: str
 
   const recorded = await recordAdminMutation({
     log,
-    admin,
+    adminId: admin.id,
     userId,
     action: 'demote_admin',
     failureLogMessage: 'demote audit write failed',

@@ -6,7 +6,7 @@ import { err, ok, type Result } from '@/lib/result';
 
 export type RecordAdminMutationInput = {
   log: AdminActionLogger;
-  admin: { id: string };
+  adminId: string;
   userId: string;
   action: AdminActionType;
   reason?: string;
@@ -37,7 +37,7 @@ export type RecordAdminMutationInput = {
 export async function recordAdminMutation(input: RecordAdminMutationInput): Promise<Result<null>> {
   const { listingOp } = input;
   const auditInput = {
-    actorUserId: input.admin.id,
+    actorUserId: input.adminId,
     action: input.action,
     targetUserId: input.userId,
     reason: input.reason,
@@ -56,14 +56,14 @@ export async function recordAdminMutation(input: RecordAdminMutationInput): Prom
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     input.log.error(
-      { adminId: input.admin.id, targetUserId: input.userId, error: message },
+      { adminId: input.adminId, targetUserId: input.userId, error: message },
       input.failureLogMessage,
     );
     return err(input.failureErrMessage(message));
   }
 
   input.log.info(
-    { adminId: input.admin.id, targetUserId: input.userId, ...input.successLogFields },
+    { adminId: input.adminId, targetUserId: input.userId, ...input.successLogFields },
     input.successLogMessage,
   );
 
