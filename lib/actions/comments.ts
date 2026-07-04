@@ -5,6 +5,7 @@ import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, commentReports, products, workComments } from '@/db/schema';
 import {
+  ADMIN_REQUIRED_MESSAGE,
   assertVerifiedEmail,
   getCurrentUser,
   NOT_AUTHENTICATED_MESSAGE,
@@ -185,7 +186,7 @@ export async function resolveCommentReportAction(
   if (!parsed.success) return err('Invalid input');
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required.');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const [updated] = await db
     .update(commentReports)
@@ -219,7 +220,7 @@ export async function removeReportedCommentAction(
   if (!parsed.success) return err('Invalid input');
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required.');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const result = await db.transaction(async (tx) => {
     // Lock the report; only act while it is still unresolved so two admins

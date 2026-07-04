@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/db';
 import { artisanProfiles, notifications } from '@/db/schema';
-import { tryRequireAdmin } from '@/lib/auth-helpers';
+import { ADMIN_REQUIRED_MESSAGE, tryRequireAdmin } from '@/lib/auth-helpers';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -43,7 +43,7 @@ export async function approveSellerApplication(
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const log = await getRequestLogger();
 
@@ -133,7 +133,7 @@ export async function rejectSellerApplication(
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const log = await getRequestLogger();
 

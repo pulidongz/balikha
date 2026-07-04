@@ -5,6 +5,7 @@ import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { feedback } from '@/db/schema';
 import {
+  ADMIN_REQUIRED_MESSAGE,
   assertVerifiedEmail,
   NOT_AUTHENTICATED_MESSAGE,
   tryRequireAdmin,
@@ -87,7 +88,7 @@ export async function resolveFeedbackAction(input: unknown): Promise<Result<{ re
   if (!parsed.success) return err('Invalid input');
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required.');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const [updated] = await db
     .update(feedback)

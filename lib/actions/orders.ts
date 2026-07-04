@@ -17,6 +17,7 @@ import {
   userAddresses,
 } from '@/db/schema';
 import {
+  ADMIN_REQUIRED_MESSAGE,
   assertVerifiedEmail,
   getCurrentUser,
   NOT_AUTHENTICATED_MESSAGE,
@@ -1000,7 +1001,7 @@ export async function resolveDispute(input: unknown): Promise<Result<{ orderId: 
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   // Load the order to determine pre/post shipment for the stock matrix.
   const [order] = await db
@@ -1109,7 +1110,7 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   // Read the reference up front so the audit row carries a human-readable
   // label, matching resolveDispute. transitionOrder re-validates existence.
@@ -1166,7 +1167,7 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   // Read the reference up front so the audit row carries a human-readable
   // label, matching resolveDispute. transitionOrder re-validates existence.

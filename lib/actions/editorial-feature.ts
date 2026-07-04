@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, homepageFeature, products } from '@/db/schema';
-import { tryRequireAdmin } from '@/lib/auth-helpers';
+import { ADMIN_REQUIRED_MESSAGE, tryRequireAdmin } from '@/lib/auth-helpers';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -31,7 +31,7 @@ export async function updateEditorialFeatureAction(
   if (!parsed.success) return err('Invalid input');
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required.');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const { artisanSlug, editorialText, workSlugs } = parsed.data;
 
