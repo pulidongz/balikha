@@ -4,7 +4,12 @@ import { z } from 'zod';
 import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, commentReports, products, workComments } from '@/db/schema';
-import { assertVerifiedEmail, getCurrentUser, tryRequireAdmin } from '@/lib/auth-helpers';
+import {
+  assertVerifiedEmail,
+  getCurrentUser,
+  NOT_AUTHENTICATED_MESSAGE,
+  tryRequireAdmin,
+} from '@/lib/auth-helpers';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -44,7 +49,7 @@ export async function postWorkCommentAction(
   }
 
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(current);
   if (!verified.ok) return err(verified.error);
@@ -107,7 +112,7 @@ export async function deleteWorkCommentAction(input: unknown): Promise<Result<{ 
   if (!parsed.success) return err('Invalid input');
 
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // Author may delete their own comment; the work's artist may delete any
   // comment on their own work (T8).
@@ -135,7 +140,7 @@ export async function reportWorkCommentAction(input: unknown): Promise<Result<{ 
   if (!parsed.success) return err('Invalid input');
 
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(current);
   if (!verified.ok) return err(verified.error);

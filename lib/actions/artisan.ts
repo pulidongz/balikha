@@ -37,7 +37,7 @@ export async function becomeArtisanAction(
 ): Promise<Result<{ shopSlug: string; firstCatalogSlug: string | null }>> {
   const log = await getRequestLogger();
   const user = await getCurrentUser();
-  if (!user) return err('You must be signed in.');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);

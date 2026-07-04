@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { userAddresses } from '@/db/schema';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { getCurrentUser, NOT_AUTHENTICATED_MESSAGE } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { affectedRows } from '@/lib/queries/affected-rows';
@@ -19,7 +19,7 @@ import { addressCreateSchema, addressUpdateSchema } from '@/lib/validators/buyer
 export async function createAddressAction(formData: FormData): Promise<Result<{ id: string }>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const parsed = addressCreateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -61,7 +61,7 @@ export async function updateAddressAction(
 ): Promise<Result<null>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const parsed = addressUpdateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -121,7 +121,7 @@ export async function updateAddressAction(
 export async function deleteAddressAction(addressId: string): Promise<Result<null>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // Single DELETE constrained by id + userId — IDOR-safe in one query.
   const result = await db

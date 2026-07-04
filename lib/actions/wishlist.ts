@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, products, wishlistItems } from '@/db/schema';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { getCurrentUser, NOT_AUTHENTICATED_MESSAGE } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
@@ -29,7 +29,7 @@ export async function toggleWishlistAction(
   if (!parsed.success) return err('Invalid input');
 
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const { productId, add } = parsed.data;
 
