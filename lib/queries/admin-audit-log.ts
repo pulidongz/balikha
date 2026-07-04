@@ -2,7 +2,7 @@ import { count, desc, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { adminActions, user } from '@/db/schema';
 
-export const ADMIN_AUDIT_LOG_PAGE_SIZE = 50;
+const ADMIN_AUDIT_LOG_PAGE_SIZE = 50;
 
 export async function getAdminAuditLog(page: number) {
   const offset = (page - 1) * ADMIN_AUDIT_LOG_PAGE_SIZE;

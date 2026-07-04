@@ -17,7 +17,7 @@ import { artisanProfiles, user } from '@/db/schema';
 
 // Direct Drizzle query (Issue 9 — avoids the plugin listUsers empty-list
 // error-swallow and gives control over every column including banExpires).
-export const ADMIN_USERS_PAGE_SIZE = 50;
+const ADMIN_USERS_PAGE_SIZE = 50;
 
 export type AdminUserRoleFilter = 'all' | 'user' | 'admin';
 export type AdminUserStatusFilter = 'all' | 'active' | 'suspended' | 'banned';
