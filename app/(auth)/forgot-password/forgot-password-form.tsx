@@ -55,8 +55,12 @@ export function ForgotPasswordForm() {
 
       // All other errors (rate-limit 429, network, disabled reset, unknown
       // email, etc.) → flip to "check inbox" for enumeration safety.
-      // Log so the error is visible in dev without leaking it to the user.
-      console.error('requestPasswordReset failed:', result.error);
+      // Visible in dev for debugging only. The error is intentionally hidden
+      // from the user for email-enumeration safety, so it must not leak via the
+      // browser console in production either. NODE_ENV is inlined at build time.
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('requestPasswordReset failed:', result.error);
+      }
     }
 
     setSent(true);
