@@ -7,6 +7,7 @@ import { userAddresses } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
+import { affectedRows } from '@/lib/queries/affected-rows';
 import { addressCreateSchema, addressUpdateSchema } from '@/lib/validators/buyer';
 
 // Default-shipping/billing flags are mutually exclusive per user. Both
@@ -127,7 +128,7 @@ export async function deleteAddressAction(addressId: string): Promise<Result<nul
     .delete(userAddresses)
     .where(and(eq(userAddresses.id, addressId), eq(userAddresses.userId, current.id)));
 
-  if ((result as { rowCount?: number }).rowCount === 0) {
+  if (affectedRows(result) === 0) {
     return err('Address not found or not owned.');
   }
 

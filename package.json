@@ -51,7 +51,8 @@
     "test:job-alert": "tsx scripts/check-job-failure-alert.ts",
     "test:classify-deploy-run": "tsx scripts/check-classify-deploy-run.ts",
     "test:daily-index": "tsx scripts/check-daily-index.ts",
-    "test:reject-seller-archival": "tsx --env-file=.env.development scripts/check-reject-seller-archival.ts"
+    "test:reject-seller-archival": "tsx --env-file=.env.development scripts/check-reject-seller-archival.ts",
+    "test:affected-rows": "tsx scripts/check-affected-rows.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",

@@ -143,6 +143,11 @@ jobs:
       - name: Verified-email gating checks
         run: npm run test:verified-email-gating
 
+      # Pure guard on affectedRows(): asserts it reads postgres-js's `.count`
+      # field and rejects node-postgres's `.rowCount` shape. No DB/secrets.
+      - name: Affected-rows helper checks
+        run: npm run test:affected-rows
+
   build:
     name: Build
     runs-on: ubuntu-latest

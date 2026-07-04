@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { catalogs } from '@/db/schema';
+import { affectedRows } from '@/lib/queries/affected-rows';
 import { uniqueSlug } from '@/lib/slug';
 import {
   assertVerifiedEmail,
@@ -127,15 +128,15 @@ export async function setCatalogStatusAction(
   }
 
   // Single UPDATE constrained by both id AND ownership — saves a load
-  // round-trip for this hot path. rowCount=0 means either the catalog
-  // doesn't exist or the current artisan doesn't own it; either way the
-  // user-facing message is the same.
+  // round-trip for this hot path. affectedRows()===0 means either the
+  // catalog doesn't exist or the current artisan doesn't own it; either way
+  // the user-facing message is the same.
   const result = await db
     .update(catalogs)
     .set({ status: parsedStatus.data, updatedAt: new Date() })
     .where(and(eq(catalogs.id, catalogId), eq(catalogs.artisanProfileId, profile.id)));
 
-  if ((result as { rowCount?: number }).rowCount === 0) {
+  if (affectedRows(result) === 0) {
     return err('Catalog not found or not owned.');
   }
 
