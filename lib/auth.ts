@@ -46,6 +46,19 @@ const socialProviders =
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
+  session: {
+    // Pinned explicitly (previously relied on Better Auth defaults) so
+    // session lifetimes are visible and reviewable. These values ARE the
+    // current library defaults — no behaviour change.
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 1 day
+    // DO NOT enable cookieCache. requireUser()'s defense-in-depth banned
+    // check (lib/auth-helpers.ts) reads the session's `banned` field; with
+    // cookieCache OFF, getSession() is a fresh DB read so a just-banned user
+    // is caught. Enabling cookieCache would serve a stale session that could
+    // outlive ban revocation — if you ever turn it on, first switch that
+    // check to a fresh DB read of `banned`.
+  },
   // Cloudflare Turnstile captcha plugin (ticket #25). Server-side verifies
   // the x-captcha-response header against Cloudflare siteverify on the
   // three bot-exposed endpoints: /sign-up/email, /sign-in/email,
