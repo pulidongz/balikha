@@ -11,8 +11,8 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
-export const DEFAULT_LIMIT = 24;
-export const MAX_LIMIT = 60;
+const DEFAULT_LIMIT = 24;
+const MAX_LIMIT = 60;
 
 /**
  * Keyset predicate for "rows strictly before this cursor" under a

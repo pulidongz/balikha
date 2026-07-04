@@ -15,6 +15,7 @@ import { uniqueSlug } from '@/lib/slug';
 import {
   assertVerifiedEmail,
   getCurrentUser,
+  NOT_AUTHENTICATED_MESSAGE,
   requireOwnership,
   tryRequireArtisan,
 } from '@/lib/auth-helpers';
@@ -104,7 +105,7 @@ export async function createProductAction(
   // Email verification can lapse after an email change even for an existing
   // artisan, so gate listing creation on it (getCurrentUser is request-cached).
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -187,7 +188,7 @@ export async function updateProductAction(
   // Email verification can lapse after an email change even for an existing
   // artisan, so gate listing edits on it (getCurrentUser is request-cached).
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -400,7 +401,7 @@ export async function setProductStatusAction(
   // (draft/archive/sold_out) are intentionally not gated.
   if (parsedStatus.data === 'published') {
     const user = await getCurrentUser();
-    if (!user) return err('Not authenticated');
+    if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
     const verified = assertVerifiedEmail(user);
     if (!verified.ok) return err(verified.error);
   }
@@ -475,7 +476,7 @@ export async function setProductsStatusAction(
   // as the single-product action. Non-publish transitions are not gated.
   if (parsedStatus.data === 'published') {
     const user = await getCurrentUser();
-    if (!user) return err('Not authenticated');
+    if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
     const verified = assertVerifiedEmail(user);
     if (!verified.ok) return err(verified.error);
   }

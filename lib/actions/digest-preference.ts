@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { emailDigestOptOuts } from '@/db/schema';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { getCurrentUser, NOT_AUTHENTICATED_MESSAGE } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 
@@ -19,7 +19,7 @@ export async function setDigestEmailPreferenceAction(
   if (!parsed.success) return err('Invalid input');
 
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   if (parsed.data.enabled) {
     await db.delete(emailDigestOptOuts).where(eq(emailDigestOptOuts.userId, current.id));

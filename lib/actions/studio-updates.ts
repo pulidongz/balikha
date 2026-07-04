@@ -5,7 +5,12 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { studioUpdateImages, studioUpdates } from '@/db/schema';
-import { assertVerifiedEmail, getCurrentArtisanProfile, getCurrentUser } from '@/lib/auth-helpers';
+import {
+  assertVerifiedEmail,
+  getCurrentArtisanProfile,
+  getCurrentUser,
+  NOT_AUTHENTICATED_MESSAGE,
+} from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { studioPath } from '@/lib/routes';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -35,7 +40,7 @@ export async function createStudioUpdateAction(
   if (!profile) return err('Only studios can post updates.');
 
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -99,7 +104,7 @@ export async function editStudioUpdateAction(input: unknown): Promise<Result<nul
   if (!profile) return err('Only studios can edit updates.');
 
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 

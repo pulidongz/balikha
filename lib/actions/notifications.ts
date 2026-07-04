@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
-import { getCurrentUser } from '@/lib/auth-helpers';
+import { getCurrentUser, NOT_AUTHENTICATED_MESSAGE } from '@/lib/auth-helpers';
 import { notNewMessage } from '@/lib/queries/account';
 import { ok, err, type Result } from '@/lib/result';
 
@@ -19,7 +19,7 @@ export async function markReadAction(input: unknown): Promise<Result<null>> {
   if (!parsed.success) return err('Invalid input');
 
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   await db
     .update(notifications)
@@ -40,7 +40,7 @@ export async function markReadAction(input: unknown): Promise<Result<null>> {
 
 export async function markAllReadAction(): Promise<Result<null>> {
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // "Mark all read" must NOT clear unread message notifications: they
   // are owned by the Messages surface and cleared per-thread via

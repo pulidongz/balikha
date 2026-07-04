@@ -17,8 +17,10 @@ import {
   userAddresses,
 } from '@/db/schema';
 import {
+  ADMIN_REQUIRED_MESSAGE,
   assertVerifiedEmail,
   getCurrentUser,
+  NOT_AUTHENTICATED_MESSAGE,
   tryRequireAdmin,
   tryRequireArtisan,
   tryRequireUser,
@@ -74,7 +76,7 @@ export async function reorderAction(input: {
   orderId: string;
 }): Promise<Result<{ productId: string; productSlug: string; artisanSlug: string }>> {
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const [order] = await db
     .select({
@@ -167,7 +169,7 @@ export async function placeOrder(
   // consistent and uncached (re-trying after sign-in shouldn't see a
   // cached "Not authenticated" forever).
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(buyer);
   if (!verified.ok) return err(verified.error);
@@ -557,7 +559,7 @@ export async function acceptOrder(input: unknown): Promise<Result<{ orderId: str
   // progression on the current state (declineOrder/cancelAsSeller stay ungated
   // so a seller can always release a buyer's order). getCurrentUser is cached.
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -612,7 +614,7 @@ export async function markPaymentReceived(input: unknown): Promise<Result<{ orde
   // progression on the current state (declineOrder/cancelAsSeller stay ungated
   // so a seller can always release a buyer's order). getCurrentUser is cached.
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -640,7 +642,7 @@ export async function markShipped(input: unknown): Promise<Result<{ orderId: str
   // progression on the current state (declineOrder/cancelAsSeller stay ungated
   // so a seller can always release a buyer's order). getCurrentUser is cached.
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -692,7 +694,7 @@ export async function cancelAsBuyer(input: unknown): Promise<Result<{ orderId: s
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(buyer);
   if (!verified.ok) return err(verified.error);
@@ -725,7 +727,7 @@ export async function markReceived(input: unknown): Promise<Result<{ orderId: st
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(buyer);
   if (!verified.ok) return err(verified.error);
@@ -766,7 +768,7 @@ export async function fileDispute(input: unknown): Promise<Result<{ disputeId: s
   if (!parsed.success) return err('Invalid dispute input', parsed.error.flatten().fieldErrors);
 
   const filer = await tryRequireUser();
-  if (!filer) return err('Not authenticated');
+  if (!filer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // Determine which side the filer is on. The dispute-row's
   // `filedByRole` and the transition's `actorRole` need to match.
@@ -867,7 +869,7 @@ export async function respondToDispute(input: unknown): Promise<Result<{ dispute
   if (!parsed.success) return err('Invalid dispute response', parsed.error.flatten().fieldErrors);
 
   const responder = await tryRequireUser();
-  if (!responder) return err('Not authenticated');
+  if (!responder) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // The read-check-update runs in one transaction with the active
   // dispute row locked FOR UPDATE. A concurrent resolveDispute that
@@ -999,7 +1001,7 @@ export async function resolveDispute(input: unknown): Promise<Result<{ orderId: 
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   // Load the order to determine pre/post shipment for the stock matrix.
   const [order] = await db
@@ -1108,7 +1110,7 @@ export async function adminForceCancel(input: unknown): Promise<Result<{ orderId
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   // Read the reference up front so the audit row carries a human-readable
   // label, matching resolveDispute. transitionOrder re-validates existence.
@@ -1165,7 +1167,7 @@ export async function adminForceComplete(input: unknown): Promise<Result<{ order
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   // Read the reference up front so the audit row carries a human-readable
   // label, matching resolveDispute. transitionOrder re-validates existence.

@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { artisanProfiles, user } from '@/db/schema';
 import { firstParam } from './admin-params';
 
-export const ADMIN_SELLERS_PAGE_SIZE = 100;
+const ADMIN_SELLERS_PAGE_SIZE = 100;
 
 export type ApprovalFilter = 'pending' | 'approved' | 'rejected';
 

@@ -4,7 +4,13 @@ import { z } from 'zod';
 import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { feedback } from '@/db/schema';
-import { assertVerifiedEmail, tryRequireAdmin, tryRequireUser } from '@/lib/auth-helpers';
+import {
+  ADMIN_REQUIRED_MESSAGE,
+  assertVerifiedEmail,
+  NOT_AUTHENTICATED_MESSAGE,
+  tryRequireAdmin,
+  tryRequireUser,
+} from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 
@@ -46,7 +52,7 @@ export async function submitFeedbackAction(input: unknown): Promise<Result<{ sub
   // tryRequireUser (not getCurrentUser) so a banned user with a still-live
   // session can't reach the admin feedback queue — inherits requireUser's ban check.
   const current = await tryRequireUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(current);
   if (!verified.ok) return err(verified.error);
@@ -82,7 +88,7 @@ export async function resolveFeedbackAction(input: unknown): Promise<Result<{ re
   if (!parsed.success) return err('Invalid input');
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required.');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const [updated] = await db
     .update(feedback)

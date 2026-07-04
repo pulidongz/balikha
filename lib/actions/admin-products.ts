@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
-import { tryRequireAdmin } from '@/lib/auth-helpers';
+import { ADMIN_REQUIRED_MESSAGE, tryRequireAdmin } from '@/lib/auth-helpers';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
 import { recordAdminAction } from '@/lib/admin/audit';
@@ -46,7 +46,7 @@ export async function removeListing(input: unknown): Promise<Result<{ productId:
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const log = await getRequestLogger();
 
@@ -105,7 +105,7 @@ export async function flagListing(input: unknown): Promise<Result<{ productId: s
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const log = await getRequestLogger();
 
@@ -148,7 +148,7 @@ export async function reinstateListing(input: unknown): Promise<Result<{ product
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const admin = await tryRequireAdmin();
-  if (!admin) return err('Admin required');
+  if (!admin) return err(ADMIN_REQUIRED_MESSAGE);
 
   const log = await getRequestLogger();
 

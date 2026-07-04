@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { artisanProfiles, products } from '@/db/schema';
 import { firstParam } from './admin-params';
 
-export const ADMIN_PRODUCTS_PAGE_SIZE = 50;
+const ADMIN_PRODUCTS_PAGE_SIZE = 50;
 
 export type AdminProductFilter = 'all' | 'live' | 'flagged' | 'removed';
 

@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { user } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { assertVerifiedEmail, getCurrentUser } from '@/lib/auth-helpers';
+import { assertVerifiedEmail, getCurrentUser, NOT_AUTHENTICATED_MESSAGE } from '@/lib/auth-helpers';
 import { userHasPassword } from '@/lib/account/credentials';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -29,7 +29,7 @@ const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4 MB — avatars don't need banner-
 export async function updateProfileAction(formData: FormData): Promise<Result<null>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const parsed = profileUpdateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -53,7 +53,7 @@ export async function updateProfileAction(formData: FormData): Promise<Result<nu
 
 export async function uploadAvatarAction(formData: FormData): Promise<Result<null>> {
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(current);
   if (!verified.ok) return err(verified.error);
@@ -99,7 +99,7 @@ export async function uploadAvatarAction(formData: FormData): Promise<Result<nul
 
 export async function deleteAvatarAction(): Promise<Result<null>> {
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const [row] = await db
     .select({ image: user.image })
@@ -125,7 +125,7 @@ export async function deleteAvatarAction(): Promise<Result<null>> {
 export async function changeEmailAction(formData: FormData): Promise<Result<{ sentTo: string }>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const parsed = changeEmailSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -168,7 +168,7 @@ export async function changeEmailAction(formData: FormData): Promise<Result<{ se
 export async function setPasswordAction(formData: FormData): Promise<Result<null>> {
   const log = await getRequestLogger();
   const current = await getCurrentUser();
-  if (!current) return err('You must be signed in.');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const parsed = setPasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
