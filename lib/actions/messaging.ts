@@ -14,7 +14,12 @@ import {
   products,
   sellerBlockedBuyers,
 } from '@/db/schema';
-import { assertVerifiedEmail, tryRequireUser, tryRequireArtisan } from '@/lib/auth-helpers';
+import {
+  assertVerifiedEmail,
+  NOT_AUTHENTICATED_MESSAGE,
+  tryRequireUser,
+  tryRequireArtisan,
+} from '@/lib/auth-helpers';
 import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
@@ -75,7 +80,7 @@ export async function createPrePurchaseThread(
   // Auth first — outside withIdempotency so a transient "Not
   // authenticated" isn't permanently pinned to the key.
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(buyer);
   if (!verified.ok) return err(verified.error);
@@ -347,7 +352,7 @@ export async function sendMessage(input: unknown): Promise<Result<{ messageId: s
   }
 
   const sender = await tryRequireUser();
-  if (!sender) return err('Not authenticated');
+  if (!sender) return err(NOT_AUTHENTICATED_MESSAGE);
 
   const verified = assertVerifiedEmail(sender);
   if (!verified.ok) return err(verified.error);
@@ -470,7 +475,7 @@ export async function markThreadRead(input: unknown): Promise<Result<null>> {
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const current = await tryRequireUser();
-  if (!current) return err('Not authenticated');
+  if (!current) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // Defense-in-depth participant check. Today's invariant
   // (notifications.threadId is only set for thread participants via
@@ -596,7 +601,7 @@ export async function blockSeller(input: unknown): Promise<Result<null>> {
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   // Self-block protection — the buyer can't block an artisan they own.
   // If the artisan row is missing we surface a named error rather than
@@ -634,7 +639,7 @@ export async function unblockSeller(input: unknown): Promise<Result<null>> {
   if (!parsed.success) return err('Invalid input', parsed.error.flatten().fieldErrors);
 
   const buyer = await tryRequireUser();
-  if (!buyer) return err('Not authenticated');
+  if (!buyer) return err(NOT_AUTHENTICATED_MESSAGE);
 
   await db
     .delete(buyerBlockedSellers)

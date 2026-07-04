@@ -13,8 +13,18 @@ import { ok, err, type Result } from '@/lib/result';
 // (see balikha-backend-hardening-plan.md §5). Pages that don't use Result
 // can let them propagate to Next's error boundary.
 
+// Single source of truth for the "not signed in" rejection string, mirroring
+// EMAIL_NOT_VERIFIED_MESSAGE below. Consumed by UnauthorizedError's default
+// and by action sites that construct a Result.err directly instead of
+// throwing (see lib/actions/*).
+export const NOT_AUTHENTICATED_MESSAGE = 'You must be signed in.';
+
+// Single source of truth for the "admin required" rejection string. Consumed
+// by AdminRequiredError's default.
+export const ADMIN_REQUIRED_MESSAGE = 'Admin required';
+
 export class UnauthorizedError extends Error {
-  constructor(message = 'Not authenticated') {
+  constructor(message = NOT_AUTHENTICATED_MESSAGE) {
     super(message);
     this.name = 'UnauthorizedError';
   }
@@ -28,7 +38,7 @@ export class ForbiddenError extends Error {
 }
 
 export class AdminRequiredError extends Error {
-  constructor(message = 'Admin required') {
+  constructor(message = ADMIN_REQUIRED_MESSAGE) {
     super(message);
     this.name = 'AdminRequiredError';
   }

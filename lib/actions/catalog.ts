@@ -9,6 +9,7 @@ import { uniqueSlug } from '@/lib/slug';
 import {
   assertVerifiedEmail,
   getCurrentUser,
+  NOT_AUTHENTICATED_MESSAGE,
   requireOwnership,
   tryRequireArtisan,
 } from '@/lib/auth-helpers';
@@ -25,7 +26,7 @@ export async function createCatalogAction(formData: FormData): Promise<Result<{ 
   if (!profile) return err('You must have an artisan profile.');
 
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -66,7 +67,7 @@ export async function updateCatalogAction(
   if (!profile) return err('You must have an artisan profile.');
 
   const user = await getCurrentUser();
-  if (!user) return err('Not authenticated');
+  if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
   const verified = assertVerifiedEmail(user);
   if (!verified.ok) return err(verified.error);
 
@@ -122,7 +123,7 @@ export async function setCatalogStatusAction(
   // (draft/archived) are intentionally not gated.
   if (parsedStatus.data === 'published') {
     const user = await getCurrentUser();
-    if (!user) return err('Not authenticated');
+    if (!user) return err(NOT_AUTHENTICATED_MESSAGE);
     const verified = assertVerifiedEmail(user);
     if (!verified.ok) return err(verified.error);
   }
