@@ -140,22 +140,22 @@ export default async function ArtisanStorefrontPage({
     );
   }
 
-  // Start now (viewer is resolved) so these overlap the catalog chain
-  // below; awaited later, just before the JSX consumes them.
-  const wishlistedIdsPromise = getWishlistProductIds(viewer?.id ?? null);
-  const initiallyFollowingPromise = isFollowingArtisan(viewer?.id ?? null, profile.id);
-
   const catalogIds = publishedCatalogs.map((c) => c.id);
 
-  // All published products in those catalogs
-  const productList =
+  // All published products in those catalogs, run concurrently with the two
+  // viewer-dependent reads (both need only the resolved viewer) so their
+  // round-trips overlap the productList query instead of trailing it.
+  const [productList, wishlistedIds, initiallyFollowing] = await Promise.all([
     catalogIds.length === 0
-      ? []
-      : await db
+      ? Promise.resolve([])
+      : db
           .select()
           .from(products)
           .where(and(eq(products.status, 'published'), inArray(products.catalogId, catalogIds)))
-          .orderBy(desc(products.createdAt));
+          .orderBy(desc(products.createdAt)),
+    getWishlistProductIds(viewer?.id ?? null),
+    isFollowingArtisan(viewer?.id ?? null, profile.id),
+  ]);
 
   // Both need only productList.
   const [imageRows, appreciationCounts] = await Promise.all([
@@ -240,11 +240,6 @@ export default async function ArtisanStorefrontPage({
     center: 'object-center',
     bottom: 'object-bottom',
   } as const;
-
-  const [wishlistedIds, initiallyFollowing] = await Promise.all([
-    wishlistedIdsPromise,
-    initiallyFollowingPromise,
-  ]);
 
   return (
     <div>
