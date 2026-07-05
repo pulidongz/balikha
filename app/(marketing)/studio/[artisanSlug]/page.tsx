@@ -88,12 +88,62 @@ export default async function ArtisanStorefrontPage({
   const { follow } = await searchParams;
   const pendingFollowId = typeof follow === 'string' ? follow : null;
 
-  // Published catalogs for this artisan
-  const publishedCatalogs = await db
-    .select()
-    .from(catalogs)
-    .where(and(eq(catalogs.artisanProfileId, profile.id), eq(catalogs.status, 'published')))
-    .orderBy(desc(catalogs.createdAt));
+  // Mutually independent — viewer, the profile-only reads, and the first
+  // step of the catalog chain all need only the loaded profile (or nothing).
+  const [viewer, reputation, followerCount, featured, publishedCatalogs] = await Promise.all([
+    getCurrentUser(),
+    getSellerReputationCached(profile.id),
+    db
+      .select({ value: count() })
+      .from(artisanFollows)
+      .where(eq(artisanFollows.artisanProfileId, profile.id))
+      .then((rows) => rows[0]?.value ?? 0),
+    // Pinned featured work (T2). Published-only — the FK alone can't keep a
+    // since-archived work out of the visitor-facing slot.
+    profile.featuredProductId
+      ? db
+          .select({
+            id: products.id,
+            slug: products.slug,
+            title: products.title,
+            description: products.description,
+            price: products.price,
+            currency: products.currency,
+          })
+          .from(products)
+          .where(and(eq(products.id, profile.featuredProductId), eq(products.status, 'published')))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    // Published catalogs for this artisan
+    db
+      .select()
+      .from(catalogs)
+      .where(and(eq(catalogs.artisanProfileId, profile.id), eq(catalogs.status, 'published')))
+      .orderBy(desc(catalogs.createdAt)),
+  ]);
+
+  const isOwner = viewer !== null && viewer.id === profile.userId;
+
+  // T11 view tracking. after() so the page render never waits on it;
+  // logAnalyticsEvent owns its try/catch. Owner visits don't count —
+  // checking your own page is not traction.
+  if (!isOwner) {
+    after(() =>
+      logAnalyticsEvent({
+        type: 'studio_viewed',
+        userId: viewer?.id ?? null,
+        artisanProfileId: profile.id,
+        entityType: 'artisan',
+        entityId: profile.id,
+      }),
+    );
+  }
+
+  // Start now (viewer is resolved) so these overlap the catalog chain
+  // below; awaited later, just before the JSX consumes them.
+  const wishlistedIdsPromise = getWishlistProductIds(viewer?.id ?? null);
+  const initiallyFollowingPromise = isFollowingArtisan(viewer?.id ?? null, profile.id);
 
   const catalogIds = publishedCatalogs.map((c) => c.id);
 
@@ -107,26 +157,31 @@ export default async function ArtisanStorefrontPage({
           .where(and(eq(products.status, 'published'), inArray(products.catalogId, catalogIds)))
           .orderBy(desc(products.createdAt));
 
+  // Both need only productList.
+  const [imageRows, appreciationCounts] = await Promise.all([
+    productList.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({
+            productId: productImages.productId,
+            url: productImages.url,
+            altText: productImages.altText,
+          })
+          .from(productImages)
+          .where(
+            inArray(
+              productImages.productId,
+              productList.map((p) => p.id),
+            ),
+          )
+          .orderBy(asc(productImages.position)),
+    getAppreciationCounts(productList.map((p) => p.id)),
+  ]);
+
   // Primary image per product
   const primaryByProductId = new Map<string, { url: string; altText: string | null }>();
-  if (productList.length > 0) {
-    const imageRows = await db
-      .select({
-        productId: productImages.productId,
-        url: productImages.url,
-        altText: productImages.altText,
-      })
-      .from(productImages)
-      .where(
-        inArray(
-          productImages.productId,
-          productList.map((p) => p.id),
-        ),
-      )
-      .orderBy(asc(productImages.position));
-    for (const img of imageRows) {
-      if (!primaryByProductId.has(img.productId)) primaryByProductId.set(img.productId, img);
-    }
+  for (const img of imageRows) {
+    if (!primaryByProductId.has(img.productId)) primaryByProductId.set(img.productId, img);
   }
 
   // Group products by catalog
@@ -154,52 +209,6 @@ export default async function ArtisanStorefrontPage({
     image: profile.bannerImageUrl,
   });
 
-  const viewer = await getCurrentUser();
-  const isOwner = viewer !== null && viewer.id === profile.userId;
-
-  // T11 view tracking. after() so the page render never waits on it;
-  // logAnalyticsEvent owns its try/catch. Owner visits don't count —
-  // checking your own page is not traction.
-  if (!isOwner) {
-    after(() =>
-      logAnalyticsEvent({
-        type: 'studio_viewed',
-        userId: viewer?.id ?? null,
-        artisanProfileId: profile.id,
-        entityType: 'artisan',
-        entityId: profile.id,
-      }),
-    );
-  }
-
-  const wishlistedIds = await getWishlistProductIds(viewer?.id ?? null);
-  const reputation = await getSellerReputationCached(profile.id);
-  const appreciationCounts = await getAppreciationCounts(productList.map((p) => p.id));
-
-  const [followerRow] = await db
-    .select({ value: count() })
-    .from(artisanFollows)
-    .where(eq(artisanFollows.artisanProfileId, profile.id));
-  const followerCount = followerRow?.value ?? 0;
-
-  // Pinned featured work (T2). Published-only — the FK alone can't keep a
-  // since-archived work out of the visitor-facing slot.
-  const featured = profile.featuredProductId
-    ? ((
-        await db
-          .select({
-            id: products.id,
-            slug: products.slug,
-            title: products.title,
-            description: products.description,
-            price: products.price,
-            currency: products.currency,
-          })
-          .from(products)
-          .where(and(eq(products.id, profile.featuredProductId), eq(products.status, 'published')))
-          .limit(1)
-      )[0] ?? null)
-    : null;
   // Usually already in the catalog-grid image map; fetched directly when
   // not (e.g. a published work whose catalog is still draft).
   let featuredImage = featured ? (primaryByProductId.get(featured.id) ?? null) : null;
@@ -232,7 +241,10 @@ export default async function ArtisanStorefrontPage({
     bottom: 'object-bottom',
   } as const;
 
-  const initiallyFollowing = await isFollowingArtisan(viewer?.id ?? null, profile.id);
+  const [wishlistedIds, initiallyFollowing] = await Promise.all([
+    wishlistedIdsPromise,
+    initiallyFollowingPromise,
+  ]);
 
   return (
     <div>
