@@ -3,11 +3,10 @@
 import { randomUUID } from 'node:crypto';
 import { revalidateTag } from 'next/cache';
 import { after } from 'next/server';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   artisanProfiles,
-  idempotencyKeys,
   notifications,
   orderDisputes,
   orderEvents,
@@ -26,7 +25,7 @@ import {
   tryRequireUser,
 } from '@/lib/auth-helpers';
 import { recordAdminAction } from '@/lib/admin/audit';
-import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
+import { withIdempotency, withInTxIdempotency } from '@/lib/idempotency';
 import { logAnalyticsEvent, logArtisanMilestoneOnce } from '@/lib/analytics/log';
 import { ok, err, type Result } from '@/lib/result';
 import { getRequestLogger } from '@/lib/logger-context';
@@ -134,12 +133,12 @@ export async function reorderAction(input: {
  * For naturally-idempotent actions that's harmless. For placement it
  * isn't — `fn()` decrements stock and inserts a NEW order each call.
  *
- * The fix has THREE parts that must all be present:
+ * The fix has THREE parts that must all be present — all provided by the
+ * shared `withInTxIdempotency` helper the transaction below delegates to:
  * 1. Advisory lock at the top of the transaction, keyed on
  *    idempotencyKey, serializes concurrent fn() invocations.
- * 2. The idempotency cache row is written INSIDE this transaction
- *    (see the idempotencyKeys insert in the callback), so it commits
- *    while the advisory lock is still held. withIdempotency's own
+ * 2. The idempotency cache row is written INSIDE this transaction, so it
+ *    commits while the advisory lock is still held. withIdempotency's own
  *    post-fn() insert lands AFTER the lock releases — too late for a
  *    concurrent retry's re-check to observe.
  * 3. Cache re-check INSIDE the lock (after the lock is acquired).
@@ -180,299 +179,236 @@ export async function placeOrder(
     userId: buyer.id,
     fn: async () => {
       try {
-        // The transaction returns either a `cached` shape (when a prior
-        // writer with the same idempotencyKey already finished) or a
-        // `fresh` shape (when this caller did the work). The post-commit
-        // revalidateTag should NOT fire in the cached path — the prior
-        // writer already invalidated. Discriminator preserves that.
-        type TxResult =
-          | {
-              kind: 'cached';
-              cached: Result<{ orderId: string; reference: string; threadLinkSkipped: boolean }>;
-            }
-          | {
-              kind: 'fresh';
+        // The in-tx advisory-lock + cache re-check + cache insert is the
+        // shared withInTxIdempotency helper. It returns a `cached` outcome
+        // (a prior same-key writer already finished — post-commit side
+        // effects must NOT re-fire) or a `fresh` outcome carrying `extra`,
+        // the post-commit-only data the side effects below read.
+        const outcome = await db.transaction((tx) =>
+          withInTxIdempotency<
+            { orderId: string; reference: string; threadLinkSkipped: boolean },
+            {
               orderId: string;
               reference: string;
+              threadLinkSkipped: boolean;
               artisanProfileId: string;
               sellerUserId: string;
               productTitle: string;
               productImageUrl: string | null;
-              threadLinkSkipped: boolean;
-            };
-
-        const result: TxResult = await db.transaction(async (tx) => {
-          // 0. Advisory lock keyed on idempotencyKey + cache re-check.
-          //    The advisory lock alone serializes concurrent retries but
-          //    does NOT prevent duplicate work — the second arriver,
-          //    after acquiring the lock, would still go through FOR
-          //    UPDATE → decrement → insert. The re-check inside the lock
-          //    catches the prior writer's committed cache row and short-
-          //    circuits to return the same Result they returned. Lock is
-          //    transaction-scoped (auto-released on commit/rollback);
-          //    32-bit hash collisions on different keys are harmless
-          //    (extra serialization, no correctness impact).
-          if (parsed.data.idempotencyKey) {
-            await tx.execute(
-              sql`SELECT pg_advisory_xact_lock(hashtext(${parsed.data.idempotencyKey}))`,
-            );
-            const [cached] = await tx
-              .select()
-              .from(idempotencyKeys)
-              .where(eq(idempotencyKeys.key, parsed.data.idempotencyKey))
-              .limit(1);
-            if (cached) {
-              // Honor the wrapper's scope/user guards even on the
-              // cache-hit-inside-lock path.
-              if (cached.scope !== 'placeOrder') {
-                return {
-                  kind: 'cached' as const,
-                  cached: err('Idempotency key already used for a different operation.'),
-                };
-              }
-              if (cached.userId && cached.userId !== buyer.id) {
-                return {
-                  kind: 'cached' as const,
-                  cached: err('Idempotency key already used by a different user.'),
-                };
-              }
-              return {
-                kind: 'cached' as const,
-                cached: JSON.parse(cached.responseJson) as Result<{
-                  orderId: string;
-                  reference: string;
-                  threadLinkSkipped: boolean;
-                }>,
-              };
             }
-          }
+          >(tx, {
+            key: parsed.data.idempotencyKey,
+            scope: 'placeOrder',
+            userId: buyer.id,
+            run: async () => {
+              // Verify the shipping address still belongs to the buyer.
+              // Done INSIDE the transaction (and FOR UPDATE-locked) so the
+              // row validated here is exactly the one snapshotted onto the
+              // order below — a concurrent address edit or delete cannot
+              // slip between the ownership check and the snapshot.
+              const [address] = await tx
+                .select()
+                .from(userAddresses)
+                .where(
+                  and(
+                    eq(userAddresses.id, parsed.data.shippingAddressId),
+                    eq(userAddresses.userId, buyer.id),
+                  ),
+                )
+                .for('update')
+                .limit(1);
+              if (!address) {
+                throw new OrderBusinessError('Shipping address not found or not yours');
+              }
 
-          // Verify the shipping address still belongs to the buyer.
-          // Done INSIDE the transaction (and FOR UPDATE-locked) so the
-          // row validated here is exactly the one snapshotted onto the
-          // order below — a concurrent address edit or delete cannot
-          // slip between the ownership check and the snapshot.
-          const [address] = await tx
-            .select()
-            .from(userAddresses)
-            .where(
-              and(
-                eq(userAddresses.id, parsed.data.shippingAddressId),
-                eq(userAddresses.userId, buyer.id),
-              ),
-            )
-            .for('update')
-            .limit(1);
-          if (!address) {
-            throw new OrderBusinessError('Shipping address not found or not yours');
-          }
+              // 1. Lock the product row, verify availability.
+              const [product] = await tx
+                .select()
+                .from(products)
+                .where(eq(products.id, parsed.data.productId))
+                .for('update')
+                .limit(1);
 
-          // 1. Lock the product row, verify availability.
-          const [product] = await tx
-            .select()
-            .from(products)
-            .where(eq(products.id, parsed.data.productId))
-            .for('update')
-            .limit(1);
+              if (!product) throw new OrderBusinessError('Product not found');
+              if (product.status !== 'published') {
+                throw new OrderBusinessError('Product is not available');
+              }
+              // T3: showcase / commission works carry no commerce. The detail
+              // page hides the order UI for them; this is the server-side gate.
+              if (product.salesMode !== 'for_sale') {
+                throw new OrderBusinessError('This work is not for sale');
+              }
+              if (product.price === null) {
+                // The products_for_sale_has_price CHECK makes this unreachable.
+                // If it ever fires the data is corrupt — fail loud, never
+                // snapshot a null price onto an order.
+                throw new Error(`for_sale product ${product.id} has no price`);
+              }
+              if (product.stockOnHand <= 0) {
+                throw new OrderBusinessError('Product is out of stock');
+              }
 
-          if (!product) throw new OrderBusinessError('Product not found');
-          if (product.status !== 'published') {
-            throw new OrderBusinessError('Product is not available');
-          }
-          // T3: showcase / commission works carry no commerce. The detail
-          // page hides the order UI for them; this is the server-side gate.
-          if (product.salesMode !== 'for_sale') {
-            throw new OrderBusinessError('This work is not for sale');
-          }
-          if (product.price === null) {
-            // The products_for_sale_has_price CHECK makes this unreachable.
-            // If it ever fires the data is corrupt — fail loud, never
-            // snapshot a null price onto an order.
-            throw new Error(`for_sale product ${product.id} has no price`);
-          }
-          if (product.stockOnHand <= 0) {
-            throw new OrderBusinessError('Product is out of stock');
-          }
+              const [artisan] = await tx
+                .select()
+                .from(artisanProfiles)
+                .where(eq(artisanProfiles.id, product.artisanProfileId))
+                .limit(1);
 
-          const [artisan] = await tx
-            .select()
-            .from(artisanProfiles)
-            .where(eq(artisanProfiles.id, product.artisanProfileId))
-            .limit(1);
+              if (!artisan) throw new Error('Artisan profile missing');
 
-          if (!artisan) throw new Error('Artisan profile missing');
+              // TODO when seller-suspension feature lands: also reject placement
+              // when the artisan is suspended/closed. Out of scope here.
 
-          // TODO when seller-suspension feature lands: also reject placement
-          // when the artisan is suspended/closed. Out of scope here.
+              if (artisan.userId === buyer.id) {
+                throw new OrderBusinessError('You cannot order your own product');
+              }
 
-          if (artisan.userId === buyer.id) {
-            throw new OrderBusinessError('You cannot order your own product');
-          }
+              // 2. Decrement stock; flip status to sold_out at zero so the
+              //    storefront and "more from this artisan" lists hide it.
+              const newStock = product.stockOnHand - 1;
+              await tx
+                .update(products)
+                .set({
+                  stockOnHand: newStock,
+                  status: newStock === 0 ? 'sold_out' : product.status,
+                  updatedAt: new Date(),
+                })
+                .where(eq(products.id, product.id));
 
-          // 2. Decrement stock; flip status to sold_out at zero so the
-          //    storefront and "more from this artisan" lists hide it.
-          const newStock = product.stockOnHand - 1;
-          await tx
-            .update(products)
-            .set({
-              stockOnHand: newStock,
-              status: newStock === 0 ? 'sold_out' : product.status,
-              updatedAt: new Date(),
-            })
-            .where(eq(products.id, product.id));
+              // 3. Snapshot the primary image (lowest position). Read without
+              //    locking — order history is allowed to reference deleted
+              //    media; the snapshot is "what the buyer saw at order time."
+              const [primaryImage] = await tx
+                .select({ url: productImages.url })
+                .from(productImages)
+                .where(eq(productImages.productId, product.id))
+                .orderBy(asc(productImages.position))
+                .limit(1);
 
-          // 3. Snapshot the primary image (lowest position). Read without
-          //    locking — order history is allowed to reference deleted
-          //    media; the snapshot is "what the buyer saw at order time."
-          const [primaryImage] = await tx
-            .select({ url: productImages.url })
-            .from(productImages)
-            .where(eq(productImages.productId, product.id))
-            .orderBy(asc(productImages.position))
-            .limit(1);
-
-          // 4. Insert the order with all snapshot fields.
-          const reference = generateOrderReference();
-          const [order] = await tx
-            .insert(orders)
-            .values({
-              buyerUserId: buyer.id,
-              artisanProfileId: artisan.id,
-              reference,
-              productId: product.id,
-              productTitleSnapshot: product.title,
-              productSlugSnapshot: product.slug,
-              productImageUrlSnapshot: primaryImage?.url ?? null,
-              artisanNameSnapshot: artisan.shopName,
-              artisanSlugSnapshot: artisan.shopSlug,
-              priceSnapshot: product.price,
-              currency: product.currency,
-              shippingAddressJson: {
-                recipientName: address.recipientName,
-                phone: address.phone,
-                line1: address.line1,
-                line2: address.line2,
-                barangay: address.barangay,
-                city: address.city,
-                province: address.province,
-                postalCode: address.postalCode,
-                countryCode: address.countryCode,
-              },
-              notesFromBuyer: parsed.data.notesFromBuyer ?? null,
-            })
-            .returning();
-
-          if (!order) throw new Error('Failed to create order');
-
-          // 5. Audit event. metadataJson shape per the Phase 1 contract
-          //    (db/schema/app.ts) — `placed` events carry the price
-          //    snapshot for analytics.
-          await tx.insert(orderEvents).values({
-            orderId: order.id,
-            type: 'placed',
-            actorUserId: buyer.id,
-            actorRole: 'buyer',
-            metadataJson: {
-              priceSnapshot: product.price,
-              currency: product.currency,
-            },
-          });
-
-          // 6. Notify the seller a new order is waiting for their
-          //    response. Placement is not a status transition, so it
-          //    never reaches transitionOrder's fan-out — the new-order
-          //    notification is created here, inside the same transaction
-          //    as the order + audit event. A notification-insert failure
-          //    rolls the placement back, matching the atomicity stance
-          //    documented on fanOutTransitionNotification.
-          await tx.insert(notifications).values({
-            userId: artisan.userId,
-            type: 'order_status_changed',
-            title: 'New order to review',
-            body: `Order ${reference}`,
-            target: {
-              kind: 'order',
-              id: order.id,
-              url: `/dashboard/orders/${order.id}`,
-            },
-          });
-
-          // 6.5. Pre-purchase thread pivot (optional, BEST-EFFORT).
-          //      When the placement was initiated from inside an
-          //      existing thread, link them: thread.orderId becomes
-          //      set, thread.updatedAt bumps so the inbox surfaces the
-          //      converted thread. The messaging-domain UPDATE
-          //      (active-pre-purchase invariant + IDOR-safe WHERE) lives
-          //      in lib/messaging/pivot.ts alongside the other
-          //      messaging-tx helpers.
-          //
-          //      Non-fatal by design: if the pivot matches 0 rows
-          //      (stale CTA, thread already converted, wrong product),
-          //      the order STILL commits — the order is the buyer's
-          //      actual goal, the thread link is a secondary nicety.
-          //      Throwing here would roll back the placement AND let
-          //      withIdempotency cache that failure, permanently
-          //      bricking the key for an order that could otherwise be
-          //      placed. Instead we log it and surface a non-blocking
-          //      `threadLinkSkipped` flag on the success result. A
-          //      SUCCESSFUL pivot stays atomic with the order insert
-          //      (same transaction).
-          let threadLinkSkipped = false;
-          if (parsed.data.threadId) {
-            const { linked } = await pivotPrePurchaseThreadToOrder(tx, {
-              threadId: parsed.data.threadId,
-              buyerUserId: buyer.id,
-              productId: product.id,
-              orderId: order.id,
-            });
-            if (!linked) {
-              threadLinkSkipped = true;
-              log.warn(
-                {
-                  threadId: parsed.data.threadId,
-                  orderId: order.id,
+              // 4. Insert the order with all snapshot fields.
+              const reference = generateOrderReference();
+              const [order] = await tx
+                .insert(orders)
+                .values({
                   buyerUserId: buyer.id,
+                  artisanProfileId: artisan.id,
+                  reference,
+                  productId: product.id,
+                  productTitleSnapshot: product.title,
+                  productSlugSnapshot: product.slug,
+                  productImageUrlSnapshot: primaryImage?.url ?? null,
+                  artisanNameSnapshot: artisan.shopName,
+                  artisanSlugSnapshot: artisan.shopSlug,
+                  priceSnapshot: product.price,
+                  currency: product.currency,
+                  shippingAddressJson: {
+                    recipientName: address.recipientName,
+                    phone: address.phone,
+                    line1: address.line1,
+                    line2: address.line2,
+                    barangay: address.barangay,
+                    city: address.city,
+                    province: address.province,
+                    postalCode: address.postalCode,
+                    countryCode: address.countryCode,
+                  },
+                  notesFromBuyer: parsed.data.notesFromBuyer ?? null,
+                })
+                .returning();
+
+              if (!order) throw new Error('Failed to create order');
+
+              // 5. Audit event. metadataJson shape per the Phase 1 contract
+              //    (db/schema/app.ts) — `placed` events carry the price
+              //    snapshot for analytics.
+              await tx.insert(orderEvents).values({
+                orderId: order.id,
+                type: 'placed',
+                actorUserId: buyer.id,
+                actorRole: 'buyer',
+                metadataJson: {
+                  priceSnapshot: product.price,
+                  currency: product.currency,
                 },
-                'placeOrder: thread pivot matched 0 rows — order placed, thread not linked',
-              );
-            }
-          }
+              });
 
-          // Write the idempotency cache row INSIDE this transaction so
-          // it commits atomically with the order, while the advisory
-          // lock above is still held. A concurrent retry's in-lock
-          // re-check then sees this committed row and returns the
-          // cached result instead of placing a duplicate order.
-          // withIdempotency's post-fn() insert is left as a harmless
-          // no-op by onConflictDoNothing.
-          if (parsed.data.idempotencyKey) {
-            await tx
-              .insert(idempotencyKeys)
-              .values({
-                key: parsed.data.idempotencyKey,
-                userId: buyer.id,
-                scope: 'placeOrder',
-                responseJson: JSON.stringify(
-                  ok({ orderId: order.id, reference, threadLinkSkipped }),
-                ),
-                expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
-              })
-              .onConflictDoNothing();
-          }
+              // 6. Notify the seller a new order is waiting for their
+              //    response. Placement is not a status transition, so it
+              //    never reaches transitionOrder's fan-out — the new-order
+              //    notification is created here, inside the same transaction
+              //    as the order + audit event. A notification-insert failure
+              //    rolls the placement back, matching the atomicity stance
+              //    documented on fanOutTransitionNotification.
+              await tx.insert(notifications).values({
+                userId: artisan.userId,
+                type: 'order_status_changed',
+                title: 'New order to review',
+                body: `Order ${reference}`,
+                target: {
+                  kind: 'order',
+                  id: order.id,
+                  url: `/dashboard/orders/${order.id}`,
+                },
+              });
 
-          return {
-            kind: 'fresh' as const,
-            orderId: order.id,
-            reference,
-            artisanProfileId: artisan.id,
-            sellerUserId: artisan.userId,
-            productTitle: order.productTitleSnapshot,
-            productImageUrl: order.productImageUrlSnapshot,
-            threadLinkSkipped,
-          };
-        });
+              // 6.5. Pre-purchase thread pivot (optional, BEST-EFFORT).
+              //      When the placement was initiated from inside an
+              //      existing thread, link them: thread.orderId becomes
+              //      set, thread.updatedAt bumps so the inbox surfaces the
+              //      converted thread. The messaging-domain UPDATE
+              //      (active-pre-purchase invariant + IDOR-safe WHERE) lives
+              //      in lib/messaging/pivot.ts alongside the other
+              //      messaging-tx helpers.
+              //
+              //      Non-fatal by design: if the pivot matches 0 rows
+              //      (stale CTA, thread already converted, wrong product),
+              //      the order STILL commits — the order is the buyer's
+              //      actual goal, the thread link is a secondary nicety.
+              //      Throwing here would roll back the placement AND let
+              //      withIdempotency cache that failure, permanently
+              //      bricking the key for an order that could otherwise be
+              //      placed. Instead we log it and surface a non-blocking
+              //      `threadLinkSkipped` flag on the success result. A
+              //      SUCCESSFUL pivot stays atomic with the order insert
+              //      (same transaction).
+              let threadLinkSkipped = false;
+              if (parsed.data.threadId) {
+                const { linked } = await pivotPrePurchaseThreadToOrder(tx, {
+                  threadId: parsed.data.threadId,
+                  buyerUserId: buyer.id,
+                  productId: product.id,
+                  orderId: order.id,
+                });
+                if (!linked) {
+                  threadLinkSkipped = true;
+                  log.warn(
+                    {
+                      threadId: parsed.data.threadId,
+                      orderId: order.id,
+                      buyerUserId: buyer.id,
+                    },
+                    'placeOrder: thread pivot matched 0 rows — order placed, thread not linked',
+                  );
+                }
+              }
 
-        if (result.kind === 'cached') {
+              return {
+                result: ok({ orderId: order.id, reference, threadLinkSkipped }),
+                extra: {
+                  orderId: order.id,
+                  reference,
+                  threadLinkSkipped,
+                  artisanProfileId: artisan.id,
+                  sellerUserId: artisan.userId,
+                  productTitle: order.productTitleSnapshot,
+                  productImageUrl: order.productImageUrlSnapshot,
+                },
+              };
+            },
+          }),
+        );
+
+        if (outcome.kind === 'cached') {
           // The prior writer for this idempotencyKey already invalidated
           // the reputation cache; don't double-fire. Return their Result
           // verbatim so retries see identical responses.
@@ -480,50 +416,47 @@ export async function placeOrder(
             { idempotencyKey: parsed.data.idempotencyKey, productId: parsed.data.productId },
             'placeOrder cache-hit-inside-lock — returning prior result',
           );
-          return result.cached;
+          return outcome.result;
         }
 
-        log.info({ orderId: result.orderId, productId: parsed.data.productId }, 'Order placed');
+        const { extra } = outcome;
+        log.info({ orderId: extra.orderId, productId: parsed.data.productId }, 'Order placed');
 
         // Reputation cache invalidation: placement changes the
         // denominators of every reputation metric (response rate,
         // fulfillment rate, dispute rate). Per-artisan tag avoids
         // invalidating every other seller's cache on every order.
-        revalidateTag(`reputation:${result.artisanProfileId}`, 'max');
+        revalidateTag(`reputation:${extra.artisanProfileId}`, 'max');
 
         await logAnalyticsEvent({
           type: 'order_placed',
           userId: buyer.id,
-          artisanProfileId: result.artisanProfileId,
+          artisanProfileId: extra.artisanProfileId,
           entityType: 'order',
-          entityId: result.orderId,
-          metadata: { reference: result.reference },
+          entityId: extra.orderId,
+          metadata: { reference: extra.reference },
         });
         // Seller-funnel lifetime milestone — the helper checks the log and
         // no-ops if this artisan has ever received an order before.
         await logArtisanMilestoneOnce({
           type: 'first_order',
-          artisanProfileId: result.artisanProfileId,
+          artisanProfileId: extra.artisanProfileId,
           userId: buyer.id,
           entityType: 'order',
-          entityId: result.orderId,
+          entityId: extra.orderId,
         });
 
         const sellerEmail: OrderEmailDispatch = {
-          recipientUserId: result.sellerUserId,
+          recipientUserId: extra.sellerUserId,
           kind: 'new_order',
-          orderReference: result.reference,
-          productTitle: result.productTitle,
-          url: `/dashboard/orders/${result.orderId}`,
-          imagePath: result.productImageUrl,
+          orderReference: extra.reference,
+          productTitle: extra.productTitle,
+          url: `/dashboard/orders/${extra.orderId}`,
+          imagePath: extra.productImageUrl,
         };
         after(() => dispatchOrderEmail(sellerEmail));
 
-        return ok({
-          orderId: result.orderId,
-          reference: result.reference,
-          threadLinkSkipped: result.threadLinkSkipped,
-        });
+        return outcome.result;
       } catch (e) {
         if (e instanceof OrderBusinessError) {
           // Deterministic, user-facing rejection — safe to surface to
