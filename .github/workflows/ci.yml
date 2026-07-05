@@ -148,6 +148,12 @@ jobs:
       - name: Affected-rows helper checks
         run: npm run test:affected-rows
 
+      # Pure control-flow guard on withInTxIdempotency(): a fake tx pins the
+      # lock→recheck→insert ordering, cache-hit short-circuit, scope/user
+      # guards, and the no-key path. Env-free — no DB/secrets.
+      - name: In-tx idempotency helper checks
+        run: npm run test:idempotency
+
   build:
     name: Build
     runs-on: ubuntu-latest

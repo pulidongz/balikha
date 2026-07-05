@@ -3,13 +3,17 @@ import { db } from '@/db';
 import { idempotencyKeys } from '@/db/schema';
 import { logger } from '@/lib/logger';
 import { err, type Result } from '@/lib/result';
+import {
+  IDEMPOTENCY_SCOPE_MISMATCH_MESSAGE,
+  IDEMPOTENCY_TTL_MS,
+  IDEMPOTENCY_USER_MISMATCH_MESSAGE,
+} from './idempotency-in-tx';
 
-/**
- * Idempotency cache entry lifetime. Exported so an action that writes
- * its own cache row inside a transaction (e.g. placeOrder) uses the
- * same TTL as this wrapper's post-fn() insert.
- */
-export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+// Re-export the in-tx idempotency API so `@/lib/idempotency` remains the
+// single public surface (the helper lives in an env-free sibling module so
+// it can be unit-tested in CI without loading @/db / @/env).
+export { IDEMPOTENCY_TTL_MS, withInTxIdempotency } from './idempotency-in-tx';
+export type { InTxIdempotencyOutcome } from './idempotency-in-tx';
 
 interface IdempotencyOptions<T> {
   /** Caller-supplied UUID. If absent or empty, fn() runs without dedup. */
@@ -57,11 +61,11 @@ export async function withIdempotency<T>(opts: IdempotencyOptions<T>): Promise<R
         { key, scope, existingScope: existing.scope },
         'Idempotency scope mismatch — rejecting',
       );
-      return err('Idempotency key already used for a different operation.');
+      return err(IDEMPOTENCY_SCOPE_MISMATCH_MESSAGE);
     }
     if (userId && existing.userId && existing.userId !== userId) {
       logger.warn({ key, scope }, 'Idempotency user mismatch — rejecting');
-      return err('Idempotency key already used by a different user.');
+      return err(IDEMPOTENCY_USER_MISMATCH_MESSAGE);
     }
     logger.info({ key, scope }, 'Idempotency cache hit');
     return JSON.parse(existing.responseJson) as Result<T>;
