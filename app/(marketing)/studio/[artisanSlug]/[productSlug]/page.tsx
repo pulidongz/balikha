@@ -99,16 +99,43 @@ export default async function ProductPublicPage({
   const pendingFollowId = typeof follow === 'string' ? follow : null;
   const commentsCursor = typeof comments === 'string' ? comments : null;
 
-  const viewer = await getCurrentUser();
-  // These four reads are mutually independent — run them concurrently instead
-  // of as a serial round-trip chain on this hot public page.
-  const [wishlistedIds, appreciationCounts, viewerAppreciated, viewerFollowsArtisan] =
-    await Promise.all([
-      getWishlistProductIds(viewer?.id ?? null),
-      getAppreciationCounts([product.id]),
-      hasAppreciated(viewer?.id ?? null, product.id),
-      isFollowingArtisan(viewer?.id ?? null, artisan.id),
-    ]);
+  // Mutually independent — viewer resolution and the four viewer-independent
+  // reads only need the already-loaded product/artisan row, so fan them out.
+  const [viewer, appreciationCounts, images, moreFromArtisan, reputation] = await Promise.all([
+    getCurrentUser(),
+    getAppreciationCounts([product.id]),
+    db
+      .select({
+        id: productImages.id,
+        url: productImages.url,
+        width: productImages.width,
+        height: productImages.height,
+        altText: productImages.altText,
+      })
+      .from(productImages)
+      .where(eq(productImages.productId, product.id))
+      .orderBy(asc(productImages.position)),
+    // "More from this artisan" — published, excluding the current piece
+    db
+      .select({
+        id: products.id,
+        slug: products.slug,
+        title: products.title,
+        price: products.price,
+        currency: products.currency,
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.artisanProfileId, artisan.id),
+          eq(products.status, 'published'),
+          ne(products.id, product.id),
+        ),
+      )
+      .orderBy(desc(products.createdAt))
+      .limit(4),
+    getSellerReputationCached(artisan.id),
+  ]);
 
   // Track this view off the render path via after(). Pass the already-resolved
   // viewer id (resolved above during render) into the tracker rather than
@@ -131,59 +158,6 @@ export default async function ProductPublicPage({
     );
   }
 
-  const images = await db
-    .select({
-      id: productImages.id,
-      url: productImages.url,
-      width: productImages.width,
-      height: productImages.height,
-      altText: productImages.altText,
-    })
-    .from(productImages)
-    .where(eq(productImages.productId, product.id))
-    .orderBy(asc(productImages.position));
-
-  // "More from this artisan" — published, excluding the current piece
-  const moreFromArtisan = await db
-    .select({
-      id: products.id,
-      slug: products.slug,
-      title: products.title,
-      price: products.price,
-      currency: products.currency,
-    })
-    .from(products)
-    .where(
-      and(
-        eq(products.artisanProfileId, artisan.id),
-        eq(products.status, 'published'),
-        ne(products.id, product.id),
-      ),
-    )
-    .orderBy(desc(products.createdAt))
-    .limit(4);
-
-  const morePrimaryById = new Map<string, { url: string; altText: string | null }>();
-  if (moreFromArtisan.length > 0) {
-    const moreImages = await db
-      .select({
-        productId: productImages.productId,
-        url: productImages.url,
-        altText: productImages.altText,
-      })
-      .from(productImages)
-      .where(
-        inArray(
-          productImages.productId,
-          moreFromArtisan.map((p) => p.id),
-        ),
-      )
-      .orderBy(asc(productImages.position));
-    for (const img of moreImages) {
-      if (!morePrimaryById.has(img.productId)) morePrimaryById.set(img.productId, img);
-    }
-  }
-
   // T3: commerce only exists for for_sale works. salePrice is non-null
   // exactly when the work is for sale — every commerce block below gates
   // on it, which also gives TypeScript the narrowing it needs.
@@ -202,32 +176,60 @@ export default async function ProductPublicPage({
   const isSoldOut = isForSale && product.status === 'sold_out';
   const isOwnProduct = viewer !== null && viewer.id === artisan.userId;
 
-  // Addresses for the order dialog. Only loaded for signed-in viewers
-  // who could plausibly use them (in_stock, not their own product).
-  // Default-shipping flag sorts the user's preferred address first.
-  const orderAddresses =
-    viewer && inStock && !isOwnProduct
-      ? await db
-          .select({
-            id: userAddresses.id,
-            label: userAddresses.label,
-            recipientName: userAddresses.recipientName,
-            line1: userAddresses.line1,
-            city: userAddresses.city,
-            province: userAddresses.province,
-            isDefaultShipping: userAddresses.isDefaultShipping,
-          })
-          .from(userAddresses)
-          .where(eq(userAddresses.userId, viewer.id))
-          .orderBy(desc(userAddresses.isDefaultShipping), desc(userAddresses.createdAt))
-      : [];
+  // Depend only on Tier 1 (viewer + moreFromArtisan). moreImages needs
+  // moreFromArtisan's ids; orderAddresses is gated on viewer/stock/ownership.
+  const [wishlistedIds, viewerAppreciated, viewerFollowsArtisan, moreImages, orderAddresses] =
+    await Promise.all([
+      getWishlistProductIds(viewer?.id ?? null),
+      hasAppreciated(viewer?.id ?? null, product.id),
+      isFollowingArtisan(viewer?.id ?? null, artisan.id),
+      moreFromArtisan.length > 0
+        ? db
+            .select({
+              productId: productImages.productId,
+              url: productImages.url,
+              altText: productImages.altText,
+            })
+            .from(productImages)
+            .where(
+              inArray(
+                productImages.productId,
+                moreFromArtisan.map((p) => p.id),
+              ),
+            )
+            .orderBy(asc(productImages.position))
+        : Promise.resolve([]),
+      // Addresses for the order dialog. Only loaded for signed-in viewers
+      // who could plausibly use them (in_stock, not their own product).
+      // Default-shipping flag sorts the user's preferred address first.
+      viewer && inStock && !isOwnProduct
+        ? db
+            .select({
+              id: userAddresses.id,
+              label: userAddresses.label,
+              recipientName: userAddresses.recipientName,
+              line1: userAddresses.line1,
+              city: userAddresses.city,
+              province: userAddresses.province,
+              isDefaultShipping: userAddresses.isDefaultShipping,
+            })
+            .from(userAddresses)
+            .where(eq(userAddresses.userId, viewer.id))
+            .orderBy(desc(userAddresses.isDefaultShipping), desc(userAddresses.createdAt))
+        : Promise.resolve([]),
+    ]);
+
+  const morePrimaryById = new Map<string, { url: string; altText: string | null }>();
+  for (const img of moreImages) {
+    if (!morePrimaryById.has(img.productId)) morePrimaryById.set(img.productId, img);
+  }
+
   const defaultAddressId =
     orderAddresses.find((a) => a.isDefaultShipping)?.id ?? orderAddresses[0]?.id ?? null;
 
   // Seller track record, surfaced in the order dialog as a trust signal
   // (Balikha has no escrow). Strings are formatted here so OrderButton,
   // a client component, never imports the server-only reputation module.
-  const reputation = await getSellerReputationCached(artisan.id);
   const sellerTrust = {
     hasHistory: reputation.totalOrdersInWindow > 0,
     responseLine: reputation.responseTimeBucket
