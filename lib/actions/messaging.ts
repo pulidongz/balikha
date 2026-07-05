@@ -7,7 +7,6 @@ import { db } from '@/db';
 import {
   artisanProfiles,
   buyerBlockedSellers,
-  idempotencyKeys,
   messageThreads,
   messages,
   notifications,
@@ -20,7 +19,7 @@ import {
   tryRequireUser,
   tryRequireArtisan,
 } from '@/lib/auth-helpers';
-import { IDEMPOTENCY_TTL_MS, withIdempotency } from '@/lib/idempotency';
+import { withIdempotency, withInTxIdempotency } from '@/lib/idempotency';
 import { getRequestLogger } from '@/lib/logger-context';
 import { err, ok, type Result } from '@/lib/result';
 import { logAnalyticsEvent } from '@/lib/analytics/log';
@@ -91,220 +90,186 @@ export async function createPrePurchaseThread(
     userId: buyer.id,
     fn: async () => {
       try {
-        type TxResult =
-          | { kind: 'cached'; cached: Result<{ threadId: string }> }
-          | {
-              kind: 'fresh';
+        // The in-tx advisory-lock + cache re-check + cache insert is the
+        // shared withInTxIdempotency helper (same three-part discipline as
+        // placeOrder — see its docblock). The key is required here (§4.5),
+        // so the helper's lock/recheck/insert branch always runs. A `cached`
+        // outcome means a prior same-key writer already finished (skip the
+        // post-commit side effects); a `fresh` outcome carries `extra`.
+        const outcome = await db.transaction((tx) =>
+          withInTxIdempotency<
+            { threadId: string },
+            {
               threadId: string;
               artisanProfileId: string;
               emailDispatch: MessageEmailDispatch | null;
-            };
-
-        const result: TxResult = await db.transaction(async (tx) => {
-          // Advisory lock keyed on the (required) idempotency key, so
-          // a same-key retry serializes behind the original call.
-          await tx.execute(
-            sql`SELECT pg_advisory_xact_lock(hashtext(${parsed.data.idempotencyKey}))`,
-          );
-
-          // In-lock idempotency cache re-check. A same-key retry that
-          // already succeeded returns the cached result HERE — before
-          // the rate-limit check below — so a retry-after-success is
-          // never spuriously re-gated by the limit.
-          const [cached] = await tx
-            .select()
-            .from(idempotencyKeys)
-            .where(eq(idempotencyKeys.key, parsed.data.idempotencyKey))
-            .limit(1);
-          if (cached) {
-            if (cached.scope !== 'createPrePurchaseThread') {
-              return {
-                kind: 'cached' as const,
-                cached: err('Idempotency key already used for a different operation.'),
-              };
             }
-            if (cached.userId && cached.userId !== buyer.id) {
-              return {
-                kind: 'cached' as const,
-                cached: err('Idempotency key already used by a different user.'),
-              };
-            }
-            return {
-              kind: 'cached' as const,
-              cached: JSON.parse(cached.responseJson) as Result<{ threadId: string }>,
-            };
-          }
+          >(tx, {
+            key: parsed.data.idempotencyKey,
+            scope: 'createPrePurchaseThread',
+            userId: buyer.id,
+            run: async () => {
+              // Rate limits — checked here, AFTER the in-lock cache
+              // re-check, so a retry-after-success short-circuits above and
+              // is never re-gated. A genuinely fresh call evaluates the
+              // limits and, if tripped, throws a MessagingBusinessError —
+              // a deterministic outcome for this key, safe for
+              // withIdempotency to cache. The buyer's next genuine attempt
+              // uses a fresh key and is re-evaluated.
+              //
+              // These COUNT helpers query the module-level `db`, not `tx`
+              // — a separate pooled connection, outside this transaction's
+              // snapshot and the advisory lock's serialization. The limit
+              // is therefore ADVISORY spam friction, not a concurrency-
+              // exact invariant: two simultaneous first-time submits by
+              // one buyer (distinct keys → distinct locks) can both pass.
+              // Matches plan §1 ("indexed COUNT, not Redis").
+              if (await isAtNewThreadLimit(buyer.id)) {
+                log.info({ buyerUserId: buyer.id }, 'new-thread rate limit hit');
+                throw new MessagingBusinessError(
+                  'You can only start one new conversation per day. Try again tomorrow.',
+                );
+              }
+              if (await isAtDailyMessageLimit(buyer.id)) {
+                throw new MessagingBusinessError(
+                  'You have reached the daily message limit. Try again tomorrow.',
+                );
+              }
 
-          // Rate limits — checked here, AFTER the in-lock cache
-          // re-check, so a retry-after-success short-circuits above and
-          // is never re-gated. A genuinely fresh call evaluates the
-          // limits and, if tripped, throws a MessagingBusinessError —
-          // a deterministic outcome for this key, safe for
-          // withIdempotency to cache. The buyer's next genuine attempt
-          // uses a fresh key and is re-evaluated.
-          //
-          // These COUNT helpers query the module-level `db`, not `tx`
-          // — a separate pooled connection, outside this transaction's
-          // snapshot and the advisory lock's serialization. The limit
-          // is therefore ADVISORY spam friction, not a concurrency-
-          // exact invariant: two simultaneous first-time submits by
-          // one buyer (distinct keys → distinct locks) can both pass.
-          // Matches plan §1 ("indexed COUNT, not Redis").
-          if (await isAtNewThreadLimit(buyer.id)) {
-            log.info({ buyerUserId: buyer.id }, 'new-thread rate limit hit');
-            throw new MessagingBusinessError(
-              'You can only start one new conversation per day. Try again tomorrow.',
-            );
-          }
-          if (await isAtDailyMessageLimit(buyer.id)) {
-            throw new MessagingBusinessError(
-              'You have reached the daily message limit. Try again tomorrow.',
-            );
-          }
+              // Load the product + artisan for the snapshot. FOR UPDATE
+              // on the product so a concurrent status change (e.g.
+              // archive) doesn't slip between the read and the snapshot.
+              const [product] = await tx
+                .select()
+                .from(products)
+                .where(eq(products.id, parsed.data.productId))
+                .for('update')
+                .limit(1);
+              if (!product) throw new MessagingBusinessError('Product not found');
 
-          // Load the product + artisan for the snapshot. FOR UPDATE
-          // on the product so a concurrent status change (e.g.
-          // archive) doesn't slip between the read and the snapshot.
-          const [product] = await tx
-            .select()
-            .from(products)
-            .where(eq(products.id, parsed.data.productId))
-            .for('update')
-            .limit(1);
-          if (!product) throw new MessagingBusinessError('Product not found');
+              // Pre-purchase messaging is allowed on `published` and
+              // `sold_out` (buyer may ask about a restock) but NOT on
+              // `archived` or `draft`. Decision per ticket open question #5.
+              if (product.status !== 'published' && product.status !== 'sold_out') {
+                throw new MessagingBusinessError('This piece is no longer available to ask about.');
+              }
 
-          // Pre-purchase messaging is allowed on `published` and
-          // `sold_out` (buyer may ask about a restock) but NOT on
-          // `archived` or `draft`. Decision per ticket open question #5.
-          if (product.status !== 'published' && product.status !== 'sold_out') {
-            throw new MessagingBusinessError('This piece is no longer available to ask about.');
-          }
+              const [artisan] = await tx
+                .select()
+                .from(artisanProfiles)
+                .where(eq(artisanProfiles.id, product.artisanProfileId))
+                .limit(1);
+              if (!artisan) throw new Error('Artisan profile missing');
 
-          const [artisan] = await tx
-            .select()
-            .from(artisanProfiles)
-            .where(eq(artisanProfiles.id, product.artisanProfileId))
-            .limit(1);
-          if (!artisan) throw new Error('Artisan profile missing');
+              if (artisan.userId === buyer.id) {
+                throw new MessagingBusinessError('You cannot message your own product.');
+              }
 
-          if (artisan.userId === buyer.id) {
-            throw new MessagingBusinessError('You cannot message your own product.');
-          }
-
-          // Block check inside the lock so a block placed mid-action
-          // doesn't slip through. Symmetric — either party having blocked
-          // the other shuts the door on a new thread. The buyer-initiated
-          // half is the more surprising case (they're the one initiating
-          // contact), so we surface their own prior block clearly and
-          // point at the unblock path instead of silently allowing it.
-          const { sellerBlockedBuyer, buyerBlockedSeller } = await getBlockState(
-            buyer.id,
-            artisan.id,
-          );
-          if (sellerBlockedBuyer) {
-            throw new MessagingBusinessError('This maker has paused new conversations from you.');
-          }
-          if (buyerBlockedSeller) {
-            throw new MessagingBusinessError(
-              "You've blocked this maker. Unblock them from your Blocked makers list to start a conversation.",
-            );
-          }
-
-          // First-image snapshot (lowest position).
-          const [primaryImage] = await tx
-            .select({
-              url: sql<string>`(SELECT url FROM product_images WHERE product_id = ${product.id} ORDER BY position ASC LIMIT 1)`,
-            })
-            .from(products)
-            .where(eq(products.id, product.id))
-            .limit(1);
-
-          // Insert the thread. `.returning()` with no projection
-          // returns the full row (typed MessageThread), so there is
-          // no follow-up SELECT — important here because this runs
-          // inside the advisory-lock-held transaction and every
-          // round-trip lengthens the serialized critical section.
-          // The partial unique index catches a race that slipped past
-          // the advisory lock; translate the constraint error to a
-          // clean Result.
-          let threadRow: typeof messageThreads.$inferSelect;
-          try {
-            const [thread] = await tx
-              .insert(messageThreads)
-              .values({
-                buyerUserId: buyer.id,
-                artisanProfileId: artisan.id,
-                productId: product.id,
-                productTitleSnapshot: product.title,
-                productSlugSnapshot: product.slug,
-                productImageUrlSnapshot: primaryImage?.url ?? null,
-                artisanShopSlugSnapshot: artisan.shopSlug,
-                artisanShopNameSnapshot: artisan.shopName,
-              })
-              .returning();
-            if (!thread) throw new Error('Failed to create thread');
-            threadRow = thread;
-          } catch (e) {
-            if (
-              e instanceof Error &&
-              /message_threads_active_pre_purchase_idx|duplicate key value/i.test(e.message)
-            ) {
-              throw new MessagingBusinessError(
-                "There's already an open conversation about this piece. Continue it from your inbox.",
+              // Block check inside the lock so a block placed mid-action
+              // doesn't slip through. Symmetric — either party having blocked
+              // the other shuts the door on a new thread. The buyer-initiated
+              // half is the more surprising case (they're the one initiating
+              // contact), so we surface their own prior block clearly and
+              // point at the unblock path instead of silently allowing it.
+              const { sellerBlockedBuyer, buyerBlockedSeller } = await getBlockState(
+                buyer.id,
+                artisan.id,
               );
-            }
-            throw e;
-          }
-          const threadId = threadRow.id;
+              if (sellerBlockedBuyer) {
+                throw new MessagingBusinessError(
+                  'This maker has paused new conversations from you.',
+                );
+              }
+              if (buyerBlockedSeller) {
+                throw new MessagingBusinessError(
+                  "You've blocked this maker. Unblock them from your Blocked makers list to start a conversation.",
+                );
+              }
 
-          // Insert the first message.
-          await tx.insert(messages).values({
-            threadId,
-            senderUserId: buyer.id,
-            senderRole: 'buyer',
-            body: parsed.data.initialMessage,
-          });
+              // First-image snapshot (lowest position).
+              const [primaryImage] = await tx
+                .select({
+                  url: sql<string>`(SELECT url FROM product_images WHERE product_id = ${product.id} ORDER BY position ASC LIMIT 1)`,
+                })
+                .from(products)
+                .where(eq(products.id, product.id))
+                .limit(1);
 
-          // Fan-out the seller notification — pass the row returned by
-          // the INSERT directly; no re-SELECT.
-          const emailDispatch = await fanOutMessageNotification(tx, threadRow, 'buyer', {
-            body: parsed.data.initialMessage,
-          });
+              // Insert the thread. `.returning()` with no projection
+              // returns the full row (typed MessageThread), so there is
+              // no follow-up SELECT — important here because this runs
+              // inside the advisory-lock-held transaction and every
+              // round-trip lengthens the serialized critical section.
+              // The partial unique index catches a race that slipped past
+              // the advisory lock; translate the constraint error to a
+              // clean Result.
+              let threadRow: typeof messageThreads.$inferSelect;
+              try {
+                const [thread] = await tx
+                  .insert(messageThreads)
+                  .values({
+                    buyerUserId: buyer.id,
+                    artisanProfileId: artisan.id,
+                    productId: product.id,
+                    productTitleSnapshot: product.title,
+                    productSlugSnapshot: product.slug,
+                    productImageUrlSnapshot: primaryImage?.url ?? null,
+                    artisanShopSlugSnapshot: artisan.shopSlug,
+                    artisanShopNameSnapshot: artisan.shopName,
+                  })
+                  .returning();
+                if (!thread) throw new Error('Failed to create thread');
+                threadRow = thread;
+              } catch (e) {
+                if (
+                  e instanceof Error &&
+                  /message_threads_active_pre_purchase_idx|duplicate key value/i.test(e.message)
+                ) {
+                  throw new MessagingBusinessError(
+                    "There's already an open conversation about this piece. Continue it from your inbox.",
+                  );
+                }
+                throw e;
+              }
+              const threadId = threadRow.id;
 
-          // Idempotency cache row inside the transaction (same
-          // pattern as placeOrder — see its docblock for the
-          // three-part discipline). withIdempotency's post-fn() insert
-          // is a no-op via onConflictDoNothing. The key is required
-          // (§4.5), so this always runs.
-          await tx
-            .insert(idempotencyKeys)
-            .values({
-              key: parsed.data.idempotencyKey,
-              userId: buyer.id,
-              scope: 'createPrePurchaseThread',
-              responseJson: JSON.stringify(ok({ threadId })),
-              expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
-            })
-            .onConflictDoNothing();
+              // Insert the first message.
+              await tx.insert(messages).values({
+                threadId,
+                senderUserId: buyer.id,
+                senderRole: 'buyer',
+                body: parsed.data.initialMessage,
+              });
 
-          return {
-            kind: 'fresh' as const,
-            threadId,
-            artisanProfileId: threadRow.artisanProfileId,
-            emailDispatch,
-          };
-        });
+              // Fan-out the seller notification — pass the row returned by
+              // the INSERT directly; no re-SELECT.
+              const emailDispatch = await fanOutMessageNotification(tx, threadRow, 'buyer', {
+                body: parsed.data.initialMessage,
+              });
 
-        if (result.kind === 'cached') {
+              return {
+                result: ok({ threadId }),
+                extra: {
+                  threadId,
+                  artisanProfileId: threadRow.artisanProfileId,
+                  emailDispatch,
+                },
+              };
+            },
+          }),
+        );
+
+        if (outcome.kind === 'cached') {
           log.info(
             { idempotencyKey: parsed.data.idempotencyKey, productId: parsed.data.productId },
             'createPrePurchaseThread cache-hit-inside-lock',
           );
-          return result.cached;
+          return outcome.result;
         }
 
+        const { extra } = outcome;
         log.info(
-          { threadId: result.threadId, productId: parsed.data.productId },
+          { threadId: extra.threadId, productId: parsed.data.productId },
           'pre-purchase thread created',
         );
 
@@ -316,17 +281,17 @@ export async function createPrePurchaseThread(
         await logAnalyticsEvent({
           type: 'thread_started',
           userId: buyer.id,
-          artisanProfileId: result.artisanProfileId,
+          artisanProfileId: extra.artisanProfileId,
           entityType: 'thread',
-          entityId: result.threadId,
+          entityId: extra.threadId,
         });
 
-        if (result.emailDispatch) {
-          const dispatch = result.emailDispatch;
+        if (extra.emailDispatch) {
+          const dispatch = extra.emailDispatch;
           after(() => dispatchMessageEmail(dispatch));
         }
 
-        return ok({ threadId: result.threadId });
+        return outcome.result;
       } catch (e) {
         if (e instanceof MessagingBusinessError) {
           return err(e.message);
