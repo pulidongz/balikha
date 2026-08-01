@@ -6,7 +6,8 @@
     "node": ">=22.14.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node bin/dev",
+    "dev:raw": "next dev",
     "build": "node bin/build",
     "start": "next start",
     "deploy": "infra/production/smart-deploy.sh",

@@ -62,7 +62,21 @@ npm run dev
 
 Open <https://balikha.localhost:8443>.
 
-`balikha.localhost` resolves to 127.0.0.1 automatically (RFC 6761), so no `/etc/hosts` editing. Caddy terminates TLS on `:8443` and proxies to the Next dev server on `:3000`. You can also reach the dev server directly at <http://localhost:3000> — useful for quick curl tests where TLS is in the way.
+`balikha.localhost` resolves to 127.0.0.1 automatically (RFC 6761), so no `/etc/hosts` editing. Caddy terminates TLS on `:8443` and proxies to the Next dev server. `npm run dev` prints all three URLs on startup, including the direct HTTP one — useful for quick curl tests where TLS is in the way.
+
+### Ports, and why only one of them moves
+
+`npm run dev` runs `bin/dev`, which **picks the first free port starting at 3000** and passes it to Caddy as `BALIKHA_DEV_PORT` before starting Next on it. If 3000 is busy you'll see:
+
+```
+  Port 3000 was busy — using 3001 instead. Caddy has been pointed at it.
+```
+
+This exists because a bare `next dev` silently increments to `:3001` when `:3000` is taken **and reports itself perfectly healthy**, while a hardcoded upstream in the Caddyfile keeps pointing at `:3000`. The HTTPS URL then fails with nothing in the dev server's output explaining why — or worse, quietly serves whatever _other_ project happens to be sitting on 3000.
+
+**The public port `:8443` deliberately does NOT move.** It is baked into `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` in `.env.development`, and into the Google OAuth redirect URIs registered in Google Cloud Console — none of which a startup script can change. Relocating it would leave the app running with Google sign-in quietly broken, so when something else holds `:8443`, `bin/dev` refuses to start and tells you how to find the culprit.
+
+`npm run dev:raw` is a plain `next dev` that skips all of this — no Caddy, no port selection, no TLS.
 
 ---
 

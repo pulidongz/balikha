@@ -1,0 +1,182 @@
+#!/usr/bin/env node
+//
+// bin/dev
+//
+// Starts the Next dev server on the first FREE port and points Caddy at it.
+//
+// ── The bug this exists to prevent ────────────────────────────────────────
+// A bare `next dev` binds :3000, and when :3000 is taken Next silently
+// increments to :3001 and reports itself perfectly healthy. But the Caddyfile
+// used to hardcode `host.docker.internal:3000`, so the moment that happened
+// https://dev.balikha.art:8443 started returning 502 while the terminal showed
+// a happy dev server. The thing that broke was not the thing that looked
+// broken. This wrapper closes that gap: it picks the port, then tells Caddy
+// which port it picked, so the two can never disagree.
+//
+// ── Why only ONE of the two ports floats ──────────────────────────────────
+// The internal Next port is private — nothing outside this machine knows it,
+// so it can move freely. The PUBLIC port (8443) cannot: it is baked into
+// BETTER_AUTH_URL and NEXT_PUBLIC_APP_URL (.env.development) *and* into the
+// Google OAuth redirect URIs registered in Google Cloud Console. Silently
+// relocating it would leave the app running and Google sign-in broken, which
+// is a far worse failure than refusing to start. So if a stranger holds 8443
+// this script stops and says so, rather than "helpfully" moving.
+//
+// ── How Caddy learns the port ─────────────────────────────────────────────
+// The Caddyfile reads `{$BALIKHA_DEV_PORT:3000}`, which Caddy substitutes at
+// config-load time. docker-compose passes the variable into the container, so
+// `docker compose up -d caddy` with a changed value recreates the container
+// and reloads the config. No file templating, nothing generated into the repo.
+
+import { spawn, spawnSync } from 'node:child_process';
+import { createServer, createConnection } from 'node:net';
+
+const FIRST_PORT = 3000;
+const LAST_PORT = 3020;
+const PUBLIC_PORT = 8443;
+const CADDY_CONTAINER = 'balikha_caddy';
+
+/**
+ * True when nothing is listening on `port`.
+ *
+ * Binds 0.0.0.0 rather than 127.0.0.1 because that is what `next dev` binds —
+ * checking only the loopback address would call a port free that Next then
+ * fails to take.
+ */
+function portIsFree(port) {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => resolve(false));
+    probe.once('listening', () => probe.close(() => resolve(true)));
+    probe.listen(port, '0.0.0.0');
+  });
+}
+
+/** True when something accepts a TCP connection on `port`. */
+function portIsAccepting(port) {
+  return new Promise((resolve) => {
+    const socket = createConnection({ port, host: '127.0.0.1' });
+    const done = (answer) => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+    socket.setTimeout(1000, () => done(false));
+  });
+}
+
+async function firstFreePort() {
+  for (let port = FIRST_PORT; port <= LAST_PORT; port += 1) {
+    if (await portIsFree(port)) return port;
+  }
+  throw new Error(
+    `No free port in ${FIRST_PORT}-${LAST_PORT}. Something is very wrong — ` +
+      'check `lsof -nP -iTCP -sTCP:LISTEN | grep node`.',
+  );
+}
+
+/** True when OUR caddy container is the thing running. */
+function ourCaddyIsRunning() {
+  const result = spawnSync(
+    'docker',
+    ['ps', '--filter', `name=${CADDY_CONTAINER}`, '--format', '{{.Names}}'],
+    { encoding: 'utf8' },
+  );
+  return result.status === 0 && result.stdout.includes(CADDY_CONTAINER);
+}
+
+/**
+ * Guards the public port. Returns nothing on success; throws with an
+ * actionable message when a process that is NOT our Caddy holds it.
+ */
+async function assertPublicPortIsOurs() {
+  const occupied = await portIsAccepting(PUBLIC_PORT);
+  if (!occupied) return;
+  if (ourCaddyIsRunning()) return;
+
+  throw new Error(
+    `Port ${PUBLIC_PORT} is in use, but it is not the ${CADDY_CONTAINER} container.\n` +
+      `\n` +
+      `  ${PUBLIC_PORT} is deliberately NOT auto-adjusted: it is baked into\n` +
+      `  BETTER_AUTH_URL and NEXT_PUBLIC_APP_URL, and into the Google OAuth\n` +
+      `  redirect URIs registered in Google Cloud Console. Moving it would leave\n` +
+      `  the app running with Google sign-in quietly broken.\n` +
+      `\n` +
+      `  Find the holder:  lsof -nP -iTCP:${PUBLIC_PORT} -sTCP:LISTEN\n` +
+      `  Then stop it, or stop this dev session.`,
+  );
+}
+
+function startCaddy(devPort) {
+  // `up -d` (not `restart`) because compose recreates the container when an
+  // environment value changes — which is exactly how Caddy picks up the new
+  // port. A `restart` would reuse the old env and silently keep proxying to
+  // the previous port, reintroducing the bug this script exists to prevent.
+  const result = spawnSync('docker', ['compose', 'up', '-d', 'caddy'], {
+    stdio: 'inherit',
+    env: { ...process.env, BALIKHA_DEV_PORT: String(devPort) },
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      'docker compose up -d caddy failed. Is Docker running? ' +
+        'HTTPS URLs will not work until it is.',
+    );
+  }
+}
+
+// Every failure below is a condition the developer has to act on, and the
+// message says what to do. A raw Node stack trace on top of it buries the one
+// line that matters, so failures print the message alone and exit 1.
+function fail(error) {
+  console.error(`\n${error instanceof Error ? error.message : String(error)}\n`);
+  process.exit(1);
+}
+
+let devPort;
+try {
+  devPort = await firstFreePort();
+  await assertPublicPortIsOurs();
+  startCaddy(devPort);
+} catch (error) {
+  fail(error);
+}
+
+if (devPort !== FIRST_PORT) {
+  console.log(
+    `\n  Port ${FIRST_PORT} was busy — using ${devPort} instead. ` +
+      `Caddy has been pointed at it.\n`,
+  );
+}
+
+// padEnd rather than hand-counted spaces: devPort is variable-width, so a
+// literal run of spaces misaligns the moment the port is not four digits.
+const urls = [
+  [`https://dev.balikha.art:${PUBLIC_PORT}`, 'use this — Google OAuth works here'],
+  [`https://balikha.localhost:${PUBLIC_PORT}`, 'no OAuth; no /etc/hosts needed'],
+  [`http://localhost:${devPort}`, 'direct, no TLS — handy for curl'],
+];
+const width = Math.max(...urls.map(([url]) => url.length));
+
+console.log(
+  ['', '  Balikha dev server', '']
+    .concat(urls.map(([url, note]) => `    ${url.padEnd(width)}  (${note})`))
+    .concat('')
+    .join('\n'),
+);
+
+// stdio: 'inherit' hands the TTY straight to Next, so its output, its
+// interactive prompts and Ctrl-C all behave exactly as `next dev` would.
+const next = spawn('npx', ['next', 'dev', '-p', String(devPort)], {
+  stdio: 'inherit',
+  env: process.env,
+});
+
+// Caddy is deliberately left running on exit: it is shared infrastructure
+// (`docker compose up -d` starts it alongside Postgres and MinIO), and tearing
+// it down here would surprise anyone with a second shell open. `docker compose
+// down` remains the way to stop it.
+next.on('exit', (code, signal) => {
+  process.exit(signal ? 1 : (code ?? 0));
+});

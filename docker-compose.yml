@@ -55,7 +55,16 @@ services:
     image: caddy:2-alpine
     container_name: balikha_caddy
     restart: unless-stopped
+    environment:
+      # Which host port the Next dev server actually landed on. `npm run dev`
+      # (bin/dev) picks the first free port and passes it in, so Caddy proxies
+      # to the right place even when :3000 was taken and Next moved itself.
+      # The default keeps a bare `docker compose up -d` working.
+      BALIKHA_DEV_PORT: ${BALIKHA_DEV_PORT:-3000}
     ports:
+      # Fixed on purpose — see the Caddyfile header. This port appears in
+      # BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL and the Google OAuth redirect
+      # URIs, so it must never float.
       - '8443:8443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
