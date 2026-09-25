@@ -2,60 +2,151 @@
 //
 // bin/dev
 //
-// Starts the Next dev server on the first FREE port and points Caddy at it.
+// Starts the Next dev server on DEV_PORT from .env.development and points
+// Caddy at it.
 //
-// ── The bug this exists to prevent ────────────────────────────────────────
-// A bare `next dev` binds :3000, and when :3000 is taken Next silently
-// increments to :3001 and reports itself perfectly healthy. But the Caddyfile
-// used to hardcode `host.docker.internal:3000`, so the moment that happened
-// https://dev.balikha.art:8443 started returning 502 while the terminal showed
-// a happy dev server. The thing that broke was not the thing that looked
-// broken. This wrapper closes that gap: it picks the port, then tells Caddy
-// which port it picked, so the two can never disagree.
+// ── Why the port is fixed ─────────────────────────────────────────────────
+// DEV_PORT is registered to this project in ~/.claude/dev-ports.toml, so no
+// other project on this machine claims it. A bare `next dev` silently moves to
+// the next port when its port is taken and reports itself healthy, while Caddy
+// keeps proxying to the old port. The HTTPS URL then returns 502 or, worse,
+// serves whatever other project sits on that port. This wrapper probes
+// DEV_PORT once and refuses to start when anything holds it, naming the
+// holder, instead of moving.
 //
-// ── Why only ONE of the two ports floats ──────────────────────────────────
-// The internal Next port is private — nothing outside this machine knows it,
-// so it can move freely. The PUBLIC port (8443) cannot: it is baked into
-// BETTER_AUTH_URL and NEXT_PUBLIC_APP_URL (.env.development) *and* into the
-// Google OAuth redirect URIs registered in Google Cloud Console. Silently
-// relocating it would leave the app running and Google sign-in broken, which
-// is a far worse failure than refusing to start. So if a stranger holds 8443
-// this script stops and says so, rather than "helpfully" moving.
+// ── Why 8443 is guarded too ───────────────────────────────────────────────
+// The PUBLIC port (8443) is baked into BETTER_AUTH_URL and NEXT_PUBLIC_APP_URL
+// (.env.development) and into the Google OAuth redirect URIs registered in
+// Google Cloud Console. Silently relocating it would leave the app running and
+// Google sign-in broken. So if a stranger holds 8443 this script stops and
+// says so.
 //
 // ── How Caddy learns the port ─────────────────────────────────────────────
-// The Caddyfile reads `{$BALIKHA_DEV_PORT:3000}`, which Caddy substitutes at
+// The Caddyfile reads `{$BALIKHA_DEV_PORT:3600}`, which Caddy substitutes at
 // config-load time. docker-compose passes the variable into the container, so
 // `docker compose up -d caddy` with a changed value recreates the container
 // and reloads the config. No file templating, nothing generated into the repo.
 
 import { spawn, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createServer, createConnection } from 'node:net';
+import { parseEnv } from 'node:util';
 
-const FIRST_PORT = 3000;
-const LAST_PORT = 3020;
+const ENV_FILE = new URL('../.env.development', import.meta.url);
 const PUBLIC_PORT = 8443;
 const CADDY_CONTAINER = 'balikha_caddy';
 
 /**
- * True when nothing is listening on `port`.
- *
- * Binds 0.0.0.0 rather than 127.0.0.1 because that is what `next dev` binds —
- * checking only the loopback address would call a port free that Next then
- * fails to take.
+ * DEV_PORT from .env.development, parsed with Node's own env-file parser (the
+ * same one the `tsx --env-file=.env.development` scripts use). Throws by name
+ * when the value is missing or is not a TCP port number.
  */
-function portIsFree(port) {
-  return new Promise((resolve) => {
+function readDevPort() {
+  const values = parseEnv(readFileSync(ENV_FILE, 'utf8'));
+  const raw = values.DEV_PORT;
+  if (raw === undefined) {
+    throw new Error(
+      'DEV_PORT is missing from .env.development.\n' +
+        '\n' +
+        '  Add DEV_PORT=3600 (the port registered to balikha in\n' +
+        '  ~/.claude/dev-ports.toml). See .env.example.',
+    );
+  }
+  const port = Number(raw);
+  if (!/^\d+$/.test(raw) || port < 1 || port > 65535) {
+    throw new Error(`DEV_PORT in .env.development must be a TCP port number, got "${raw}".`);
+  }
+  return port;
+}
+
+/**
+ * True when binding the wildcard address fails because the port is in use.
+ * Any other bind error is unexpected and is rethrown.
+ */
+function wildcardBindIsRefused(port) {
+  return new Promise((resolve, reject) => {
     const probe = createServer();
-    probe.once('error', () => resolve(false));
-    probe.once('listening', () => probe.close(() => resolve(true)));
+    probe.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        resolve(true);
+        return;
+      }
+      reject(error);
+    });
+    probe.once('listening', () => probe.close(() => resolve(false)));
     probe.listen(port, '0.0.0.0');
   });
 }
 
-/** True when something accepts a TCP connection on `port`. */
-function portIsAccepting(port) {
+/**
+ * True when anything listens on `port`.
+ *
+ * The wildcard bind alone is not enough on macOS: a listener on 127.0.0.1 or
+ * ::1 does not stop a later 0.0.0.0 bind, and the loopback listener then wins
+ * every localhost request. So the probe also tries to connect on both
+ * loopback addresses.
+ */
+async function portIsTaken(port) {
+  if (await wildcardBindIsRefused(port)) return true;
+  if (await portIsAccepting(port, '127.0.0.1')) return true;
+  return portIsAccepting(port, '::1');
+}
+
+/**
+ * The listening processes on `port`, as "PID <pid> (<command>)" entries, read
+ * from `lsof -F`. Throws when lsof itself fails.
+ */
+function describePortHolders(port) {
+  const result = spawnSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fpc'], {
+    encoding: 'utf8',
+  });
+  if (result.error) {
+    throw new Error(
+      `Could not run lsof to find the holder of port ${port}: ${result.error.message}`,
+    );
+  }
+  // lsof exits 1 with no output when it can list no matching socket. That is
+  // the case for a listener owned by another user, which lsof cannot see
+  // without sudo.
+  if (result.status === 1 && result.stdout === '' && result.stderr === '') {
+    return `a process lsof cannot see (try: sudo lsof -nP -iTCP:${port} -sTCP:LISTEN)`;
+  }
+  if (result.status !== 0) {
+    throw new Error(`lsof exited ${result.status} while checking port ${port}: ${result.stderr}`);
+  }
+
+  const holders = [];
+  for (const line of result.stdout.split('\n')) {
+    if (line.startsWith('p')) holders.push({ pid: line.slice(1), command: '' });
+    if (line.startsWith('c')) holders[holders.length - 1].command = line.slice(1);
+  }
+  if (holders.length === 0) {
+    throw new Error(
+      `lsof reported success for port ${port} but listed no process: ${result.stdout}`,
+    );
+  }
+  return holders.map(({ pid, command }) => `PID ${pid} (${command})`).join(', ');
+}
+
+/**
+ * Guards the dev port. Returns nothing when it is free; throws naming the
+ * holder when it is not.
+ */
+async function assertDevPortIsFree(port) {
+  if (!(await portIsTaken(port))) return;
+
+  throw new Error(
+    `Port ${port} (DEV_PORT in .env.development) is in use by ${describePortHolders(port)}.\n` +
+      `\n` +
+      `  ${port} is registered to balikha in ~/.claude/dev-ports.toml, so bin/dev\n` +
+      `  does not move to another port. Stop the holder, or stop this dev session.`,
+  );
+}
+
+/** True when something accepts a TCP connection on `host`:`port`. */
+function portIsAccepting(port, host) {
   return new Promise((resolve) => {
-    const socket = createConnection({ port, host: '127.0.0.1' });
+    const socket = createConnection({ port, host });
     const done = (answer) => {
       socket.destroy();
       resolve(answer);
@@ -64,16 +155,6 @@ function portIsAccepting(port) {
     socket.once('error', () => done(false));
     socket.setTimeout(1000, () => done(false));
   });
-}
-
-async function firstFreePort() {
-  for (let port = FIRST_PORT; port <= LAST_PORT; port += 1) {
-    if (await portIsFree(port)) return port;
-  }
-  throw new Error(
-    `No free port in ${FIRST_PORT}-${LAST_PORT}. Something is very wrong — ` +
-      'check `lsof -nP -iTCP -sTCP:LISTEN | grep node`.',
-  );
 }
 
 /** True when OUR caddy container is the thing running. */
@@ -91,7 +172,7 @@ function ourCaddyIsRunning() {
  * actionable message when a process that is NOT our Caddy holds it.
  */
 async function assertPublicPortIsOurs() {
-  const occupied = await portIsAccepting(PUBLIC_PORT);
+  const occupied = await portIsAccepting(PUBLIC_PORT, '127.0.0.1');
   if (!occupied) return;
   if (ourCaddyIsRunning()) return;
 
@@ -136,18 +217,12 @@ function fail(error) {
 
 let devPort;
 try {
-  devPort = await firstFreePort();
+  devPort = readDevPort();
+  await assertDevPortIsFree(devPort);
   await assertPublicPortIsOurs();
   startCaddy(devPort);
 } catch (error) {
   fail(error);
-}
-
-if (devPort !== FIRST_PORT) {
-  console.log(
-    `\n  Port ${FIRST_PORT} was busy — using ${devPort} instead. ` +
-      `Caddy has been pointed at it.\n`,
-  );
 }
 
 // padEnd rather than hand-counted spaces: devPort is variable-width, so a

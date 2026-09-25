@@ -5,7 +5,7 @@ import type { auth } from '@/lib/auth';
 // No baseURL on purpose. Better Auth's client falls back to the relative
 // path `/api/auth`, which resolves to the current page's origin at fetch
 // time — so requests stay same-origin whether the page was loaded from
-// https://balikha.localhost:8443 (Caddy) or http://localhost:3000
+// https://balikha.localhost:8443 (Caddy) or http://localhost:3600
 // (direct dev server). Hard-coding an absolute baseURL turns these into
 // cross-origin requests, which the browser silently rejects with
 // "Failed to fetch" when the target's TLS cert isn't trusted in the

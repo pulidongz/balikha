@@ -288,7 +288,7 @@ export const auth = betterAuth({
   trustedOrigins:
     env.NODE_ENV === 'production'
       ? [env.BETTER_AUTH_URL]
-      : ['https://dev.balikha.art:8443', 'https://balikha.localhost:8443', 'http://localhost:3000'],
+      : ['https://dev.balikha.art:8443', 'https://balikha.localhost:8443', 'http://localhost:3600'],
 });
 
 export type Session = typeof auth.$Infer.Session;

@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   // mid-tree, leaving SSR-rendered buttons with no click handler attached —
   // which is why "Continue with Google" silently does nothing on these URLs.
   //
-  // localhost:3000 is implicitly allowed (the dev server's own host).
+  // localhost:3600 is implicitly allowed (the dev server's own host).
   allowedDevOrigins: ['dev.balikha.art', 'balikha.localhost'],
   // Server-action uploads (banner/avatar/work photos/updates) go through
   // FormData, and Next's default body cap is 1 MB — which silently

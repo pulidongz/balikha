@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "node bin/dev",
-    "dev:raw": "next dev",
+    "dev:raw": "next dev -p 3600",
     "build": "node bin/build",
     "start": "next start",
     "deploy": "infra/production/smart-deploy.sh",
