@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles } from '@/db/schema';
 import { ogPhotoDataUri } from '@/lib/og/photo-data-uri';
+import { Logo, lockupWidth } from '@/components/brand/logo';
 
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
@@ -60,8 +61,8 @@ export default async function StudioOgImage({
             <div style={{ fontSize: 28, opacity: 0.75 }}>{profile.location}</div>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-          <div style={{ fontSize: 34, fontWeight: 700 }}>Balikha</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px' }}>
+          <Logo width={lockupWidth(36)} height={36} fill="#FDFCF7" />
           <div style={{ fontSize: 22, opacity: 0.7 }}>handmade, from the Philippines</div>
         </div>
       </div>

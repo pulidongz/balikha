@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, Menu } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
+import { Logo } from '@/components/brand/logo';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { signOut } from '@/lib/auth-client';
 
@@ -41,7 +42,9 @@ export function SiteHeaderMobileMenu(props: Props) {
       </SheetTrigger>
       <SheetContent side="right" className="flex w-[80vw] max-w-sm flex-col gap-6 sm:w-[360px]">
         <SheetHeader>
-          <SheetTitle className="font-serif text-xl">Balikha</SheetTitle>
+          <SheetTitle>
+            <Logo className="h-8 w-auto" />
+          </SheetTitle>
         </SheetHeader>
         <nav className="flex flex-col gap-1 text-base">
           <Link

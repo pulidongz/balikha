@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { eq } from 'drizzle-orm';
 import { buttonVariants } from '@/components/ui/button';
+import { Logo } from '@/components/brand/logo';
 import { SearchBar } from '@/components/search/search-bar';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import { db } from '@/db';
@@ -29,8 +30,8 @@ export async function SiteHeader() {
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/" className="font-serif text-xl tracking-tight">
-          Balikha
+        <Link href="/" className="text-foreground shrink-0">
+          <Logo className="h-8 w-auto" />
         </Link>
 
         {/* Search bar claims the middle column at md+. Below md the form
