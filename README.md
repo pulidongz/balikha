@@ -66,17 +66,13 @@ Open <https://balikha.localhost:8443>.
 
 ### Ports, and why only one of them moves
 
-`npm run dev` runs `bin/dev`, which **picks the first free port starting at 3000** and passes it to Caddy as `BALIKHA_DEV_PORT` before starting Next on it. If 3000 is busy you'll see:
+`npm run dev` runs `bin/dev`, which reads `DEV_PORT` (3600) from `.env.development`, passes it to Caddy as `BALIKHA_DEV_PORT`, and starts Next on it. The port is registered to balikha as project 60 in the machine-wide registry `~/.claude/dev-ports.toml`, along with Postgres on 5600 and MinIO on 9000 and 9001. When anything already holds 3600, `bin/dev` refuses to start and names the holder's PID instead of moving to another port.
 
-```
-  Port 3000 was busy — using 3001 instead. Caddy has been pointed at it.
-```
-
-This exists because a bare `next dev` silently increments to `:3001` when `:3000` is taken **and reports itself perfectly healthy**, while a hardcoded upstream in the Caddyfile keeps pointing at `:3000`. The HTTPS URL then fails with nothing in the dev server's output explaining why — or worse, quietly serves whatever _other_ project happens to be sitting on 3000.
+This exists because a bare `next dev` silently moves to the next port when its port is taken **and reports itself perfectly healthy**, while the upstream in the Caddyfile keeps pointing at the old one. The HTTPS URL then fails with nothing in the dev server's output explaining why, or quietly serves whatever _other_ project happens to be sitting on that port.
 
 **The public port `:8443` deliberately does NOT move.** It is baked into `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` in `.env.development`, and into the Google OAuth redirect URIs registered in Google Cloud Console — none of which a startup script can change. Relocating it would leave the app running with Google sign-in quietly broken, so when something else holds `:8443`, `bin/dev` refuses to start and tells you how to find the culprit.
 
-`npm run dev:raw` is a plain `next dev` that skips all of this — no Caddy, no port selection, no TLS.
+`npm run dev:raw` is a plain `next dev -p 3600` that skips all of this: no Caddy, no port check, no TLS.
 
 ---
 
@@ -213,9 +209,9 @@ Same `docker exec ... cat root.crt` first step. Then:
 | Service           | URL                                                        | Credentials                          |
 | ----------------- | ---------------------------------------------------------- | ------------------------------------ |
 | App (HTTPS)       | <https://balikha.localhost:8443>                           | use seeded test accounts             |
-| App (direct)      | <http://localhost:3000>                                    | bypasses Caddy/TLS — for curl tests  |
-| Caddy             | reverse-proxies :8443 → host.docker.internal:3000          | —                                    |
-| Postgres          | `localhost:5432`                                           | `balikha` / `balikha_dev`            |
+| App (direct)      | <http://localhost:3600>                                    | bypasses Caddy/TLS — for curl tests  |
+| Caddy             | reverse-proxies :8443 → host.docker.internal:3600          | —                                    |
+| Postgres          | `localhost:5600`                                           | `balikha` / `balikha_dev`            |
 | MinIO S3 API      | `localhost:9000`                                           | `balikha_dev` / `balikha_dev_secret` |
 | MinIO web console | <http://localhost:9001>                                    | same as above                        |
 | Drizzle Studio    | <https://local.drizzle.studio> (after `npm run db:studio`) | —                                    |
@@ -272,7 +268,7 @@ Plans live in `docs/plans/` (gitignored — they're handoff docs kept local).
 
 - **`Invalid environment variables`** at boot → check `.env.development` against `.env.example`. Most often missing `BETTER_AUTH_SECRET` (must be ≥ 32 chars).
 - **Dev server says "Another next dev server is already running"** → `ps aux | grep next-server`, then `kill -9 <pid>`. The detection is filesystem-based and survives crashes.
-- **Port 5432 / 9000 already in use** → another container or local Postgres/MinIO is running. `docker ps` to find it; `docker stop <name>` or change the host port mapping in `docker-compose.yml`.
+- **Port 5600 / 9000 already in use** → another container or local Postgres/MinIO is running. Run `dev-ports check balikha` to see which registered port is held and by what. These ports are registered to balikha in `~/.claude/dev-ports.toml`, so stop the holder rather than changing the mapping in `docker-compose.yml`.
 - **`docker compose down` then up didn't bind ports** → if a previous `up` failed mid-way, `docker compose down && docker compose up -d` recreates the container with proper port mappings.
 
 ---

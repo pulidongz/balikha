@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: balikha_dev
       POSTGRES_DB: balikha
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5600:5432'
     volumes:
       - balikha_pg_data:/var/lib/postgresql/data
 
@@ -20,8 +20,8 @@ services:
       MINIO_ROOT_USER: balikha_dev
       MINIO_ROOT_PASSWORD: balikha_dev_secret
     ports:
-      - '9000:9000' # S3 API
-      - '9001:9001' # Web console
+      - '127.0.0.1:9000:9000' # S3 API
+      - '127.0.0.1:9001:9001' # Web console
     volumes:
       - balikha_minio_data:/data
     command: server /data --console-address ":9001"
@@ -56,16 +56,16 @@ services:
     container_name: balikha_caddy
     restart: unless-stopped
     environment:
-      # Which host port the Next dev server actually landed on. `npm run dev`
-      # (bin/dev) picks the first free port and passes it in, so Caddy proxies
-      # to the right place even when :3000 was taken and Next moved itself.
-      # The default keeps a bare `docker compose up -d` working.
-      BALIKHA_DEV_PORT: ${BALIKHA_DEV_PORT:-3000}
+      # The host port the Next dev server listens on. `npm run dev` (bin/dev)
+      # reads DEV_PORT from .env.development and passes it in here. The default
+      # is the same registered port, so a bare `docker compose up -d` proxies
+      # to the right place too.
+      BALIKHA_DEV_PORT: ${BALIKHA_DEV_PORT:-3600}
     ports:
       # Fixed on purpose — see the Caddyfile header. This port appears in
       # BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL and the Google OAuth redirect
       # URIs, so it must never float.
-      - '8443:8443'
+      - '127.0.0.1:8443:8443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - balikha_caddy_data:/data
