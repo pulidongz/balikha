@@ -6,10 +6,7 @@
 import { Body, Button, Container, Head, Hr, Html, Preview, Section, Text } from 'react-email';
 import type { ReactNode } from 'react';
 import { env } from '@/env';
-
-// Wordmark PNG is 155x34 (public/email/wordmark-cream.png). Displayed at
-// 22px tall in the band; width = round(22 * 155 / 34).
-const WORDMARK_DISPLAY_WIDTH = 100;
+import { EMAIL_LOGO_FILE, EMAIL_LOGO_HEIGHT, EMAIL_LOGO_WIDTH } from '@/lib/email/logo';
 
 interface EmailLayoutProps {
   // Preview text shows in the inbox row beneath the subject. Keep under
@@ -27,9 +24,8 @@ interface EmailLayoutProps {
 }
 
 // Shared shell for all transactional templates: navy band carrying the
-// PNG wordmark (real Fraunces survives webfont-stripping clients), white
-// card on the cream body, footer outside the card. Direction A of the
-// 2026-06-12 email redesign spec.
+// PNG logo (email clients strip inline SVG), white card on the cream body,
+// footer outside the card.
 //
 // Email clients are stuck in the 2000s for CSS: inline styles only,
 // hardcoded hex (clients strip <style>; DESIGN.md tokens need manual
@@ -41,7 +37,7 @@ export function EmailLayout({
   heroImageAlt,
   children,
 }: EmailLayoutProps) {
-  const wordmarkUrl = `${env.NEXT_PUBLIC_APP_URL}/email/wordmark-cream.png`;
+  const logoUrl = `${env.NEXT_PUBLIC_APP_URL}/${EMAIL_LOGO_FILE}`;
   return (
     <Html>
       <Head />
@@ -67,10 +63,10 @@ export function EmailLayout({
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- email HTML cannot use next/image */}
             <img
-              src={wordmarkUrl}
+              src={logoUrl}
               alt="Balikha"
-              height={22}
-              width={WORDMARK_DISPLAY_WIDTH}
+              height={EMAIL_LOGO_HEIGHT}
+              width={EMAIL_LOGO_WIDTH}
               style={{ display: 'block' }}
             />
           </Section>

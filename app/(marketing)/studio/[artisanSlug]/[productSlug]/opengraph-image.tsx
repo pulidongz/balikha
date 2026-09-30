@@ -3,6 +3,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { artisanProfiles, productImages, products } from '@/db/schema';
 import { ogPhotoDataUri } from '@/lib/og/photo-data-uri';
+import { Logo, lockupWidth } from '@/components/brand/logo';
 
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
@@ -88,7 +89,7 @@ export default async function WorkOgImage({
           </div>
           {row?.shopName && <div style={{ fontSize: 24, opacity: 0.75 }}>{row.shopName}</div>}
         </div>
-        <div style={{ fontSize: 30, fontWeight: 700 }}>Balikha</div>
+        <Logo width={lockupWidth(34)} height={34} fill="#FDFCF7" />
       </div>
     </div>,
     size,

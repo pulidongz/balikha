@@ -111,6 +111,11 @@ jobs:
       - name: Safe-next open-redirect checks
         run: npm run test:safe-next
 
+      # Guards the Coil logo assets: path data shape, the app icon files (no
+      # live text, favicon sizes, dark-mode switch) and the email logo size. Pure.
+      - name: Brand asset checks
+        run: npm run test:brand-assets
+
       # Regression guard ensuring transitionOrder stays out of a 'use server'
       # module (order-lifecycle auth-bypass fix). Pure — no DB/secrets.
       - name: Transition server-only guard checks

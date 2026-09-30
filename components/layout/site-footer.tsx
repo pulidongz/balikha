@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getCurrentSession } from '@/lib/auth-helpers';
+import { Logo } from '@/components/brand/logo';
 import { FeedbackFooterLink } from '@/components/feedback/feedback-footer-link';
 
 export async function SiteFooter() {
@@ -15,7 +16,7 @@ export async function SiteFooter() {
     <footer className="border-t">
       <div className="text-muted-foreground mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 text-sm sm:px-6 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
-          <p className="text-foreground font-serif text-base">Balikha</p>
+          <Logo className="text-foreground h-8 w-auto" />
           <p>Handmade work from independent artisans.</p>
         </div>
         <nav className="flex gap-6">
